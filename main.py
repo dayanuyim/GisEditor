@@ -1,8 +1,34 @@
 ﻿#!/usr/bin/env python3
 
+import math
 import tkinter as tk
 from os import listdir
 from os.path import isdir, isfile, exists
+
+class TileSystem:
+    EARTH_RADIUS = 6378137
+    MIN_LATITUDE = -85.05112878
+    MAX_LATITUDE = 85.05112878
+    MIN_LONGITUDE = -180
+    MAX_LONGITUDE = 180
+
+
+    @staticmethod
+    def crop(val, min_val, max_val):
+        return min(max(val, min_val), max_val)
+
+    @staticmethod
+    def getMapSize(level):
+        return 256 << level
+
+    @classmethod
+    def getGroundResolution(C, latitude, level):
+        latitude = C.crop(latitude, C.MIN_LATITUDE, C.MAX_LATITUDE);
+        return math.cos(latitude * math.pi / 180) * 2 * math.pi * C.EARTH_RADIUS / C.getMapSize(level)
+
+    @classmethod
+    def getMapScale(C, latitude, level, screen_dpi):
+        return C.getGroundResolution(latitude, level) * screen_dpi / 0.0254;
 
 class SettingBoard(tk.LabelFrame):
     def __init__(self, master):
@@ -127,6 +153,14 @@ class DispBoard(tk.Frame):
         self.config(bg=self.bg_color)
 
         tk.Label(self, text="Dispaly Pic/Map", font='monaco 24', bg=self.bg_color).pack(expand=1, fill='both')
+
+
+print(TileSystem.getMapScale(0, 1, 96));
+print(TileSystem.getMapScale(0, 2, 96));
+print(TileSystem.getMapScale(0, 3, 96));
+print(TileSystem.getMapScale(0, 4, 96));
+print(TileSystem.getMapScale(0, 5, 96));
+print(TileSystem.getMapScale(0, 23, 96));
 
 
 root = tk.Tk()
