@@ -4,6 +4,8 @@ import math
 import tkinter as tk
 from os import listdir
 from os.path import isdir, isfile, exists
+import urllib.request
+import shutil
 
 class TileSystem:
     EARTH_RADIUS = 6378137
@@ -23,12 +25,45 @@ class TileSystem:
 
     @classmethod
     def getGroundResolution(C, latitude, level):
-        latitude = C.crop(latitude, C.MIN_LATITUDE, C.MAX_LATITUDE);
+        latitude = C.crop(latitude, C.MIN_LATITUDE, C.MAX_LATITUDE)
         return math.cos(latitude * math.pi / 180) * 2 * math.pi * C.EARTH_RADIUS / C.getMapSize(level)
 
     @classmethod
     def getMapScale(C, latitude, level, screen_dpi):
-        return C.getGroundResolution(latitude, level) * screen_dpi / 0.0254;
+        return C.getGroundResolution(latitude, level) * screen_dpi / 0.0254
+
+    @classmethod
+    def getPixcelXYByLatLong(C, latitude, longitude, level):
+        latitude = C.crop(latitude, C.MIN_LATITUDE, C.MAX_LATITUDE)
+        longitude = C.crop(longitude, C.MIN_LONGITUDE, C.MAX_LONGITUDE)
+
+        x = (longitude + 180) / 360 
+        sin_latitude = math.sin(latitude * math.pi / 180)
+        y = 0.5 - math.log((1 + sin_latitude) / (1 - sin_latitude)) / (4 * math.pi)
+
+        map_size = C.getMapSize(level)
+        pixel_x = int(C.crop(x * map_size + 0.5, 0, map_size - 1))
+        pixel_y = int(C.crop(y * map_size + 0.5, 0, map_size - 1))
+
+        return (pixel_x, pixel_y)
+
+    @staticmethod
+    def getTileXYByPixcelXY(pixel_x, pixel_y):
+        tile_x = int(pixel_x / 256)
+        tile_y = int(pixel_y / 256)
+        return (tile_x, tile_y)
+
+    @staticmethod
+    def getPixcelXYByTileXY(tile_x, tile_y):
+        pixel_x = tile_x * 256
+        pixel_y = tile_y * 256
+        return (pixel_x, pixel_y)
+
+    @classmethod
+    def getTileXYByLatLong(C, latitude, longitude, level):
+        (px, py) = C.getPixcelXYByLatLong(latitude, longitude, level)
+        return C.getTileXYByPixcelXY(px, py)
+
 
 class SettingBoard(tk.LabelFrame):
     def __init__(self, master):
@@ -155,12 +190,33 @@ class DispBoard(tk.Frame):
         tk.Label(self, text="Dispaly Pic/Map", font='monaco 24', bg=self.bg_color).pack(expand=1, fill='both')
 
 
-print(TileSystem.getMapScale(0, 1, 96));
-print(TileSystem.getMapScale(0, 2, 96));
-print(TileSystem.getMapScale(0, 3, 96));
-print(TileSystem.getMapScale(0, 4, 96));
-print(TileSystem.getMapScale(0, 5, 96));
-print(TileSystem.getMapScale(0, 23, 96));
+#get tile of 經建三
+def getTileOfTM25K_2001(latitude, longitude, level):
+    (tile_x, tile_y) = TileSystem.getTileXYByLatLong(latitude, longitude, level)
+    url = "http://gis.sinica.edu.tw/tileserver/file-exists.php?img=TM25K_2001-jpg-%d-%d-%d" % (level, tile_x, tile_y)
+    file_name = "C:/TM25K_2001-%d-%d-%d.jpg" % (level, tile_x, tile_y)
+    urllib.request.urlretrieve(url, file_name)
+    print(url)
+
+#get tile of 經建四
+def getTileOfTM25K_2003(latitude, longitude, level):
+    (tile_x, tile_y) = TileSystem.getTileXYByLatLong(latitude, longitude, level)
+    url = "http://gis.sinica.edu.tw/tileserver/file-exists.php?img=TM25K_2003-jpg-%d-%d-%d" % (level, tile_x, tile_y)
+    file_name = "C:/TM25K_2003-%d-%d-%d.jpg" % (level, tile_x, tile_y)
+
+    #urllib.request.urlretrieve(url, file_name)
+    with urllib.request.urlopen(url) as response, open(file_name, 'wb') as out_file:
+        shutil.copyfileobj(response, out_file)
+    print(url)
+
+#
+latitude = 24.987969
+longitude = 121.334754
+for level in range (24):
+    getTileOfTM25K_2001(latitude, longitude, level)
+
+for level in range (24):
+    getTileOfTM25K_2003(latitude, longitude, level)
 
 
 root = tk.Tk()
