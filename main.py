@@ -1,11 +1,13 @@
 ﻿#!/usr/bin/env python3
 
+import os
 import math
 import tkinter as tk
-from os import listdir
-from os.path import isdir, isfile, exists
 import urllib.request
 import shutil
+from os import listdir
+from os.path import isdir, isfile, exists
+from PIL import Image, ImageTk
 
 class TileSystem:
     EARTH_RADIUS = 6378137
@@ -181,59 +183,123 @@ class DispBoard(tk.Frame):
     def __init__(self, master):
         super().__init__(master)
 
-        #data member
-        self.bg_color='#808080'
-
         #board
+        self.bg_color='#808080'
         self.config(bg=self.bg_color)
 
-        tk.Label(self, text="Dispaly Pic/Map", font='monaco 24', bg=self.bg_color).pack(expand=1, fill='both')
+        #display area
+        self.disp_label = tk.Label(self, text="Dispaly Pic/Map", font='monaco 24', bg=self.bg_color)
+        self.disp_label.pack(expand=1, fill='both')
+
+    def setImage(self, img):
+        photo = ImageTk.PhotoImage(img)
+        self.disp_label.config(image=photo)
+        self.disp_label.image = photo #keep a ref
+
+class TM25Kv3TileMap:
+    def __init__(self):
+        self.map_id = "TM25K_2001"
+        self.map_title = "2001-臺灣經建3版地形圖-1:25,000"
+        self.lower_corner = (117.84953432, 21.65607265)
+        self.upper_corner = (123.85924109, 25.64233621)
+        self.url_template = "http://gis.sinica.edu.tw/tileserver/file-exists.php?img=TM25K_2001-jpg-%d-%d-%d"
+        self.chache_dir = './chache'
+        if not os.path.exists(self.chache_dir):
+            os.makedirs(self.chache_dir)
+
+    #return tkinter.PhotoImage
+    def getTileImageByLonLat(self, level, longitude, latitude):
+        (x, y) = TileSystem.getTileXYByLatLong(latitude, longitude, level)
+        return self.getTileImageByTileXY(level, x, y)
+
+    def getTileImageByTileXY(self, level, x, y):
+        #get file path
+        path = "%s/%s-%d-%d-%d.jpg" % (self.chache_dir, self.map_id, level, x, y)
+        if not os.path.exists(path):
+            self.downloadTile(level, x, y, path)
+
+        print(path)
+        return Image.open(path)
+
+    def downloadTile(self, level, x, y, file_path):
+        url = self.url_template % (level, x, y)
+
+        #urllib.request.urlretrieve(url, file_path)
+        with urllib.request.urlopen(url) as response, open(file_path, 'wb') as out_file:
+            shutil.copyfileobj(response, out_file)
+        print(url)
+
+class TM25Kv4TileMap(TM25Kv3TileMap):
+    def __init__(self):
+        super().__init__()
+        self.map_id = "TM25K_2003"
+        self.map_title = "2001-臺灣經建4版地形圖-1:25,000"
+        self.lower_corner = (117.84953432, 21.65607265)
+        self.upper_corner = (123.85924109, 25.64233621)
+        self.url_template = "http://gis.sinica.edu.tw/tileserver/file-exists.php?img=TM25K_2003-jpg-%d-%d-%d"
+
+class MapController:
+    def getLevel(self): return self.leve
+    def setLevel(self, level): self.level = level
+
+    def __init__(self):
+        self.level = 16
+        self.tile_map = TM25Kv3TileMap()
+
+    def getTileImage(self, lon, lat, width, height):
+        #check lon, lat
+
+        #get left-upper corner px, py
+        (px, py) = TileSystem.getPixcelXYByLatLong(lat, lon, self.level)
+        px -= width/2
+        py -= height/2
+
+        #get tile no.
+        (t_left, t_upper) = TileSystem.getTileXYByPixcelXY(px, py)
+        (t_right, t_lower) = TileSystem.getTileXYByPixcelXY(px + width, py + height)
+        tx_num = t_right - t_left +1
+        ty_num = t_lower - t_upper +1
+
+        #image
+        new_img = Image.new("RGB", (tx_num*256, ty_num*256))
+        for x in range(tx_num):
+            for y in range(ty_num):
+                img = self.tile_map.getTileImageByTileXY(self.level, t_left +x, t_upper +y)
+                new_img.paste(img, (x*256, y*256))
+
+        px_shift = int(px%256)
+        py_shift = int(py%256)
+        return new_img.crop((px_shift, py_shift, px_shift + width, py_shift + height))
+        #return new_img.crop((int(px_shift), int(py_shift), int(px_shift + width), int(py_shift + height)))
+
+if __name__ == '__main__':
+    def_level = 15
+    def_latitude = 24.987969
+    def_longitude = 121.334754
 
 
-#get tile of 經建三
-def getTileOfTM25K_2001(latitude, longitude, level):
-    (tile_x, tile_y) = TileSystem.getTileXYByLatLong(latitude, longitude, level)
-    url = "http://gis.sinica.edu.tw/tileserver/file-exists.php?img=TM25K_2001-jpg-%d-%d-%d" % (level, tile_x, tile_y)
-    file_name = "C:/TM25K_2001-%d-%d-%d.jpg" % (level, tile_x, tile_y)
-    urllib.request.urlretrieve(url, file_name)
-    print(url)
+    #create window
+    root = tk.Tk()
+    root.title("PicGisEditor")
+    root.geometry('800x600')
 
-#get tile of 經建四
-def getTileOfTM25K_2003(latitude, longitude, level):
-    (tile_x, tile_y) = TileSystem.getTileXYByLatLong(latitude, longitude, level)
-    url = "http://gis.sinica.edu.tw/tileserver/file-exists.php?img=TM25K_2003-jpg-%d-%d-%d" % (level, tile_x, tile_y)
-    file_name = "C:/TM25K_2003-%d-%d-%d.jpg" % (level, tile_x, tile_y)
+    pad_ = 2
+    setting_board = SettingBoard(root)
+    setting_board.pack(side='top', anchor='nw', expand=0, fill='x', padx=pad_, pady=pad_)
 
-    #urllib.request.urlretrieve(url, file_name)
-    with urllib.request.urlopen(url) as response, open(file_name, 'wb') as out_file:
-        shutil.copyfileobj(response, out_file)
-    print(url)
+    pic_board = PicBoard(root)
+    pic_board.pack(side='left', anchor='nw', expand=0, fill='y', padx=pad_, pady=pad_)
+    #add callback on pic added
+    setting_board.onPicAdded(lambda fname:pic_board.addPic(fname))
 
-#
-latitude = 24.987969
-longitude = 121.334754
-for level in range (24):
-    getTileOfTM25K_2001(latitude, longitude, level)
+    map_ctrl = MapController()
+    map_ctrl.setLevel(def_level)
+    img = map_ctrl.getTileImage(lon=def_longitude, lat=def_latitude, width=800, height=600)
 
-for level in range (24):
-    getTileOfTM25K_2003(latitude, longitude, level)
+    disp_board = DispBoard(root)
+    disp_board.setImage(img)
+    disp_board.pack(side='right', anchor='se', expand=1, fill='both', padx=pad_, pady=pad_)
 
 
-root = tk.Tk()
-root.title("PicGisEditor")
-root.geometry('400x300')
+    root.mainloop()
 
-pad_ = 2
-setting_board = SettingBoard(root)
-setting_board.pack(side='top', anchor='nw', expand=0, fill='x', padx=pad_, pady=pad_)
-
-pic_board = PicBoard(root)
-pic_board.pack(side='left', anchor='nw', expand=0, fill='y', padx=pad_, pady=pad_)
-#add callback on pic added
-setting_board.onPicAdded(lambda fname:pic_board.addPic(fname))
-
-disp_board = DispBoard(root)
-disp_board.pack(side='right', anchor='se', expand=1, fill='both', padx=pad_, pady=pad_)
-
-
-root.mainloop()
