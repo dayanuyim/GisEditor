@@ -26,8 +26,15 @@ class TileSystem:
         return 256 << level
 
     @classmethod
+    def getValidLatitude(C, latitude):
+        return C.crop(latitude, C.MIN_LATITUDE, C.MAX_LATITUDE)
+
+    @classmethod
+    def getValidLongitude(C, latitude):
+        return C.crop(latitude, C.MIN_LONGITUDE, C.MAX_LONGITUDE)
+
+    @classmethod
     def getGroundResolution(C, latitude, level):
-        latitude = C.crop(latitude, C.MIN_LATITUDE, C.MAX_LATITUDE)
         return math.cos(latitude * math.pi / 180) * 2 * math.pi * C.EARTH_RADIUS / C.getMapSize(level)
 
     @classmethod
@@ -35,7 +42,7 @@ class TileSystem:
         return C.getGroundResolution(latitude, level) * screen_dpi / 0.0254
 
     @classmethod
-    def getPixcelXYByLatLong(C, latitude, longitude, level):
+    def getPixcelXYByLatLon(C, latitude, longitude, level):
         latitude = C.crop(latitude, C.MIN_LATITUDE, C.MAX_LATITUDE)
         longitude = C.crop(longitude, C.MIN_LONGITUDE, C.MAX_LONGITUDE)
 
@@ -62,8 +69,8 @@ class TileSystem:
         return (pixel_x, pixel_y)
 
     @classmethod
-    def getTileXYByLatLong(C, latitude, longitude, level):
-        (px, py) = C.getPixcelXYByLatLong(latitude, longitude, level)
+    def getTileXYByLatLon(C, latitude, longitude, level):
+        (px, py) = C.getPixcelXYByLatLon(latitude, longitude, level)
         return C.getTileXYByPixcelXY(px, py)
 
 
@@ -183,34 +190,65 @@ class DispBoard(tk.Frame):
     def __init__(self, master):
         super().__init__(master)
 
+        self.map_ctrl = MapController()
+
         #board
         self.bg_color='#808080'
         self.config(bg=self.bg_color)
 
-        #display area
-        self.disp_label = tk.Label(self, text="Dispaly Pic/Map", font='monaco 24', bg=self.bg_color)
-        self.disp_label.pack(expand=1, fill='both')
+        self.info_label = tk.Label(self, font='24', anchor='w')
+        self.setMapInfo()
+        self.info_label.pack(expand=1, anchor='n', fill='x',)
 
-    def setImage(self, img):
+        #display area
+        self.disp_label = tk.Label(self, text="Dispaly Pic/Map", bg=self.bg_color)
+        self.disp_label.pack(expand=1, fill='both')
+        self.disp_label.bind_all('<MouseWheel>', self.onMouseWheel)
+        img = self.map_ctrl.getTileImage(width=800, height=600)
+        self.setMap(img)
+
+    def onMouseWheel(self, event):
+        level = self.map_ctrl.getLevel()
+        if event.delta > 0:
+            self.map_ctrl.setLevel(level+1)
+        elif event.delta < 0:
+            self.map_ctrl.setLevel(level-1)
+
+        self.setMapInfo()
+        self.setMap(self.map_ctrl.getTileImage(800, 600))
+
+    def setMapInfo(self):
+        c = self.map_ctrl
+        self.info_label.config(text="[%s] level: %s, lon: %f, lat: %f" % (c.getTileMap().getMapName(), c.getLevel(), c.getLongitude(), c.getLatitude()))
+
+    def setMap(self, img):
         photo = ImageTk.PhotoImage(img)
         self.disp_label.config(image=photo)
         self.disp_label.image = photo #keep a ref
 
-class TM25Kv3TileMap:
+class TileMap:
+    def getMapName(self): return self.map_title
+
     def __init__(self):
-        self.map_id = "TM25K_2001"
-        self.map_title = "2001-臺灣經建3版地形圖-1:25,000"
-        self.lower_corner = (117.84953432, 21.65607265)
-        self.upper_corner = (123.85924109, 25.64233621)
-        self.url_template = "http://gis.sinica.edu.tw/tileserver/file-exists.php?img=TM25K_2001-jpg-%d-%d-%d"
+        #self.map_id = "TM25K_2001"
+        #self.map_title = "2001-臺灣經建3版地形圖-1:25,000"
+        #self.lower_corner = (117.84953432, 21.65607265)
+        #self.upper_corner = (123.85924109, 25.64233621)
+        #self.url_template = "http://gis.sinica.edu.tw/tileserver/file-exists.php?img=TM25K_2001-jpg-%d-%d-%d"
+        #self.level_min = 7
+        #self.level_max = 16
+
         self.chache_dir = './chache'
         if not os.path.exists(self.chache_dir):
             os.makedirs(self.chache_dir)
 
     #return tkinter.PhotoImage
     def getTileImageByLonLat(self, level, longitude, latitude):
-        (x, y) = TileSystem.getTileXYByLatLong(latitude, longitude, level)
+        (x, y) = TileSystem.getTileXYByLatLon(latitude, longitude, level)
         return self.getTileImageByTileXY(level, x, y)
+
+    def isSupportedLevel(self, level):
+        return self.level_min <= level and level <= self.level_max
 
     def getTileImageByTileXY(self, level, x, y):
         #get file path
@@ -218,7 +256,6 @@ class TM25Kv3TileMap:
         if not os.path.exists(path):
             self.downloadTile(level, x, y, path)
 
-        print(path)
         return Image.open(path)
 
     def downloadTile(self, level, x, y, file_path):
@@ -229,28 +266,52 @@ class TM25Kv3TileMap:
             shutil.copyfileobj(response, out_file)
         print(url)
 
-class TM25Kv4TileMap(TM25Kv3TileMap):
-    def __init__(self):
-        super().__init__()
-        self.map_id = "TM25K_2003"
-        self.map_title = "2001-臺灣經建4版地形圖-1:25,000"
-        self.lower_corner = (117.84953432, 21.65607265)
-        self.upper_corner = (123.85924109, 25.64233621)
-        self.url_template = "http://gis.sinica.edu.tw/tileserver/file-exists.php?img=TM25K_2003-jpg-%d-%d-%d"
+def getTM25Kv3TileMap():
+    tm = TileMap()
+    tm.map_id = "TM25K_2001"
+    tm.map_title = "2001-臺灣經建3版地形圖-1:25,000"
+    tm.lower_corner = (117.84953432, 21.65607265)
+    tm.upper_corner = (123.85924109, 25.64233621)
+    tm.url_template = "http://gis.sinica.edu.tw/tileserver/file-exists.php?img=TM25K_2001-jpg-%d-%d-%d"
+    tm.level_min = 7
+    tm.level_max = 16
+    return tm
+
+def getTM25Kv4TileMap():
+    tm = TileMap()
+    tm.map_id = "TM25K_2003"
+    tm.map_title = "2001-臺灣經建4版地形圖-1:25,000"
+    tm.lower_corner = (117.84953432, 21.65607265)
+    tm.upper_corner = (123.85924109, 25.64233621)
+    tm.url_template = "http://gis.sinica.edu.tw/tileserver/file-exists.php?img=TM25K_2003-jpg-%d-%d-%d"
+    tm.level_min = 5
+    tm.level_max = 17
+    return tm
 
 class MapController:
-    def getLevel(self): return self.leve
-    def setLevel(self, level): self.level = level
+    def getTileMap(self): return self.tile_map
+    def setTileMap(self, tm): self.tile_map = tm
+
+    def getLevel(self): return self.level
+    def setLevel(self, level):
+        if self.tile_map.isSupportedLevel(level):
+            self.level = level
+
+    def getLongitude(self): return self.center_lon
+    def setLongitude(self, lon): self.center_lon = TileSystem.getValidLongitude(lon);
+
+    def getLatitude(self): return self.center_lat
+    def setLatitude(self, lat): self.center_lat = TileSystem.getValidLatitude(lat);
 
     def __init__(self):
         self.level = 16
-        self.tile_map = TM25Kv3TileMap()
+        self.tile_map = getTM25Kv3TileMap()
+        self.center_lon = 121.334754
+        self.center_lat = 24.987969
 
-    def getTileImage(self, lon, lat, width, height):
-        #check lon, lat
-
+    def getTileImage(self, width, height):
         #get left-upper corner px, py
-        (px, py) = TileSystem.getPixcelXYByLatLong(lat, lon, self.level)
+        (px, py) = TileSystem.getPixcelXYByLatLon(self.center_lat, self.center_lon, self.level)
         px -= width/2
         py -= height/2
 
@@ -273,10 +334,6 @@ class MapController:
         #return new_img.crop((int(px_shift), int(py_shift), int(px_shift + width), int(py_shift + height)))
 
 if __name__ == '__main__':
-    def_level = 15
-    def_latitude = 24.987969
-    def_longitude = 121.334754
-
 
     #create window
     root = tk.Tk()
@@ -292,12 +349,8 @@ if __name__ == '__main__':
     #add callback on pic added
     setting_board.onPicAdded(lambda fname:pic_board.addPic(fname))
 
-    map_ctrl = MapController()
-    map_ctrl.setLevel(def_level)
-    img = map_ctrl.getTileImage(lon=def_longitude, lat=def_latitude, width=800, height=600)
 
     disp_board = DispBoard(root)
-    disp_board.setImage(img)
     disp_board.pack(side='right', anchor='se', expand=1, fill='both', padx=pad_, pady=pad_)
 
 
