@@ -16,7 +16,6 @@ class TileSystem:
     MIN_LONGITUDE = -180
     MAX_LONGITUDE = 180
 
-
     @staticmethod
     def crop(val, min_val, max_val):
         return min(max(val, min_val), max_val)
@@ -55,6 +54,17 @@ class TileSystem:
         pixel_y = int(C.crop(y * map_size + 0.5, 0, map_size - 1))
 
         return (pixel_x, pixel_y)
+    
+
+    @classmethod
+    def getLatLonByPixcelXY(C, pixel_x, pixel_y, level):
+        map_size = C.getMapSize(level)
+        x = (C.crop(pixel_x , 0, map_size - 1) / map_size) - 0.5
+        y = 0.5 - (C.crop(pixel_y , 0, map_size - 1) / map_size)
+
+        lat = 90 - 360 * math.atan(math.exp(-y * 2 * math.pi)) / math.pi
+        lon = x * 360
+        return (lat, lon)
 
     @staticmethod
     def getTileXYByPixcelXY(pixel_x, pixel_y):
@@ -202,27 +212,40 @@ class DispBoard(tk.Frame):
         self.info_label.pack(expand=1, fill='x', anchor='n')
 
         #display area
-        self.disp_label = tk.Label(self, text="Dispaly Pic/Map", bg=self.bg_color)
+        disp_w = 800
+        disp_h = 600
+        self.disp_label = tk.Label(self, width=disp_w, height=disp_h, bg='#808080')
+        #self.disp_label.config(width=disp_w, height=disp_h)
         self.disp_label.pack(expand=1, fill='both', anchor='n')
         self.disp_label.bind('<MouseWheel>', self.onMouseWheel)
-        img = self.map_ctrl.getTileImage(800, height=600)
-        self.setMap(img)
+
+        #set map
+        self.map_ctrl.shiftGeoPixel(-disp_w/2, -disp_h/2)
+        self.setMap(self.map_ctrl.getTileImage(disp_w, disp_h));
 
     def onMouseWheel(self, event):
         label = event.widget
 
+        #set focused pixel
+        self.map_ctrl.shiftGeoPixel(event.x, event.y)
+
+        #level
         level = self.map_ctrl.getLevel()
         if event.delta > 0:
             self.map_ctrl.setLevel(level+1)
         elif event.delta < 0:
             self.map_ctrl.setLevel(level-1)
 
+        #set focused pixel again
+        self.map_ctrl.shiftGeoPixel(-event.x, -event.y)
+
         self.setMapInfo()
         self.setMap(self.map_ctrl.getTileImage(label.winfo_width(), label.winfo_height()))
 
     def setMapInfo(self):
         c = self.map_ctrl
-        self.info_label.config(text="[%s] level: %s, lon: %f, lat: %f" % (c.getTileMap().getMapName(), c.getLevel(), c.getLongitude(), c.getLatitude()))
+        (lon, lat) = c.getLonLat()
+        self.info_label.config(text="[%s] level: %s, lon: %f, lat: %f" % (c.getTileMap().getMapName(), c.getLevel(), lon, lat))
 
     def setMap(self, img):
         photo = ImageTk.PhotoImage(img)
@@ -311,29 +334,45 @@ class MapController:
     def getLevel(self): return self.level
     def setLevel(self, level):
         if self.tile_map.isSupportedLevel(level):
+            (lon, lat) = self.getLonLat()
+            (self.geo_px, self.geo_py) = TileSystem.getPixcelXYByLatLon(lat, lon, level)
             self.level = level
 
-    def getLongitude(self): return self.center_lon
-    def setLongitude(self, lon): self.center_lon = TileSystem.getValidLongitude(lon);
+    #def getLongitude(self): return self.center_lon
+    #def setLongitude(self, lon): self.center_lon = TileSystem.getValidLongitude(lon);
 
-    def getLatitude(self): return self.center_lat
-    def setLatitude(self, lat): self.center_lat = TileSystem.getValidLatitude(lat);
+    #def getLatitude(self): return self.center_lat
+    #def setLatitude(self, lat): self.center_lat = TileSystem.getValidLatitude(lat);
+
+    def setLonLat(self, lon, lat):
+        (self.geo_px, self.geo_py) = TileSystem.getPixcelXYByLatLon(lat, lon, self.level)
+
+    def getLonLat(self):
+        (lat, lon) = TileSystem.getLatLonByPixcelXY(self.geo_px, self.geo_py, self.level)
+        return (lon, lat)
+
+    def getGeoPx(self): return self.geo_px
+    def setGeoPx(self, px): self.geo_px = px
+
+    def getGeoPy(self): return self.geo_py
+    def setGeoPy(self, py): self.geo_py = py
 
     def __init__(self):
         self.level = 16
         self.tile_map = getTM25Kv3TileMap()
-        self.center_lon = 121.334754
-        self.center_lat = 24.987969
+        #self.center_lon = 121.334754
+        #self.center_lat = 24.987969
+        self.setLonLat(lon=121.334754, lat=24.987969)
+
+    def shiftGeoPixel(self, px, py):
+        self.geo_px += int(px)
+        self.geo_py += int(py)
 
     def getTileImage(self, width, height):
-        #get left-upper corner px, py
-        (px, py) = TileSystem.getPixcelXYByLatLon(self.center_lat, self.center_lon, self.level)
-        px -= width/2
-        py -= height/2
 
-        #get tile no.
-        (t_left, t_upper) = TileSystem.getTileXYByPixcelXY(px, py)
-        (t_right, t_lower) = TileSystem.getTileXYByPixcelXY(px + width, py + height)
+        #get tile x, y.
+        (t_left, t_upper) = TileSystem.getTileXYByPixcelXY(self.geo_px, self.geo_py)
+        (t_right, t_lower) = TileSystem.getTileXYByPixcelXY(self.geo_px + width, self.geo_py + height)
         tx_num = t_right - t_left +1
         ty_num = t_lower - t_upper +1
 
@@ -344,10 +383,9 @@ class MapController:
                 img = self.tile_map.getTileByTileXY(self.level, t_left +x, t_upper +y)
                 new_img.paste(img, (x*256, y*256))
 
-        px_shift = int(px%256)
-        py_shift = int(py%256)
-        return new_img.crop((px_shift, py_shift, px_shift + width, py_shift + height))
-        #return new_img.crop((int(px_shift), int(py_shift), int(px_shift + width), int(py_shift + height)))
+        img_x = self.geo_px %256
+        img_y = self.geo_py %256
+        return new_img.crop((img_x, img_y, img_x + width, img_y + height))
 
 if __name__ == '__main__':
 
