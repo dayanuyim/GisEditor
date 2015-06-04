@@ -193,21 +193,24 @@ class DispBoard(tk.Frame):
         self.map_ctrl = MapController()
 
         #board
-        self.bg_color='#808080'
+        self.bg_color='#D0D0D0'
         self.config(bg=self.bg_color)
 
-        self.info_label = tk.Label(self, font='24', anchor='w')
+        #info
+        self.info_label = tk.Label(self, font='24', anchor='w', bg=self.bg_color)
         self.setMapInfo()
-        self.info_label.pack(expand=1, anchor='n', fill='x',)
+        self.info_label.pack(expand=1, fill='x', anchor='n')
 
         #display area
         self.disp_label = tk.Label(self, text="Dispaly Pic/Map", bg=self.bg_color)
-        self.disp_label.pack(expand=1, fill='both')
-        self.disp_label.bind_all('<MouseWheel>', self.onMouseWheel)
-        img = self.map_ctrl.getTileImage(width=800, height=600)
+        self.disp_label.pack(expand=1, fill='both', anchor='n')
+        self.disp_label.bind('<MouseWheel>', self.onMouseWheel)
+        img = self.map_ctrl.getTileImage(800, height=600)
         self.setMap(img)
 
     def onMouseWheel(self, event):
+        label = event.widget
+
         level = self.map_ctrl.getLevel()
         if event.delta > 0:
             self.map_ctrl.setLevel(level+1)
@@ -215,7 +218,7 @@ class DispBoard(tk.Frame):
             self.map_ctrl.setLevel(level-1)
 
         self.setMapInfo()
-        self.setMap(self.map_ctrl.getTileImage(800, 600))
+        self.setMap(self.map_ctrl.getTileImage(label.winfo_width(), label.winfo_height()))
 
     def setMapInfo(self):
         c = self.map_ctrl
