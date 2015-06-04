@@ -334,8 +334,17 @@ class MapController:
     def getLevel(self): return self.level
     def setLevel(self, level):
         if self.tile_map.isSupportedLevel(level):
-            (lon, lat) = self.getLonLat()
-            (self.geo_px, self.geo_py) = TileSystem.getPixcelXYByLatLon(lat, lon, level)
+            #set geo x/y
+            #(lon, lat) = self.getLonLat()
+            #(self.geo_px, self.geo_py) = TileSystem.getPixcelXYByLatLon(lat, lon, level)
+            diff = level - self.level
+            if diff > 0:
+                self.geo_px <<= diff
+                self.geo_py <<= diff
+            elif diff < 0:
+                self.geo_px >>= -diff
+                self.geo_py >>= -diff
+
             self.level = level
 
     #def getLongitude(self): return self.center_lon
