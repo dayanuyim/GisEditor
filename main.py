@@ -238,27 +238,39 @@ class TileMap:
         #self.level_min = 7
         #self.level_max = 16
 
-        self.chache_dir = './chache'
-        if not os.path.exists(self.chache_dir):
-            os.makedirs(self.chache_dir)
+        self.__chache_dir = './chache'
+        if not os.path.exists(self.__chache_dir):
+            os.makedirs(self.__chache_dir)
 
-    #return tkinter.PhotoImage
-    def getTileImageByLonLat(self, level, longitude, latitude):
-        (x, y) = TileSystem.getTileXYByLatLon(latitude, longitude, level)
-        return self.getTileImageByTileXY(level, x, y)
+        self.__img_repo = {}
 
     def isSupportedLevel(self, level):
         return self.level_min <= level and level <= self.level_max
 
-    def getTileImageByTileXY(self, level, x, y):
-        #get file path
-        path = "%s/%s-%d-%d-%d.jpg" % (self.chache_dir, self.map_id, level, x, y)
-        if not os.path.exists(path):
-            self.downloadTile(level, x, y, path)
+    def genTileName(self, level, x, y):
+        return "%s-%d-%d-%d.jpg" % (self.map_id, level, x, y)
 
+    #return tkinter.PhotoImage
+    def getTileByLonLat(self, level, longitude, latitude):
+        (x, y) = TileSystem.getTileXYByLatLon(latitude, longitude, level)
+        return self.getTileByTileXY(level, x, y)
+
+    def getTileByTileXY(self, level, x, y):
+        name = self.genTileName(level, x, y)
+
+        img = self.__img_repo.get(name)
+        if img is None:
+            img = self.__readTile(level, x, y)
+            self.__img_repo[name] = img
+        return img
+
+    def __readTile(self, level, x, y):
+        path = "%s/%s" % (self.__chache_dir, self.genTileName(level, x, y))
+        if not os.path.exists(path):
+            self.__downloadTile(level, x, y, path)
         return Image.open(path)
 
-    def downloadTile(self, level, x, y, file_path):
+    def __downloadTile(self, level, x, y, file_path):
         url = self.url_template % (level, x, y)
 
         #urllib.request.urlretrieve(url, file_path)
@@ -325,7 +337,7 @@ class MapController:
         new_img = Image.new("RGB", (tx_num*256, ty_num*256))
         for x in range(tx_num):
             for y in range(ty_num):
-                img = self.tile_map.getTileImageByTileXY(self.level, t_left +x, t_upper +y)
+                img = self.tile_map.getTileByTileXY(self.level, t_left +x, t_upper +y)
                 new_img.paste(img, (x*256, y*256))
 
         px_shift = int(px%256)
