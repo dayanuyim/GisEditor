@@ -238,9 +238,9 @@ class TileMap:
         #self.level_min = 7
         #self.level_max = 16
 
-        self.__chache_dir = './chache'
-        if not os.path.exists(self.__chache_dir):
-            os.makedirs(self.__chache_dir)
+        self.__cache_dir = './cache'
+        if not os.path.exists(self.__cache_dir):
+            os.makedirs(self.__cache_dir)
 
         self.__img_repo = {}
 
@@ -265,9 +265,10 @@ class TileMap:
         return img
 
     def __readTile(self, level, x, y):
-        path = "%s/%s" % (self.__chache_dir, self.genTileName(level, x, y))
+        path = "%s/%s" % (self.__cache_dir, self.genTileName(level, x, y))
         if not os.path.exists(path):
             self.__downloadTile(level, x, y, path)
+        print(path)
         return Image.open(path)
 
     def __downloadTile(self, level, x, y, file_path):
