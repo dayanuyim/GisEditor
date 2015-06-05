@@ -218,6 +218,9 @@ class DispBoard(tk.Frame):
         #self.disp_label.config(width=disp_w, height=disp_h)
         self.disp_label.pack(expand=1, fill='both', anchor='n')
         self.disp_label.bind('<MouseWheel>', self.onMouseWheel)
+        self.disp_label.bind("<Button-1>", self.onMouseDown)
+        self.disp_label.bind("<Button1-Motion>", self.onMouseMotion)
+        self.disp_label.bind("<Button1-ButtonRelease>", self.onMouseUp)
 
         #set map
         self.map_ctrl.shiftGeoPixel(-disp_w/2, -disp_h/2)
@@ -241,6 +244,24 @@ class DispBoard(tk.Frame):
 
         self.setMapInfo()
         self.setMap(self.map_ctrl.getTileImage(label.winfo_width(), label.winfo_height()))
+
+    def onMouseDown(self, event):
+        self.__mouse_down_pos = (event.x, event.y)
+
+    def onMouseMotion(self, event):
+        if self.__mouse_down_pos is not None:
+            label = event.widget
+
+            #print("change from ", self.__mouse_down_pos, " to " , (event.x, event.y))
+            (last_x, last_y) = self.__mouse_down_pos
+            self.map_ctrl.shiftGeoPixel(last_x - event.x, last_y - event.y)
+            self.setMapInfo()
+            self.setMap(self.map_ctrl.getTileImage(label.winfo_width(), label.winfo_height()))
+
+            self.__mouse_down_pos = (event.x, event.y)
+
+    def onMouseUp(self, event):
+        self.__mouse_down_pos = None
 
     def setMapInfo(self):
         c = self.map_ctrl
