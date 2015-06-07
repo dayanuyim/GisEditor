@@ -393,6 +393,8 @@ class MapController:
         #self.center_lon = 121.334754
         #self.center_lat = 24.987969
         self.setLonLat(lon=121.334754, lat=24.987969)
+        self.buff_img = None
+        self.buff_img_attr = None
 
     def shiftGeoPixel(self, px, py):
         self.geo_px += int(px)
@@ -400,22 +402,48 @@ class MapController:
 
     def getTileImage(self, width, height):
 
+        #parameters
+        left = self.geo_px
+        up = self.geo_py
+        right = self.geo_px + width
+        low = self.geo_py + height
+
+        #get from buffered image:
+        if self.buff_img_attr is not None:
+            (img_level, img_left, img_up, img_right, img_low) = self.buff_img_attr
+
+            #new image is within buff_img
+            if img_level == self.level and img_left <= left and img_up <= up and img_right >= right and img_low >= low:
+                #print("get from buffered image")
+
+                #crop
+                img_x = left - img_left
+                img_y = up - img_up
+                return self.buff_img.crop((img_x, img_y, img_x + width, img_y + height))
+
+        #print("gen new image")
         #get tile x, y.
-        (t_left, t_upper) = TileSystem.getTileXYByPixcelXY(self.geo_px, self.geo_py)
-        (t_right, t_lower) = TileSystem.getTileXYByPixcelXY(self.geo_px + width, self.geo_py + height)
+        (t_left, t_upper) = TileSystem.getTileXYByPixcelXY(left, up)
+        (t_right, t_lower) = TileSystem.getTileXYByPixcelXY(right, low)
         tx_num = t_right - t_left +1
         ty_num = t_lower - t_upper +1
 
-        #image
-        new_img = Image.new("RGB", (tx_num*256, ty_num*256))
+        #gen image
+        img = Image.new("RGB", (tx_num*256, ty_num*256))
         for x in range(tx_num):
             for y in range(ty_num):
-                img = self.tile_map.getTileByTileXY(self.level, t_left +x, t_upper +y)
-                new_img.paste(img, (x*256, y*256))
+                tile = self.tile_map.getTileByTileXY(self.level, t_left +x, t_upper +y)
+                img.paste(tile, (x*256, y*256))
 
-        img_x = self.geo_px %256
-        img_y = self.geo_py %256
-        return new_img.crop((img_x, img_y, img_x + width, img_y + height))
+        #save image
+        self.buff_img_attr = (self.level, t_left*256, t_upper*256, (t_right+1)*256 -1, (t_lower+1)*256 -1)
+        self.buff_img = img
+
+        #crop
+        img_x = self.geo_px - (t_left*256)
+        img_y = self.geo_py - (t_upper*256)
+        return img.crop((img_x, img_y, img_x + width, img_y + height))
+
 
 if __name__ == '__main__':
 
