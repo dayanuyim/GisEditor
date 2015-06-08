@@ -7,10 +7,11 @@ import urllib.request
 import shutil
 from os import listdir
 from os.path import isdir, isfile, exists
-from PIL import Image, ImageTk, ImageDraw
+from PIL import Image, ImageTk, ImageDraw, ImageFont
 #my modules
 import tile
 from tile import  TileSystem, TileMap
+from gpx import GpsDocument
 
 class SettingBoard(tk.LabelFrame):
     def __init__(self, master):
@@ -150,10 +151,15 @@ class DispBoard(tk.Frame):
         self.disp_label.bind("<Button1-Motion>", self.onMouseMotion)
         self.disp_label.bind("<Button1-ButtonRelease>", self.onMouseUp)
 
-        #set map
+    def showGpx(self, gpx):
+        self.map_ctrl.addGpxLayer(gpx)
+        self.map_ctrl.setLonLat(gpx.getMinLon(), gpx.getMaxLat())
+
+        disp_w = 800
+        disp_h = 600
         self.map_ctrl.shiftGeoPixel(-disp_w/2, -disp_h/2)
         self.setMap(self.map_ctrl.getTileImage(disp_w, disp_h));
-
+        
     def onMouseWheel(self, event):
         label = event.widget
 
@@ -241,33 +247,74 @@ class MapController:
     def getGeoPy(self): return self.geo_py
     def setGeoPy(self, py): self.geo_py = py
 
+    def setGeoPixel(self, px, py):
+        self.geo_px = int(px)
+        self.geo_py = int(py)
+
     def __init__(self):
-        self.level = 16
+        #def settings
+        self.level = 14
         self.tile_map = tile.getTM25Kv3TileMap()
         #self.center_lon = 121.334754
         #self.center_lat = 24.987969
         self.setLonLat(lon=121.334754, lat=24.987969)
+
+        #image
         self.buff_img = None
         self.buff_img_attr = None
+
+        #layer
+        self.gpx_layers = []
 
     def shiftGeoPixel(self, px, py):
         self.geo_px += int(px)
         self.geo_py += int(py)
 
+    def addGpxLayer(self, gpx):
+        self.gpx_layers.append(gpx)
+
     def getTileImage(self, width, height):
         img = self.__getTileImage(width, height)
 
-        #draw center cross
-        cross_x = width/2
-        cross_y = height/2
-        cross_len = 10
-        cross_color = '#808080'
+        #draw gpx layer
+        font = ImageFont.truetype("ARIALUNI.TTF", 18)
         draw = ImageDraw.Draw(img)
-        draw.line((cross_x-cross_len, cross_y, cross_x+cross_len, cross_y), fill=cross_color, width=2)
-        draw.line((cross_x, cross_y-cross_len, cross_x, cross_y+cross_len), fill=cross_color, width=2)
+
+        for gpx in self.gpx_layers:
+            #draw tracks
+            for trk in gpx.getTracks():
+                if self.isTrackInDisp(trk, width, height):
+                    xy = []
+                    for pt in trk:
+                        (px, py) = TileSystem.getPixcelXYByLatLon(pt.lat, pt.lon, self.level)
+                        px -= self.geo_px
+                        py -= self.geo_py
+                        xy.append(px)
+                        xy.append(py)
+                    draw.line(xy, fill=trk.color, width=2)
+
+            #draw way points
+            for wpt in gpx.getWayPoints():
+                if self.isWayPointInDisp(wpt, width, height):
+                    (px, py) = TileSystem.getPixcelXYByLatLon(wpt.lat, wpt.lon, self.level)
+                    px -= self.geo_px
+                    py -= self.geo_py
+                    draw.ellipse((px-1, py-1, px+1, py+1), fill="#404040")
+                    draw.text((px+1, py+1), wpt.name, fill="white", font=font)
+                    draw.text((px-1, py-1), wpt.name, fill="white", font=font)
+                    draw.text((px, py), wpt.name, fill="gray", font=font)
+
         del draw
 
         return img
+
+    def isWayPointInDisp(self, wpt, width, height):
+        #Todo
+        return True
+
+    def isTrackInDisp(self, trk, width, height):
+        #Todo
+        return True
 
     def __getTileImage(self, width, height):
         #parameters
@@ -313,6 +360,7 @@ class MapController:
         return img.crop((img_x, img_y, img_x + width, img_y + height))
 
 if __name__ == '__main__':
+    gpx = GpsDocument("bak/2015_0101-04_鎮金邊.gpx")
 
     #create window
     root = tk.Tk()
@@ -328,8 +376,8 @@ if __name__ == '__main__':
     #add callback on pic added
     setting_board.onPicAdded(lambda fname:pic_board.addPic(fname))
 
-
     disp_board = DispBoard(root)
+    disp_board.showGpx(gpx)
     disp_board.pack(side='right', anchor='se', expand=1, fill='both', padx=pad_, pady=pad_)
 
 

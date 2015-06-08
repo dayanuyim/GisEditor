@@ -7,6 +7,17 @@ from xml.etree import ElementTree
 from datetime import datetime
 
 class GpsDocument:
+    def getMaxLon(self): return self.maxlon
+    def getMaxLat(self): return self.maxlat
+    def getMinLon(self): return self.minlon
+    def getMinLat(self): return self.minlat
+
+    def getWayPoints(self):
+        return self.wpts
+
+    def getTracks(self):
+        return self.trks
+
     def __init__(self, filename):
         self.wpts = []
         self.trks = []
@@ -29,13 +40,13 @@ class GpsDocument:
         self.loadWpt(xml_root)
         self.loadTrk(xml_root)
 
-        for wpt in self.wpts:
-            print(wpt.time.strftime("%c"), wpt.name, wpt.lon, wpt.lat, wpt.ele)
+        #for wpt in self.wpts:
+            #print(wpt.time.strftime("%c"), wpt.name, wpt.lon, wpt.lat, wpt.ele)
 
-        for trk in self.trks:
-            print(trk.name, trk.color)
-            for pt in trk:
-                print("  ", pt.time.strftime("%c"), pt.lon, pt.lat, pt.ele)
+        #for trk in self.trks:
+            #print(trk.name, trk.color)
+            #for pt in trk:
+                #print("  ", pt.time.strftime("%c"), pt.lon, pt.lat, pt.ele)
 
     def loadMetadata(self, xml_root):
         bounds = xml_root.find("./gpx:metadata/gpx:bounds", self.ns)
