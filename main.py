@@ -11,7 +11,7 @@ from os.path import isdir, isfile, exists
 from PIL import Image, ImageTk, ImageDraw, ImageFont
 #my modules
 import tile
-from tile import  TileSystem, TileMap, GeoPoint
+from tile import  TileSystem, TileMap, GeoPoint, CoordinateSystem
 from gpx import GpsDocument
 
 class SettingBoard(tk.LabelFrame):
@@ -186,7 +186,11 @@ class DispBoard(tk.Frame):
         #show lat/lon
         c = self.map_ctrl
         geo = GeoPoint(px=c.geo.px + event.x, py=c.geo.py + event.y, level=c.geo.level) 
-        self.setMapInfo(geo.lat, geo.lon)
+        (x_tm2_97, y_tm2_97) = CoordinateSystem.TWD97_LatLonToTWD97_TM2(geo.lat, geo.lon)
+        (x_tm2_67, y_tm2_67) = CoordinateSystem.TWD97_TM2ToTWD67_TM2(x_tm2_97, y_tm2_97)
+
+        txt = "LatLon/97: (%f, %f), TM2/97: (%d, %d), TM2/67: (%d, %d)" % (geo.lat, geo.lon, x_tm2_97, y_tm2_97, x_tm2_67, y_tm2_67)
+        self.setMapInfo(txt=txt)
 
     def onMouseMotion(self, event):
         if self.__mouse_down_pos is not None:
@@ -206,9 +210,11 @@ class DispBoard(tk.Frame):
         #clear lat/lon
         #self.setMapInfo()
 
-    def setMapInfo(self, lat=None, lon=None):
+    def setMapInfo(self, lat=None, lon=None, txt=None):
         c = self.map_ctrl
-        if lat is not None and lon is not None:
+        if txt is not None:
+            self.info_label.config(text="[%s] level: %s, %s" % (c.tile_map.getMapName(), c.level, txt))
+        elif lat is not None and lon is not None:
             self.info_label.config(text="[%s] level: %s, lat: %f, lon: %f" % (c.tile_map.getMapName(), c.level, lat, lon))
         else:
             self.info_label.config(text="[%s] level: %s" % (c.tile_map.getMapName(), c.level))
