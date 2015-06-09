@@ -50,7 +50,9 @@ class GpsDocument:
                 #print("  ", pt.time.strftime("%c"), pt.lon, pt.lat, pt.ele)
 
     def loadMetadata(self, xml_root):
-        bounds = xml_root.find("./gpx:metadata/gpx:bounds", self.ns)
+        #bounds = xml_root.find("./gpx:metadata/gpx:bounds", self.ns)  #gpx1.1
+        #bounds = xml_root.findall("./gpx:bounds", self.ns)  #gpx1.0 
+        bounds = xml_root.find(".//gpx:bounds", self.ns)  #for gpx1.0/gpx1.1
         self.maxlat = float(bounds.attrib['maxlat'])
         self.maxlon = float(bounds.attrib['maxlon'])
         self.minlat = float(bounds.attrib['minlat'])
@@ -98,10 +100,10 @@ class GpsDocument:
             trk = Track()
 
             elem = trk_elem.find("./gpx:name", self.ns)
-            if elem is not None: trk.name = elem.text
+            trk.name = elem.text if elem is not None else "(No Title)"
 
             elem = trk_elem.find("./gpx:extensions/gpxx:TrackExtension/gpxx:DisplayColor", self.ns)
-            if elem is not None: trk.color = elem.text
+            trk.color = elem.text if elem is not None else "DarkMagenta"
 
             elem = trk_elem.find("./gpx:trkseg", self.ns)
             if elem is not None: self.loadTrkSeg(elem, trk)
@@ -115,8 +117,12 @@ class GpsDocument:
 
         for trkpt_elem in trkpt_elems:
             pt = TrackPoint(float(trkpt_elem.attrib["lat"]), float(trkpt_elem.attrib["lon"]))
-            pt.ele = float(trkpt_elem.find("./gpx:ele", self.ns).text)
-            pt.time = datetime.strptime(trkpt_elem.find("./gpx:time", self.ns).text, "%Y-%m-%dT%H:%M:%SZ")
+
+            elem = trkpt_elem.find("./gpx:ele", self.ns)
+            pt.ele = None if elem is None else float(elem.text)
+
+            elem = trkpt_elem.find("./gpx:time", self.ns)
+            pt.time = None if elem is None else datetime.strptime(elem.text, "%Y-%m-%dT%H:%M:%SZ")
 
             trk.addTrackPoint(pt)
 
