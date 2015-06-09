@@ -270,6 +270,10 @@ class MapController:
         self.__drawGPX(width, height)
 
     def __genBaseMap(self, width, height):
+
+        #gen w/ more tile
+        ext_tile = 1
+
         left = self.geo.px
         up = self.geo.py
         right = self.geo.px + width
@@ -277,7 +281,9 @@ class MapController:
 
         #get tile x, y.
         (t_left, t_upper) = TileSystem.getTileXYByPixcelXY(left, up)
+        (t_left, t_upper) = (t_left - ext_tile, t_upper - ext_tile)  #extend tile
         (t_right, t_lower) = TileSystem.getTileXYByPixcelXY(right, low)
+        (t_right, t_lower) = (t_right + ext_tile, t_lower + ext_tile)  #extend tile
         tx_num = t_right - t_left +1
         ty_num = t_lower - t_upper +1
 
