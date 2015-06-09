@@ -1,6 +1,7 @@
 ﻿#!/usr/bin/env python3
 
 import os
+import sys
 import math
 import tkinter as tk
 import urllib.request
@@ -360,8 +361,6 @@ class MapController:
         return img.crop((img_x, img_y, img_x + width, img_y + height))
 
 if __name__ == '__main__':
-    gpx = GpsDocument("bak/2015_0101-04_鎮金邊.gpx")
-
     #create window
     root = tk.Tk()
     root.title("PicGisEditor")
@@ -377,9 +376,10 @@ if __name__ == '__main__':
     setting_board.onPicAdded(lambda fname:pic_board.addPic(fname))
 
     disp_board = DispBoard(root)
-    disp_board.showGpx(gpx)
+    for arg in sys.argv[1:]:
+        gpx = GpsDocument(arg)
+        disp_board.showGpx(gpx)
     disp_board.pack(side='right', anchor='se', expand=1, fill='both', padx=pad_, pady=pad_)
-
 
     root.mainloop()
 
