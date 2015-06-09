@@ -261,8 +261,8 @@ class MapController:
         self.setLonLat(lon=121.334754, lat=24.987969)
 
         #image
-        self.buff_img = None
-        self.buff_img_attr = None
+        self.disp_img = None
+        self.disp_img_attr = None
 
         #layer
         self.gpx_layers = []
@@ -275,68 +275,38 @@ class MapController:
         self.gpx_layers.append(gpx)
 
     def getTileImage(self, width, height):
-        img = self.__getTileImage(width, height)
 
-        #draw gpx layer
-        font = ImageFont.truetype("ARIALUNI.TTF", 18)
-        draw = ImageDraw.Draw(img)
+        #gen new map if need
+        if not self.__isInDispMap(width, height):
+            self.__genDispMap(width, height)
 
-        for gpx in self.gpx_layers:
-            #draw tracks
-            for trk in gpx.getTracks():
-                if self.isTrackInDisp(trk, width, height):
-                    xy = []
-                    for pt in trk:
-                        (px, py) = TileSystem.getPixcelXYByLatLon(pt.lat, pt.lon, self.level)
-                        px -= self.geo_px
-                        py -= self.geo_py
-                        xy.append(px)
-                        xy.append(py)
-                    draw.line(xy, fill=trk.color, width=2)
+        #crop by width/height
+        return self.__getCropMap(width, height)
 
-            #draw way points
-            for wpt in gpx.getWayPoints():
-                if self.isWayPointInDisp(wpt, width, height):
-                    (px, py) = TileSystem.getPixcelXYByLatLon(wpt.lat, wpt.lon, self.level)
-                    px -= self.geo_px
-                    py -= self.geo_py
-                    draw.ellipse((px-1, py-1, px+1, py+1), fill="#404040")
-                    draw.text((px+1, py+1), wpt.name, fill="white", font=font)
-                    draw.text((px-1, py-1), wpt.name, fill="white", font=font)
-                    draw.text((px, py), wpt.name, fill="gray", font=font)
+    def __isInDispMap(self, width, height):
+        if self.disp_img_attr is None:
+            return False
 
-        del draw
+        left = self.geo_px
+        up = self.geo_py
+        right = self.geo_px + width
+        low = self.geo_py + height
+        (img_level, img_left, img_up, img_right, img_low) = self.disp_img_attr
 
-        return img
+        if img_level == self.level and img_left <= left and img_up <= up and img_right >= right and img_low >= low:
+            return True
 
-    def isWayPointInDisp(self, wpt, width, height):
-        #Todo
-        return True
+    def __genDispMap(self, width, height):
+        print("gen disp map")
+        self.__genBaseMap(width, height)
+        self.__drawGPX(width, height)
 
-    def isTrackInDisp(self, trk, width, height):
-        #Todo
-        return True
-
-    def __getTileImage(self, width, height):
-        #parameters
+    def __genBaseMap(self, width, height):
         left = self.geo_px
         up = self.geo_py
         right = self.geo_px + width
         low = self.geo_py + height
 
-        #get from buffered image =====================
-        if self.buff_img_attr is not None:
-            (img_level, img_left, img_up, img_right, img_low) = self.buff_img_attr
-
-            #new image is within buff_img
-            if img_level == self.level and img_left <= left and img_up <= up and img_right >= right and img_low >= low:
-                #crop
-                img_x = left - img_left
-                img_y = up - img_up
-                #print("get from buffered image")
-                return self.buff_img.crop((img_x, img_y, img_x + width, img_y + height))
-
-        #gen new image =========================
         #get tile x, y.
         (t_left, t_upper) = TileSystem.getTileXYByPixcelXY(left, up)
         (t_right, t_lower) = TileSystem.getTileXYByPixcelXY(right, low)
@@ -351,14 +321,61 @@ class MapController:
                 img.paste(tile, (x*256, y*256))
 
         #save image
-        self.buff_img_attr = (self.level, t_left*256, t_upper*256, (t_right+1)*256 -1, (t_lower+1)*256 -1)
-        self.buff_img = img
+        self.disp_img_attr = (self.level, t_left*256, t_upper*256, (t_right+1)*256 -1, (t_lower+1)*256 -1)
+        self.disp_img = img
 
-        #crop
-        img_x = self.geo_px - (t_left*256)
-        img_y = self.geo_py - (t_upper*256)
-        #print("gen new image")
+    def __drawGPX(self, width, height):
+        if len(self.gpx_layers) == 0:
+            return
+
+        (img_level, img_left, img_up, img_right, img_low) = self.disp_img_attr
+        img = self.disp_img
+
+        font = ImageFont.truetype("ARIALUNI.TTF", 18)
+        draw = ImageDraw.Draw(img)
+
+        for gpx in self.gpx_layers:
+            #draw tracks
+            for trk in gpx.getTracks():
+                if self.isTrackInDisp(trk, width, height):
+                    xy = []
+                    for pt in trk:
+                        (px, py) = TileSystem.getPixcelXYByLatLon(pt.lat, pt.lon, self.level)
+                        xy.append(px - img_left)
+                        xy.append(py - img_up)
+                    draw.line(xy, fill=trk.color, width=2)
+
+            #draw way points
+            for wpt in gpx.getWayPoints():
+                if self.isWayPointInDisp(wpt, width, height):
+                    (px, py) = TileSystem.getPixcelXYByLatLon(wpt.lat, wpt.lon, self.level)
+                    px -= img_left
+                    py -= img_up
+                    #draw point
+                    draw.ellipse((px-1, py-1, px+1, py+1), fill="#404040")
+                    #draw text
+                    draw.text((px+1, py+1), wpt.name, fill="white", font=font)
+                    draw.text((px-1, py-1), wpt.name, fill="white", font=font)
+                    draw.text((px, py), wpt.name, fill="gray", font=font)
+        #recycle draw object
+        del draw
+
+    def isWayPointInDisp(self, wpt, width, height):
+        #Todo
+        return True
+
+    def isTrackInDisp(self, trk, width, height):
+        #Todo
+        return True
+
+    def __getCropMap(self, width, height):
+        (img_level, img_left, img_up, img_right, img_low) = self.disp_img_attr
+        img = self.disp_img
+
+        img_x = self.geo_px - img_left
+        img_y = self.geo_py - img_up
         return img.crop((img_x, img_y, img_x + width, img_y + height))
+
 
 if __name__ == '__main__':
     #create window
