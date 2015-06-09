@@ -11,7 +11,7 @@ from os.path import isdir, isfile, exists
 from PIL import Image, ImageTk, ImageDraw, ImageFont
 #my modules
 import tile
-from tile import  TileSystem, TileMap
+from tile import  TileSystem, TileMap, GeoPoint
 from gpx import GpsDocument
 
 class SettingBoard(tk.LabelFrame):
@@ -154,7 +154,8 @@ class DispBoard(tk.Frame):
 
     def showGpx(self, gpx):
         self.map_ctrl.addGpxLayer(gpx)
-        self.map_ctrl.setLonLat(gpx.getMinLon(), gpx.getMaxLat())
+        self.map_ctrl.geo.lon = gpx.getMinLon()
+        self.map_ctrl.geo.lat = gpx.getMaxLat()
 
         disp_w = 800
         disp_h = 600
@@ -168,11 +169,10 @@ class DispBoard(tk.Frame):
         self.map_ctrl.shiftGeoPixel(event.x, event.y)
 
         #level
-        level = self.map_ctrl.getLevel()
         if event.delta > 0:
-            self.map_ctrl.setLevel(level+1)
+            self.map_ctrl.level += 1
         elif event.delta < 0:
-            self.map_ctrl.setLevel(level-1)
+            self.map_ctrl.level -= 1
 
         #set focused pixel again
         self.map_ctrl.shiftGeoPixel(-event.x, -event.y)
@@ -200,8 +200,7 @@ class DispBoard(tk.Frame):
 
     def setMapInfo(self):
         c = self.map_ctrl
-        (lon, lat) = c.getLonLat()
-        self.info_label.config(text="[%s] level: %s, lon: %f, lat: %f" % (c.getTileMap().getMapName(), c.getLevel(), lon, lat))
+        self.info_label.config(text="[%s] level: %s, lon: %f, lat: %f" % (c.tile_map.getMapName(), c.level, c.geo.lon, c.geo.lat))
 
     def setMap(self, img):
         photo = ImageTk.PhotoImage(img)
@@ -210,55 +209,24 @@ class DispBoard(tk.Frame):
 
 
 class MapController:
-    def getTileMap(self): return self.tile_map
-    def setTileMap(self, tm): self.tile_map = tm
+    @property
+    def tile_map(self): return self.__tile_map
 
-    def getLevel(self): return self.level
-    def setLevel(self, level):
-        if self.tile_map.isSupportedLevel(level):
-            #set geo x/y
-            #(lon, lat) = self.getLonLat()
-            #(self.geo_px, self.geo_py) = TileSystem.getPixcelXYByLatLon(lat, lon, level)
-            diff = level - self.level
-            if diff > 0:
-                self.geo_px <<= diff
-                self.geo_py <<= diff
-            elif diff < 0:
-                self.geo_px >>= -diff
-                self.geo_py >>= -diff
+    @property
+    def geo(self): return self.__geo
 
-            self.level = level
-
-    #def getLongitude(self): return self.center_lon
-    #def setLongitude(self, lon): self.center_lon = TileSystem.getValidLongitude(lon);
-
-    #def getLatitude(self): return self.center_lat
-    #def setLatitude(self, lat): self.center_lat = TileSystem.getValidLatitude(lat);
-
-    def setLonLat(self, lon, lat):
-        (self.geo_px, self.geo_py) = TileSystem.getPixcelXYByLatLon(lat, lon, self.level)
-
-    def getLonLat(self):
-        (lat, lon) = TileSystem.getLatLonByPixcelXY(self.geo_px, self.geo_py, self.level)
-        return (lon, lat)
-
-    def getGeoPx(self): return self.geo_px
-    def setGeoPx(self, px): self.geo_px = px
-
-    def getGeoPy(self): return self.geo_py
-    def setGeoPy(self, py): self.geo_py = py
-
-    def setGeoPixel(self, px, py):
-        self.geo_px = int(px)
-        self.geo_py = int(py)
+    @property
+    def level(self): return self.__geo.level
+    @level.setter
+    def level(self, level):
+        if self.__tile_map.isSupportedLevel(level):
+            self.__geo.level = level
 
     def __init__(self):
         #def settings
-        self.level = 14
-        self.tile_map = tile.getTM25Kv3TileMap()
-        #self.center_lon = 121.334754
-        #self.center_lat = 24.987969
-        self.setLonLat(lon=121.334754, lat=24.987969)
+        self.__tile_map = tile.getTM25Kv3TileMap()
+        self.__geo = GeoPoint(lon=121.334754, lat=24.987969)  #default location
+        self.__geo.level = 14
 
         #image
         self.disp_img = None
@@ -268,8 +236,8 @@ class MapController:
         self.gpx_layers = []
 
     def shiftGeoPixel(self, px, py):
-        self.geo_px += int(px)
-        self.geo_py += int(py)
+        self.__geo.px += int(px)
+        self.__geo.py += int(py)
 
     def addGpxLayer(self, gpx):
         self.gpx_layers.append(gpx)
@@ -287,10 +255,10 @@ class MapController:
         if self.disp_img_attr is None:
             return False
 
-        left = self.geo_px
-        up = self.geo_py
-        right = self.geo_px + width
-        low = self.geo_py + height
+        left = self.geo.px
+        up = self.geo.py
+        right = self.geo.px + width
+        low = self.geo.py + height
         (img_level, img_left, img_up, img_right, img_low) = self.disp_img_attr
 
         if img_level == self.level and img_left <= left and img_up <= up and img_right >= right and img_low >= low:
@@ -302,10 +270,10 @@ class MapController:
         self.__drawGPX(width, height)
 
     def __genBaseMap(self, width, height):
-        left = self.geo_px
-        up = self.geo_py
-        right = self.geo_px + width
-        low = self.geo_py + height
+        left = self.geo.px
+        up = self.geo.py
+        right = self.geo.px + width
+        low = self.geo.py + height
 
         #get tile x, y.
         (t_left, t_upper) = TileSystem.getTileXYByPixcelXY(left, up)
@@ -317,7 +285,7 @@ class MapController:
         img = Image.new("RGB", (tx_num*256, ty_num*256))
         for x in range(tx_num):
             for y in range(ty_num):
-                tile = self.tile_map.getTileByTileXY(self.level, t_left +x, t_upper +y)
+                tile = self.__tile_map.getTileByTileXY(self.level, t_left +x, t_upper +y)
                 img.paste(tile, (x*256, y*256))
 
         #save image
@@ -385,8 +353,8 @@ class MapController:
         (img_level, img_left, img_up, img_right, img_low) = self.disp_img_attr
         img = self.disp_img
 
-        img_x = self.geo_px - img_left
-        img_y = self.geo_py - img_up
+        img_x = self.geo.px - img_left
+        img_y = self.geo.py - img_up
         return img.crop((img_x, img_y, img_x + width, img_y + height))
 
 
