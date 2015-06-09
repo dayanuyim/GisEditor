@@ -171,8 +171,8 @@ class GeoPoint:
         elif (px is not None and py is not None and level is not None) and (lat is None and lon is None):
             self.__lat = None
             self.__lon = None
-            self.__px = px
-            self.__py = py
+            self.__px = px << (self.MAX_LEVEL - level)
+            self.__py = py << (self.MAX_LEVEL - level)
             self.__level = level
         else:
             raise ValueError("Not propriate init")

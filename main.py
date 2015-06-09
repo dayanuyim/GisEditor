@@ -183,6 +183,11 @@ class DispBoard(tk.Frame):
     def onMouseDown(self, event):
         self.__mouse_down_pos = (event.x, event.y)
 
+        #show lat/lon
+        c = self.map_ctrl
+        geo = GeoPoint(px=c.geo.px + event.x, py=c.geo.py + event.y, level=c.geo.level) 
+        self.setMapInfo(geo.lat, geo.lon)
+
     def onMouseMotion(self, event):
         if self.__mouse_down_pos is not None:
             label = event.widget
@@ -198,9 +203,15 @@ class DispBoard(tk.Frame):
     def onMouseUp(self, event):
         self.__mouse_down_pos = None
 
-    def setMapInfo(self):
+        #clear lat/lon
+        #self.setMapInfo()
+
+    def setMapInfo(self, lat=None, lon=None):
         c = self.map_ctrl
-        self.info_label.config(text="[%s] level: %s, lon: %f, lat: %f" % (c.tile_map.getMapName(), c.level, c.geo.lon, c.geo.lat))
+        if lat is not None and lon is not None:
+            self.info_label.config(text="[%s] level: %s, lat: %f, lon: %f" % (c.tile_map.getMapName(), c.level, lat, lon))
+        else:
+            self.info_label.config(text="[%s] level: %s" % (c.tile_map.getMapName(), c.level))
 
     def setMap(self, img):
         photo = ImageTk.PhotoImage(img)
