@@ -135,15 +135,41 @@ class WayPoint:
 
 class Track:
     def __init__(self):
+        self.__trkseg = []
         self.name = None
         self.color = None
-        self.__trkseg = []
-
-    def addTrackPoint(self, pt):
-        self.__trkseg.append(pt)
+        self.__maxlon = None
+        self.__minlon = None
+        self.__maxlat = None
+        self.__minlat = None
 
     def __iter__(self):
         return iter(self.__trkseg)
+
+    @property
+    def maxlon(self): return self.__maxlon
+    @property
+    def minlon(self): return self.__minlon
+    @property
+    def maxlat(self): return self.__maxlat
+    @property
+    def minlat(self): return self.__minlat
+
+    def addTrackPoint(self, pt):
+        self.__trkseg.append(pt)
+        self.__updateBounds(pt)
+
+    def __updateBounds(self, pt):
+        if self.__maxlat is None or pt.lat >= self.__maxlat:
+            self.__maxlat = pt.lat
+        if self.__minlat is None or pt.lat <= self.__minlat:
+            self.__minlat = pt.lat
+
+        if self.__maxlon is None or pt.lon >= self.__maxlon:
+            self.__maxlon = pt.lon
+        if self.__minlon is None or pt.lon <= self.__minlon:
+            self.__minlon = pt.lon
+
 
 class TrackPoint:
     def __init__(self):

@@ -337,7 +337,7 @@ class MapController:
         for gpx in self.gpx_layers:
             #draw tracks
             for trk in gpx.getTracks():
-                if self.isTrackInDisp(trk, width, height):
+                if self.isTrackInDisp(trk):
                     xy = []
                     for pt in trk:
                         (px, py) = TileSystem.getPixcelXYByLatLon(pt.lat, pt.lon, self.level)
@@ -347,8 +347,8 @@ class MapController:
 
             #draw way points
             for wpt in gpx.getWayPoints():
-                if self.isWayPointInDisp(wpt, width, height):
-                    (px, py) = TileSystem.getPixcelXYByLatLon(wpt.lat, wpt.lon, self.level)
+                (px, py) = TileSystem.getPixcelXYByLatLon(wpt.lat, wpt.lon, self.level)
+                if self.isPointInDisp(px, py):
                     px -= img_left
                     py -= img_up
                     #draw point
@@ -360,13 +360,18 @@ class MapController:
         #recycle draw object
         del draw
 
-    def isWayPointInDisp(self, wpt, width, height):
-        #Todo
-        return True
+    def isPointInDisp(self, px, py):
+        (img_level, img_left, img_up, img_right, img_low) = self.disp_img_attr
+        return img_left <= px and img_up <= py and px <= img_right and py <= img_low
 
-    def isTrackInDisp(self, trk, width, height):
-        #Todo
-        return True
+    def isBoxInDisp(self, px_left, py_up, px_right, py_low):
+        return self.isPointInDisp(px_left, py_up) or self.isPointInDisp(px_left, py_low) or \
+              self.isPointInDisp(px_right, py_up) or self.isPointInDisp(px_right, py_low)
+
+    def isTrackInDisp(self, trk):
+        (px_left, py_up) = TileSystem.getPixcelXYByLatLon(trk.maxlat, trk.minlon, self.level)
+        (px_right, py_low) = TileSystem.getPixcelXYByLatLon(trk.minlat, trk.maxlon, self.level)
+        return self.isBoxInDisp(px_left, py_up, px_right, py_low)
 
     def __getCropMap(self, width, height):
         (img_level, img_left, img_up, img_right, img_low) = self.disp_img_attr
