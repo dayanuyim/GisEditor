@@ -157,3 +157,73 @@ def getTM25Kv4TileMap():
     tm.level_min = 5
     tm.level_max = 17
     return tm
+
+class GeoPoint:
+    MAX_LEVEL = 23
+
+    def __init__(self, lat=None, lon=None, px=None, py=None, level=None):
+        if (lat is not None and lon is not None) and (px is None and py is None and level is None):
+            self.__lat = lat
+            self.__lon = lon
+            self.__level = None
+            self.__px = None
+            self.__py = None
+        elif (px is not None and py is not None and level is not None) and (lat is None and lon is None):
+            self.__lat = None
+            self.__lon = None
+            self.__px = px
+            self.__py = py
+            self.__level = level
+        else:
+            raise ValueError("Not propriate init")
+
+    @property
+    def lat(self):
+        if self.__lat is None:
+            (self.__lat, self.__lon) = TileSystem.getLatLonByPixcelXY(self.__px, self.__py, self.MAX_LEVEL)
+        return self.__lat
+    @lat.setter
+    def lat(self, lat):
+        self.__lat = lat
+        self.__px = None
+        self.__py = None
+
+    @property
+    def lon(self):
+        if self.__lon is None:
+            (self.__lat, self.__lon) = TileSystem.getLatLonByPixcelXY(self.__px, self.__py, self.MAX_LEVEL)
+        return self.__lon
+    @lon.setter
+    def lon(self, lon):
+        self.__lon = lon
+        self.__px = None
+        self.__py = None
+
+    @property
+    def level(self): return self.__level   #Note: level maybe None
+
+    @level.setter
+    def level(self, level): self.__level = level
+
+    @property
+    def px(self):
+        if self.__px is None:
+            (self.__px, self.__py) = TileSystem.getPixcelXYByLatLon(self.__lat, self.__lon, self.MAX_LEVEL)
+        return self.__px >> (self.MAX_LEVEL - self.level)
+    @px.setter
+    def px(self, px):
+        self.__lat = None
+        self.__lon = None
+        self.__px = px << (self.MAX_LEVEL - self.level)
+
+    @property
+    def py(self):
+        if self.__py is None:
+            (self.__px, self.__py) = TileSystem.getPixcelXYByLatLon(self.__lat, self.__lon, self.MAX_LEVEL)
+        return self.__py >> (self.MAX_LEVEL - self.level)
+    @py.setter
+    def py(self, py):
+        self.__lat = None
+        self.__lon = None
+        self.__py = py << (self.MAX_LEVEL - self.level)
+

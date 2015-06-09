@@ -5,6 +5,7 @@
 
 from xml.etree import ElementTree
 from datetime import datetime
+from tile import TileSystem, GeoPoint
 
 class GpsDocument:
     def getMaxLon(self): return self.maxlon
@@ -113,14 +114,11 @@ class GpsDocument:
             return
 
         for trkpt_elem in trkpt_elems:
-            pt = TrackPoint()
-            pt.lat = float(trkpt_elem.attrib["lat"])
-            pt.lon = float(trkpt_elem.attrib["lon"])
+            pt = TrackPoint(float(trkpt_elem.attrib["lat"]), float(trkpt_elem.attrib["lon"]))
             pt.ele = float(trkpt_elem.find("./gpx:ele", self.ns).text)
             pt.time = datetime.strptime(trkpt_elem.find("./gpx:time", self.ns).text, "%Y-%m-%dT%H:%M:%SZ")
 
             trk.addTrackPoint(pt)
-            
 
 class WayPoint:
     def __init__(self):
@@ -172,11 +170,19 @@ class Track:
 
 
 class TrackPoint:
-    def __init__(self):
-        self.lon = None
-        self.lat = None
+    @property
+    def lat(self): return self.__geo.lat
+    @property
+    def lon(self): return self.__geo.lon
+
+    def __init__(self, lat, lon):
+        self.__geo = GeoPoint(lat=lat, lon=lon)
         self.ele = None
         self.time = None
 
+    def getPixel(self, level):
+        self.__geo.level = level
+        return (self.__geo.px, self.__geo.py)
+
 if __name__ == '__main__':
-    gpx = GpsDocument("bak/2015_0101-04_鎮金邊.gpx")
+    gpx = GpsDocument("bak/2015_0101-04.gpx")

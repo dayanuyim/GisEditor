@@ -340,7 +340,7 @@ class MapController:
                 if self.isTrackInDisp(trk):
                     xy = []
                     for pt in trk:
-                        (px, py) = TileSystem.getPixcelXYByLatLon(pt.lat, pt.lon, self.level)
+                        (px, py) = pt.getPixel(self.level)
                         xy.append(px - img_left)
                         xy.append(py - img_up)
                     draw.line(xy, fill=trk.color, width=2)
@@ -369,9 +369,17 @@ class MapController:
               self.isPointInDisp(px_right, py_up) or self.isPointInDisp(px_right, py_low)
 
     def isTrackInDisp(self, trk):
-        (px_left, py_up) = TileSystem.getPixcelXYByLatLon(trk.maxlat, trk.minlon, self.level)
-        (px_right, py_low) = TileSystem.getPixcelXYByLatLon(trk.minlat, trk.maxlon, self.level)
-        return self.isBoxInDisp(px_left, py_up, px_right, py_low)
+        #if the box containing the track is in disp
+        #(px_left, py_up) = TileSystem.getPixcelXYByLatLon(trk.maxlat, trk.minlon, self.level)
+        #(px_right, py_low) = TileSystem.getPixcelXYByLatLon(trk.minlat, trk.maxlon, self.level)
+        #return self.isBoxInDisp(px_left, py_up, px_right, py_low)
+
+        #if some track point is in disp
+        for pt in trk:
+            (px, py) = pt.getPixel(self.level)
+            if self.isPointInDisp(px, py):
+                return True
+        return False
 
     def __getCropMap(self, width, height):
         (img_level, img_left, img_up, img_right, img_low) = self.disp_img_attr
