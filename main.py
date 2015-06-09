@@ -139,7 +139,7 @@ class DispBoard(tk.Frame):
         #info
         self.info_label = tk.Label(self, font='24', anchor='w', bg=self.bg_color)
         self.setMapInfo()
-        self.info_label.pack(expand=1, fill='x', anchor='n')
+        self.info_label.pack(expand=0, fill='x', anchor='n')
 
         #display area
         disp_w = 800
@@ -154,8 +154,8 @@ class DispBoard(tk.Frame):
 
     def showGpx(self, gpx):
         self.map_ctrl.addGpxLayer(gpx)
-        self.map_ctrl.geo.lon = gpx.getMinLon()
-        self.map_ctrl.geo.lat = gpx.getMaxLat()
+        self.map_ctrl.geo.lon = (gpx.getMinLon() + gpx.getMaxLon()) / 2
+        self.map_ctrl.geo.lat = (gpx.getMaxLat() + gpx.getMinLat()) / 2
 
         disp_w = 800
         disp_h = 600
@@ -343,7 +343,7 @@ class MapController:
                     px -= img_left
                     py -= img_up
                     #draw point
-                    draw.ellipse((px-1, py-1, px+1, py+1), fill="#404040")
+                    draw.ellipse((px-3, py-3, px+3, py+3), fill="#404040", outline='white')
                     #draw text
                     draw.text((px+1, py+1), wpt.name, fill="white", font=font)
                     draw.text((px-1, py-1), wpt.name, fill="white", font=font)
@@ -389,10 +389,10 @@ if __name__ == '__main__':
 
     pad_ = 2
     setting_board = SettingBoard(root)
-    setting_board.pack(side='top', anchor='nw', expand=0, fill='x', padx=pad_, pady=pad_)
+    #setting_board.pack(side='top', anchor='nw', expand=0, fill='x', padx=pad_, pady=pad_)
 
     pic_board = PicBoard(root)
-    pic_board.pack(side='left', anchor='nw', expand=0, fill='y', padx=pad_, pady=pad_)
+    #pic_board.pack(side='left', anchor='nw', expand=0, fill='y', padx=pad_, pady=pad_)
     #add callback on pic added
     setting_board.onPicAdded(lambda fname:pic_board.addPic(fname))
 
