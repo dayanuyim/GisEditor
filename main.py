@@ -12,6 +12,7 @@ from PIL import Image, ImageTk, ImageDraw, ImageFont
 #my modules
 import tile
 from tile import  TileSystem, TileMap, GeoPoint, CoordinateSystem
+from coord import  CoordinateSystem2
 from gpx import GpsDocument
 
 class SettingBoard(tk.LabelFrame):
