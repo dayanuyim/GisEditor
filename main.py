@@ -11,9 +11,10 @@ from os.path import isdir, isfile, exists
 from PIL import Image, ImageTk, ImageDraw, ImageFont
 #my modules
 import tile
-from tile import  TileSystem, TileMap, GeoPoint, CoordinateSystem
-from coord import  CoordinateSystem2
+from tile import  TileSystem, TileMap, GeoPoint
+from coord import  CoordinateSystem
 from gpx import GpsDocument
+from math import floor, ceil
 
 class SettingBoard(tk.LabelFrame):
     def __init__(self, master):
@@ -273,7 +274,11 @@ class MapController:
             self.__genDispMap(width, height)
 
         #crop by width/height
-        return self.__getCropMap(width, height)
+        img = self.__getCropMap(width, height)
+        img_attr = (self.level, self.geo.px, self.geo.py, self.geo.px + width, self.geo.py + height)
+        self.__drawTM2Coord(img, img_attr)
+
+        return img
 
     def __isInDispMap(self, width, height):
         if self.disp_img_attr is None:
@@ -386,6 +391,48 @@ class MapController:
         img_x = self.geo.px - img_left
         img_y = self.geo.py - img_up
         return img.crop((img_x, img_y, img_x + width, img_y + height))
+
+    @classmethod
+    def __drawTM2Coord(cls, img, img_attr):
+
+        (level, left_px, up_py, right_px, low_py) = img_attr
+
+        #set draw
+        py_shift = 20
+        font = ImageFont.truetype("ARIALUNI.TTF", 18)
+        draw = ImageDraw.Draw(img)
+
+        #get xy of TM2
+        (left_x, up_y) = cls.getTWD67TM2ByPixcelXY(left_px, up_py, level)
+        (right_x, low_y) = cls.getTWD67TM2ByPixcelXY(right_px, low_py, level)
+
+        #draw TM2' x per KM
+        for x in range(ceil(left_x/1000), floor(right_x/1000) +1):
+            #print("tm: ", x)
+            (px, py) = cls.getPixcelXYByTWD67TM2(x*1000, low_y, level)
+            px -= left_px
+            py -= up_py
+            draw.text((px, py - py_shift), str(x), fill="black", font=font)
+
+        #draw TM2' y per KM
+        for y in range(ceil(low_y/1000), floor(up_y/1000) +1):
+            #print("tm: ", y)
+            (px, py) = cls.getPixcelXYByTWD67TM2(left_x, y*1000, level)
+            px -= left_px
+            py -= up_py
+            draw.text((px, py -py_shift), str(y), fill="black", font=font)
+
+        del draw
+
+    @staticmethod
+    def getTWD67TM2ByPixcelXY(x, y, level):
+        (lat, lon) = TileSystem.getLatLonByPixcelXY(x, y, level)
+        return CoordinateSystem.TWD97_LatLonToTWD67_TM2(lat, lon)
+
+    @staticmethod
+    def getPixcelXYByTWD67TM2(x, y, level):
+        (lat, lon) = CoordinateSystem.TWD67_TM2ToTWD97_LatLon(x, y)
+        return TileSystem.getPixcelXYByLatLon(lat, lon, level)
 
 
 if __name__ == '__main__':

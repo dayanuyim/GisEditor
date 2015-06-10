@@ -3,7 +3,7 @@
 import math
 from math import tan, sin, cos, radians, degrees, floor
 
-class CoordinateSystem2:
+class CoordinateSystem:
     @staticmethod
     #經緯度度分秒 -> 經緯度十進位
     def LatLon_degreeToDecimal(lat, lon):
@@ -67,7 +67,7 @@ class CoordinateSystem2:
         return (x, y)
 
     @classmethod
-    def TWD97_TM2ToTWD97_LatLan(cls, x, y):
+    def TWD97_TM2ToTWD97_LatLon(cls, x, y):
         a = cls.a
         b = cls.b
         lon0 = cls.lon0
@@ -135,13 +135,159 @@ class CoordinateSystem2:
         y67 = y + 248.6 - cls.TM2_A * y - cls.TM2_B * x
         return (x67, y67)
 
+    @staticmethod
+    def TWD67_TM2ToTWD97_LatLon(x, y):
+        (x, y) = CoordinateSystem.TWD67_TM2ToTWD97_TM2(x, y)
+        return CoordinateSystem.TWD97_TM2ToTWD97_LatLon(x, y)
+
+    @staticmethod
+    def TWD97_LatLonToTWD67_TM2(lat, lon):
+        (x, y) = CoordinateSystem.TWD97_LatLonToTWD97_TM2(lat, lon)
+        return CoordinateSystem.TWD97_TM2ToTWD67_TM2(x, y)
+
+class CoordinateSystem2:
+
+    """This object provide method for converting lat/lon coordinate to TWD97
+    coordinate
+
+    the formula reference to
+    http://www.uwgb.edu/dutchs/UsefulData/UTMFormulas.htm (there is lots of typo)
+    http://www.offshorediver.com/software/utm/Converting UTM to Latitude and Longitude.doc
+
+    Parameters reference to
+    http://rskl.geog.ntu.edu.tw/team/gis/doc/ArcGIS/WGS84%20and%20TM2.htm
+    http://blog.minstrel.idv.tw/2004/06/taiwan-datum-parameter.html
+    """
+    # Equatorial radius
+    a = 6378137.0
+    # Polar radius
+    b = 6356752.314245
+    # central meridian of zone
+    long0 = radians(121)
+    # scale along long0
+    k0 = 0.9999
+    # delta x in meter
+    dx = 250000
+    # delta y in meter
+    dy = 0
+
+    @classmethod
+    def TWD97_LatLonToTWD97_TM2(cls, lat, lon):
+        """Convert lat lon to twd97
+        """
+        lat = radians(lat)
+        lon = radians(lon)
+
+        a = cls.a
+        b = cls.b
+        long0 = cls.long0
+        k0 = cls.k0
+        dx = cls.dx
+
+        e = (1-b**2/a**2)**0.5
+        e2 = e**2/(1-e**2)
+        n = (a-b)/(a+b)
+        nu = a/(1-(e**2)*(sin(lat)**2))**0.5
+        p = lon-long0
+
+        A = a*(1 - n + (5/4.0)*(n**2 - n**3) + (81/64.0)*(n**4  - n**5))
+        B = (3*a*n/2.0)*(1 - n + (7/8.0)*(n**2 - n**3) + (55/64.0)*(n**4 - n**5))
+        C = (15*a*(n**2)/16.0)*(1 - n + (3/4.0)*(n**2 - n**3))
+        D = (35*a*(n**3)/48.0)*(1 - n + (11/16.0)*(n**2 - n**3))
+        E = (315*a*(n**4)/51.0)*(1 - n)
+
+        S = A*lat - B*sin(2*lat) + C*sin(4*lat) - D*sin(6*lat) + E*sin(8*lat)
+
+        K1 = S*k0
+        K2 = k0*nu*sin(2*lat)/4.0
+        K3 = (k0*nu*sin(lat)*(cos(lat)**3)/24.0) * (5 - tan(lat)**2 + 9*e2*(cos(lat)**2) + 4*(e2**2)*(cos(lat)**4))
+
+        y = K1 + K2*(p**2) + K3*(p**4)
+
+        K4 = k0*nu*cos(lat)
+        K5 = (k0*nu*(cos(lat)**3)/6.0) * (1 - tan(lat)**2 + e2*(cos(lat)**2))
+
+        x = K4*p + K5*(p**3) + cls.dx
+
+        return (x, y)
+
+    @classmethod
+    def TWD97_TM2ToTWD97_LatLon(cls, x, y):
+        a = cls.a
+        b = cls.b
+        e = (1-b**2/a**2)**0.5
+        long0 = cls.long0
+        k0 = cls.k0
+        dx = cls.dx
+        dy = cls.dy
+
+        x -= dx
+        y -= dy
+
+        M = y/k0
+
+        # Calculate Footprint Latitude
+        mu = M/(a*(1.0 - e**2/4.0 - 3*(e**4)/64.0 - 5*(e**6)/256.0))
+
+        e1 = (1.0 - ((1.0 - e**2)**0.5)) / (1.0 + Math.pow((1.0 - Math.pow(e, 2)), 0.5))
+#
+#		double J1 = (3*e1/2 - 27*Math.pow(e1, 3)/32.0)
+#		double J2 = (21*Math.pow(e1, 2)/16 - 55*Math.pow(e1, 4)/32.0)
+#		double J3 = (151*Math.pow(e1, 3)/96.0)
+#		double J4 = (1097*Math.pow(e1, 4)/512.0)
+#
+#		double fp = mu + J1*Math.sin(2*mu) + J2*Math.sin(4*mu) + J3*Math.sin(6*mu) + J4*Math.sin(8*mu)
+#
+#		// Calculate Latitude and Longitude
+#
+#		double e2 = Math.pow((e*a/b), 2)
+#		double C1 = Math.pow(e2*Math.cos(fp), 2)
+#		double T1 = Math.pow(Math.tan(fp), 2)
+#		double R1 = a*(1-Math.pow(e, 2))/Math.pow((1-Math.pow(e, 2)*Math.pow(Math.sin(fp), 2)), (3.0/2.0))
+#		double N1 = a/Math.pow((1-Math.pow(e, 2)*Math.pow(Math.sin(fp), 2)), 0.5)
+#
+#		double D = x/(N1*k0)
+#
+#		// lat
+#		double Q1 = N1*Math.tan(fp)/R1
+#		double Q2 = (Math.pow(D, 2)/2.0)
+#		double Q3 = (5 + 3*T1 + 10*C1 - 4*Math.pow(C1, 2) - 9*e2)*Math.pow(D, 4)/24.0
+#		double Q4 = (61 + 90*T1 + 298*C1 + 45*Math.pow(T1, 2) - 3*Math.pow(C1, 2) - 252*e2)*Math.pow(D, 6)/720.0
+#		double lat = fp - Q1*(Q2 - Q3 + Q4)
+#
+#		// long
+#		double Q5 = D
+#		double Q6 = (1 + 2*T1 + C1)*Math.pow(D, 3)/6
+#		double Q7 = (5 - 2*C1 + 28*T1 - 3*Math.pow(C1, 2) + 8*e2 + 24*Math.pow(T1, 2))*Math.pow(D, 5)/120.0
+#		double lon = lon0 + (Q5 - Q6 + Q7)/Math.cos(fp)
+#
+#		return new double[] {Math.toDegrees(lat), Math.toDegrees(lon)}
+#	}
+#}
+
+    TM2_A= 0.00001549
+    TM2_B= 0.000006521
+
+    @classmethod
+    def TWD67_TM2ToTWD97_TM2(cls, x, y):
+        x97 = x + 807.8 + cls.TM2_A * x + cls.TM2_B * y
+        y97 = y - 248.6 + cls.TM2_A * y + cls.TM2_B * x
+        return (x97, y97)
+
+    @classmethod
+    def TWD97_TM2ToTWD67_TM2(cls, x, y):
+        x67 = x - 807.8 - cls.TM2_A * x - cls.TM2_B * y
+        y67 = y + 248.6 - cls.TM2_A * y - cls.TM2_B * x
+        return (x67, y67)
+
+
+
 def testLatLonToTm2(sample):
     for (lat, lon, x, y) in sample:
         (tm_x, tm_y) = CoordinateSystem.TWD97_LatLonToTWD97_TM2(lat, lon)
         dx = tm_x - x
         dy = tm_y - y
         print( (lat, lon, x, y), "latlon to tm2=", (tm_x, tm_y), "diff=", (dx, dy))
-
 
 if __name__ == "__main__":
     sample = (
