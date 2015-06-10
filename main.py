@@ -151,6 +151,7 @@ class DispBoard(tk.Frame):
         self.disp_label.bind("<Button-1>", self.onMouseDown)
         self.disp_label.bind("<Button1-Motion>", self.onMouseMotion)
         self.disp_label.bind("<Button1-ButtonRelease>", self.onMouseUp)
+        self.disp_label.bind("<Configure>", self.onResize)
 
     def showGpx(self, gpx):
         self.map_ctrl.addGpxLayer(gpx)
@@ -189,7 +190,7 @@ class DispBoard(tk.Frame):
         (x_tm2_97, y_tm2_97) = CoordinateSystem.TWD97_LatLonToTWD97_TM2(geo.lat, geo.lon)
         (x_tm2_67, y_tm2_67) = CoordinateSystem.TWD97_TM2ToTWD67_TM2(x_tm2_97, y_tm2_97)
 
-        txt = "LatLon/97: (%f, %f), TM2/97: (%d, %d), TM2/67: (%d, %d)" % (geo.lat, geo.lon, x_tm2_97, y_tm2_97, x_tm2_67, y_tm2_67)
+        txt = "LatLon/97: (%f, %f), TM2/97: (%.3f, %.3f), TM2/67: (%.3f, %.3f)" % (geo.lat, geo.lon, x_tm2_97/1000, y_tm2_97/1000, x_tm2_67/1000, y_tm2_67/1000)
         self.setMapInfo(txt=txt)
 
     def onMouseMotion(self, event):
@@ -209,6 +210,11 @@ class DispBoard(tk.Frame):
 
         #clear lat/lon
         #self.setMapInfo()
+
+    def onResize(self, event):
+        label = event.widget
+        self.setMapInfo()
+        self.setMap(self.map_ctrl.getTileImage(label.winfo_width(), label.winfo_height()))
 
     def setMapInfo(self, lat=None, lon=None, txt=None):
         c = self.map_ctrl
