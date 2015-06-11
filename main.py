@@ -156,15 +156,35 @@ class DispBoard(tk.Frame):
         self.disp_label.bind("<Button1-ButtonRelease>", self.onMouseUp)
         self.disp_label.bind("<Configure>", self.onResize)
 
-    def showGpx(self, gpx):
+    def addGpx(self, gpx):
         self.map_ctrl.addGpxLayer(gpx)
-        self.map_ctrl.geo.lon = (gpx.minlon + gpx.maxlon) / 2
-        self.map_ctrl.geo.lat = (gpx.maxlat + gpx.minlat) / 2
 
+    def initDisp(self):
+        #set preferred lat/lon
+        latlon = self.__getPrefLatLon()
+        if latlon is not None:
+            self.map_ctrl.geo.lat = latlon[0]
+            self.map_ctrl.geo.lon = latlon[1]
+
+        #show map
         disp_w = 800
         disp_h = 600
         self.map_ctrl.shiftGeoPixel(-disp_w/2, -disp_h/2)
         self.setMap(self.map_ctrl.getTileImage(disp_w, disp_h));
+
+    def __getPrefLatLon(self):
+        #prefer track point
+        for gpx in self.map_ctrl.gpx_layers:
+            for trk in gpx.tracks:
+                for pt in trk:
+                    return (pt.lat, pt.lon)
+
+        #way point
+        for gpx in self.map_ctrl.gpx_layers:
+            for wpt in gpx.way_points:
+                return (wpt.lat, wpt.lon)
+
+        return None
         
     def onMouseWheel(self, event):
         label = event.widget
@@ -340,7 +360,7 @@ class MapController:
 
         for gpx in self.gpx_layers:
             #draw tracks
-            for trk in gpx.getTracks():
+            for trk in gpx.tracks:
                 if self.isTrackInDisp(trk):
                     xy = []
                     for pt in trk:
@@ -350,7 +370,7 @@ class MapController:
                     draw.line(xy, fill=trk.color, width=2)
 
             #draw way points
-            for wpt in gpx.getWayPoints():
+            for wpt in gpx.way_points:
                 (px, py) = TileSystem.getPixcelXYByLatLon(wpt.lat, wpt.lon, self.level)
                 if self.isPointInDisp(px, py):
                     px -= img_left
@@ -479,13 +499,15 @@ if __name__ == '__main__':
     setting_board.onPicAdded(lambda fname:pic_board.addPic(fname))
 
     disp_board = DispBoard(root)
+    disp_board.pack(side='right', anchor='se', expand=1, fill='both', padx=pad_, pady=pad_)
+    #add gpx
     for arg in sys.argv[1:]:
         if isGpxFile(arg):
             gpx = GpsDocument(filename=arg)
         else:
             gpx = GpsDocument(filestring=toGpxString(arg))
-        disp_board.showGpx(gpx)
-    disp_board.pack(side='right', anchor='se', expand=1, fill='both', padx=pad_, pady=pad_)
+        disp_board.addGpx(gpx)
+    disp_board.initDisp()
 
     root.mainloop()
 

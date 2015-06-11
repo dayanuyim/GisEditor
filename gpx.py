@@ -17,11 +17,11 @@ class GpsDocument:
     @property
     def minlat(self): return self.__minlat
 
-    def getWayPoints(self):
-        return self.wpts
+    @property
+    def way_points(self): return self.wpts
 
-    def getTracks(self):
-        return self.trks
+    @property
+    def tracks(self): return self.trks
 
     def __init__(self, filename=None, filestring=None):
         self.wpts = []
