@@ -270,44 +270,43 @@ class MapController:
 
     def getTileImage(self, width, height):
 
+        #The image attributes. we want to create a image compatible with these attributes.
+        img_attr = (self.level, self.geo.px, self.geo.py, self.geo.px + width, self.geo.py + height)
+
         #gen new map if need
-        if not self.__isInDispMap(width, height):
-            self.__genDispMap(width, height)
+        if not self.isImageInImage(img_attr, self.disp_img_attr):
+            (self.disp_img, self.disp_img_attr) = self.__genDispMap(img_attr)
 
         #crop by width/height
-        img = self.__getCropMap(width, height)
-        img_attr = (self.level, self.geo.px, self.geo.py, self.geo.px + width, self.geo.py + height)
+        img = self.__getCropMap(img_attr)
         self.__drawTM2Coord(img, img_attr)
 
         return img
 
-    def __isInDispMap(self, width, height):
-        if self.disp_img_attr is None:
+    def isImageInImage(self, img_attr, img_attr2):
+        if img_attr2 is None:
             return False
 
-        left = self.geo.px
-        up = self.geo.py
-        right = self.geo.px + width
-        low = self.geo.py + height
-        (img_level, img_left, img_up, img_right, img_low) = self.disp_img_attr
+        (level, left, up, right, low) = img_attr
+        (disp_level, disp_left, disp_up, disp_right, disp_low) = img_attr2
 
-        if img_level == self.level and img_left <= left and img_up <= up and img_right >= right and img_low >= low:
+        if disp_level == level and disp_left <= left and disp_up <= up and disp_right >= right and disp_low >= low:
             return True
 
-    def __genDispMap(self, width, height):
+    #gen disp_map by img_attr, disp_map may larger than img_attr specifying
+    def __genDispMap(self, img_attr):
         #print("gen disp map")
-        self.__genBaseMap(width, height)
-        self.__drawGPX(width, height)
+        (img, attr) = self.__genBaseMap(img_attr)
+        self.__drawGPX(img, attr)
 
-    def __genBaseMap(self, width, height):
+        return (img, attr)
 
-        #gen w/ more tile
+    def __genBaseMap(self, img_attr):
+
+        #gen with more tile
         ext_tile = 1
 
-        left = self.geo.px
-        up = self.geo.py
-        right = self.geo.px + width
-        low = self.geo.py + height
+        (level, left, up, right, low) = img_attr
 
         #get tile x, y.
         (t_left, t_upper) = TileSystem.getTileXYByPixcelXY(left, up)
@@ -321,19 +320,19 @@ class MapController:
         img = Image.new("RGB", (tx_num*256, ty_num*256))
         for x in range(tx_num):
             for y in range(ty_num):
-                tile = self.__tile_map.getTileByTileXY(self.level, t_left +x, t_upper +y)
+                tile = self.__tile_map.getTileByTileXY(level, t_left +x, t_upper +y)
                 img.paste(tile, (x*256, y*256))
 
-        #save image
-        self.disp_img_attr = (self.level, t_left*256, t_upper*256, (t_right+1)*256 -1, (t_lower+1)*256 -1)
-        self.disp_img = img
+        #reset img_attr
+        img_attr = (level, t_left*256, t_upper*256, (t_right+1)*256 -1, (t_lower+1)*256 -1)
 
-    def __drawGPX(self, width, height):
+        return  (img, img_attr)
+
+    def __drawGPX(self, img, img_attr):
         if len(self.gpx_layers) == 0:
             return
 
-        (img_level, img_left, img_up, img_right, img_low) = self.disp_img_attr
-        img = self.disp_img
+        (img_level, img_left, img_up, img_right, img_low) = img_attr
 
         font = ImageFont.truetype("ARIALUNI.TTF", 18)
         draw = ImageDraw.Draw(img)
@@ -341,7 +340,7 @@ class MapController:
         for gpx in self.gpx_layers:
             #draw tracks
             for trk in gpx.getTracks():
-                if self.isTrackInDisp(trk):
+                if self.isTrackInImage(trk, img_attr):
                     xy = []
                     for pt in trk:
                         (px, py) = pt.getPixel(self.level)
@@ -352,7 +351,7 @@ class MapController:
             #draw way points
             for wpt in gpx.getWayPoints():
                 (px, py) = TileSystem.getPixcelXYByLatLon(wpt.lat, wpt.lon, self.level)
-                if self.isPointInDisp(px, py):
+                if self.isPointInImage(px, py, img_attr):
                     px -= img_left
                     py -= img_up
                     #draw point
@@ -364,34 +363,31 @@ class MapController:
         #recycle draw object
         del draw
 
-    def isPointInDisp(self, px, py):
-        (img_level, img_left, img_up, img_right, img_low) = self.disp_img_attr
+    def isPointInImage(self, px, py, img_attr):
+        (img_level, img_left, img_up, img_right, img_low) = img_attr
         return img_left <= px and img_up <= py and px <= img_right and py <= img_low
 
-    def isBoxInDisp(self, px_left, py_up, px_right, py_low):
-        return self.isPointInDisp(px_left, py_up) or self.isPointInDisp(px_left, py_low) or \
-              self.isPointInDisp(px_right, py_up) or self.isPointInDisp(px_right, py_low)
+    #def isBoxInImage(self, px_left, py_up, px_right, py_low, img_attr):
+        #return self.isPointInImage(px_left, py_up) or self.isPointInImage(px_left, py_low) or \
+              #self.isPointInImage(px_right, py_up) or self.isPointInImage(px_right, py_low)
 
-    def isTrackInDisp(self, trk):
-        #if the box containing the track is in disp
-        #(px_left, py_up) = TileSystem.getPixcelXYByLatLon(trk.maxlat, trk.minlon, self.level)
-        #(px_right, py_low) = TileSystem.getPixcelXYByLatLon(trk.minlat, trk.maxlon, self.level)
-        #return self.isBoxInDisp(px_left, py_up, px_right, py_low)
-
+    def isTrackInImage(self, trk, img_attr):
         #if some track point is in disp
         for pt in trk:
             (px, py) = pt.getPixel(self.level)
-            if self.isPointInDisp(px, py):
+            if self.isPointInImage(px, py, img_attr):
                 return True
         return False
 
-    def __getCropMap(self, width, height):
-        (img_level, img_left, img_up, img_right, img_low) = self.disp_img_attr
-        img = self.disp_img
+    def __getCropMap(self, img_attr):
+        (level, left, up, right, low) = img_attr
+        (disp_level, disp_left, disp_up, disp_right, disp_low) = self.disp_img_attr
 
-        img_x = self.geo.px - img_left
-        img_y = self.geo.py - img_up
-        return img.crop((img_x, img_y, img_x + width, img_y + height))
+        left -= disp_left
+        up -= disp_up
+        right -= disp_left
+        low -= disp_up
+        return self.disp_img.crop((left, up, right, low))
 
     @classmethod
     def __drawTM2Coord(cls, img, img_attr):
