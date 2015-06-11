@@ -250,7 +250,7 @@ class MapController:
 
     def __init__(self):
         #def settings
-        self.__tile_map = tile.getTM25Kv3TileMap()
+        self.__tile_map = tile.getTM25Kv3TileMap(cache_dir=Config['cache_dir'])
         self.__geo = GeoPoint(lon=121.334754, lat=24.987969)  #default location
         self.__geo.level = 14
 
@@ -295,7 +295,7 @@ class MapController:
             return True
 
     def __genDispMap(self, width, height):
-        print("gen disp map")
+        #print("gen disp map")
         self.__genBaseMap(width, height)
         self.__drawGPX(width, height)
 
@@ -446,18 +446,23 @@ def toGpxString(src_path):
     if ext == '':
         raise ValueError("cannot identify input format")
 
-    #TODO try to access gpsbabel or prompt user the path
-    exe_file = "C:\Program Files (x86)\GPSBabel\gpsbabel.exe"
-
-    #dst_path = "tmp.gpx"
-    #cmd = '"%s" -i %s -f %s -o gpx -F %s' % (exe_file, ext[1:], src_path, dst_path)
-    #subprocess.check_call(cmd, shell=True)
+    exe_file = Config['gpsbabel_dir'] + "\gpsbabel.exe"
 
     cmd = '"%s" -i %s -f %s -o gpx,gpxver=1.1 -F -' % (exe_file, ext[1:], src_path)
     output = subprocess.check_output(cmd, shell=True)
     return output.decode("utf-8")
 
+def readConfig(conf_path):
+    conf = {}
+    with open(conf_path) as conf_file:
+        for line in conf_file:
+            k, v = line.rstrip().split('=', 1)
+            conf[k] = v
+    return conf
+
 if __name__ == '__main__':
+    #read conf
+    Config = readConfig('./giseditor.conf')
 
     #create window
     root = tk.Tk()

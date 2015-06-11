@@ -90,7 +90,7 @@ class TileSystem:
 class TileMap:
     def getMapName(self): return self.map_title
 
-    def __init__(self):
+    def __init__(self, cache_dir=None):
         #self.map_id = "TM25K_2001"
         #self.map_title = "2001-臺灣經建3版地形圖-1:25,000"
         #self.lower_corner = (117.84953432, 21.65607265)
@@ -99,7 +99,7 @@ class TileMap:
         #self.level_min = 7
         #self.level_max = 16
 
-        self.__cache_dir = './cache'
+        self.__cache_dir = cache_dir if cache_dir is not None else './cache' 
         if not os.path.exists(self.__cache_dir):
             os.makedirs(self.__cache_dir)
 
@@ -141,8 +141,8 @@ class TileMap:
         with urllib.request.urlopen(url) as response, open(file_path, 'wb') as out_file:
             shutil.copyfileobj(response, out_file)
 
-def getTM25Kv3TileMap():
-    tm = TileMap()
+def getTM25Kv3TileMap(cache_dir):
+    tm = TileMap(cache_dir=cache_dir)
     tm.map_id = "TM25K_2001"
     tm.map_title = "2001-臺灣經建3版地形圖-1:25,000"
     tm.lower_corner = (117.84953432, 21.65607265)
@@ -152,8 +152,8 @@ def getTM25Kv3TileMap():
     tm.level_max = 16
     return tm
 
-def getTM25Kv4TileMap():
-    tm = TileMap()
+def getTM25Kv4TileMap(cache_dir):
+    tm = TileMap(cache_dir=cache_dir)
     tm.map_id = "TM25K_2003"
     tm.map_title = "2001-臺灣經建4版地形圖-1:25,000"
     tm.lower_corner = (117.84953432, 21.65607265)
