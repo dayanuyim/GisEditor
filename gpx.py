@@ -19,11 +19,18 @@ class GpsDocument:
     def getTracks(self):
         return self.trks
 
-    def __init__(self, filename):
+    def __init__(self, filename=None, filestring=None):
         self.wpts = []
         self.trks = []
 
-        xml_root = ElementTree.parse(filename).getroot()
+        #get root element
+        xml_root = None
+        if filename is not None:
+            xml_root = ElementTree.parse(filename).getroot()
+        elif filestring is not None:
+            xml_root = ElementTree.fromstring(filestring)
+        else:
+            raise ValueError("Gpx filename and filestring both None")
 
         #set ns
         self.ns = {}

@@ -1,20 +1,21 @@
 ﻿#!/usr/bin/env python3
 
 import os
+import subprocess
 import sys
-import math
 import tkinter as tk
 import urllib.request
 import shutil
 from os import listdir
 from os.path import isdir, isfile, exists
 from PIL import Image, ImageTk, ImageDraw, ImageFont
+from math import floor, ceil
+
 #my modules
 import tile
 from tile import  TileSystem, TileMap, GeoPoint
 from coord import  CoordinateSystem
 from gpx import GpsDocument
-from math import floor, ceil
 
 class SettingBoard(tk.LabelFrame):
     def __init__(self, master):
@@ -434,8 +435,30 @@ class MapController:
         (lat, lon) = CoordinateSystem.TWD67_TM2ToTWD97_LatLon(x, y)
         return TileSystem.getPixcelXYByLatLon(lat, lon, level)
 
+def isGpxFile(src_path):
+    (fname, ext) = os.path.splitext(src_path)
+    if ext == '.gpx':
+        return True
+    return False
+
+def toGpxString(src_path):
+    (fname, ext) = os.path.splitext(src_path)
+    if ext == '':
+        raise ValueError("cannot identify input format")
+
+    #TODO try to access gpsbabel or prompt user the path
+    exe_file = "C:\Program Files (x86)\GPSBabel\gpsbabel.exe"
+
+    #dst_path = "tmp.gpx"
+    #cmd = '"%s" -i %s -f %s -o gpx -F %s' % (exe_file, ext[1:], src_path, dst_path)
+    #subprocess.check_call(cmd, shell=True)
+
+    cmd = '"%s" -i %s -f %s -o gpx,gpxver=1.1 -F -' % (exe_file, ext[1:], src_path)
+    output = subprocess.check_output(cmd, shell=True)
+    return output.decode("utf-8")
 
 if __name__ == '__main__':
+
     #create window
     root = tk.Tk()
     root.title("PicGisEditor")
@@ -452,7 +475,10 @@ if __name__ == '__main__':
 
     disp_board = DispBoard(root)
     for arg in sys.argv[1:]:
-        gpx = GpsDocument(arg)
+        if isGpxFile(arg):
+            gpx = GpsDocument(filename=arg)
+        else:
+            gpx = GpsDocument(filestring=toGpxString(arg))
         disp_board.showGpx(gpx)
     disp_board.pack(side='right', anchor='se', expand=1, fill='both', padx=pad_, pady=pad_)
 

@@ -127,18 +127,19 @@ class TileMap:
 
     def __readTile(self, level, x, y):
         path = "%s/%s" % (self.__cache_dir, self.genTileName(level, x, y))
+        #print("File", path)
+
         if not os.path.exists(path):
             self.__downloadTile(level, x, y, path)
-        print(path)
         return Image.open(path)
 
     def __downloadTile(self, level, x, y, file_path):
         url = self.url_template % (level, x, y)
+        print("DL", url)
 
         #urllib.request.urlretrieve(url, file_path)
         with urllib.request.urlopen(url) as response, open(file_path, 'wb') as out_file:
             shutil.copyfileobj(response, out_file)
-        print(url)
 
 def getTM25Kv3TileMap():
     tm = TileMap()
