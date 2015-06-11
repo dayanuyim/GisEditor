@@ -8,10 +8,14 @@ from datetime import datetime
 from tile import TileSystem, GeoPoint
 
 class GpsDocument:
-    def getMaxLon(self): return self.maxlon
-    def getMaxLat(self): return self.maxlat
-    def getMinLon(self): return self.minlon
-    def getMinLat(self): return self.minlat
+    @property
+    def maxlon(self): return self.__maxlon
+    @property
+    def minlon(self): return self.__minlon
+    @property
+    def maxlat(self): return self.__maxlat
+    @property
+    def minlat(self): return self.__minlat
 
     def getWayPoints(self):
         return self.wpts
@@ -22,6 +26,10 @@ class GpsDocument:
     def __init__(self, filename=None, filestring=None):
         self.wpts = []
         self.trks = []
+        self.__maxlon = None
+        self.__minlon = None
+        self.__maxlat = None
+        self.__minlat = None
 
         #get root element
         xml_root = None
@@ -60,10 +68,10 @@ class GpsDocument:
         #bounds = xml_root.find("./gpx:metadata/gpx:bounds", self.ns)  #gpx1.1
         #bounds = xml_root.findall("./gpx:bounds", self.ns)  #gpx1.0 
         bounds = xml_root.find(".//gpx:bounds", self.ns)  #for gpx1.0/gpx1.1
-        self.maxlat = float(bounds.attrib['maxlat'])
-        self.maxlon = float(bounds.attrib['maxlon'])
-        self.minlat = float(bounds.attrib['minlat'])
-        self.minlon = float(bounds.attrib['minlon'])
+        self.__maxlat = float(bounds.attrib['maxlat']) if bounds is not None else None
+        self.__maxlon = float(bounds.attrib['maxlon']) if bounds is not None else None
+        self.__minlat = float(bounds.attrib['minlat']) if bounds is not None else None
+        self.__minlon = float(bounds.attrib['minlon']) if bounds is not None else None
 
     def loadWpt(self, xml_root):
         wpt_elems = xml_root.findall("./gpx:wpt", self.ns)
@@ -97,6 +105,9 @@ class GpsDocument:
             if elem is not None: wpt.sym = elem.text
 
             self.wpts.append(wpt)
+
+            #update bounds (metadata may not have)
+            self.__updateBounds(wpt)
 
     def loadTrk(self, xml_root):
         trk_elems = xml_root.findall("./gpx:trk", self.ns)
@@ -133,6 +144,20 @@ class GpsDocument:
 
             trk.addTrackPoint(pt)
 
+            #update bounds (metadata may not have)
+            self.__updateBounds(pt)
+
+    def __updateBounds(self, pt):
+        if self.__maxlat is None or pt.lat >= self.__maxlat:
+            self.__maxlat = pt.lat
+        if self.__minlat is None or pt.lat <= self.__minlat:
+            self.__minlat = pt.lat
+
+        if self.__maxlon is None or pt.lon >= self.__maxlon:
+            self.__maxlon = pt.lon
+        if self.__minlon is None or pt.lon <= self.__minlon:
+            self.__minlon = pt.lon
+
 class WayPoint:
     def __init__(self):
         self.lon = None
@@ -149,38 +174,12 @@ class Track:
         self.__trkseg = []
         self.name = None
         self.color = None
-        self.__maxlon = None
-        self.__minlon = None
-        self.__maxlat = None
-        self.__minlat = None
 
     def __iter__(self):
         return iter(self.__trkseg)
 
-    @property
-    def maxlon(self): return self.__maxlon
-    @property
-    def minlon(self): return self.__minlon
-    @property
-    def maxlat(self): return self.__maxlat
-    @property
-    def minlat(self): return self.__minlat
-
     def addTrackPoint(self, pt):
         self.__trkseg.append(pt)
-        self.__updateBounds(pt)
-
-    def __updateBounds(self, pt):
-        if self.__maxlat is None or pt.lat >= self.__maxlat:
-            self.__maxlat = pt.lat
-        if self.__minlat is None or pt.lat <= self.__minlat:
-            self.__minlat = pt.lat
-
-        if self.__maxlon is None or pt.lon >= self.__maxlon:
-            self.__maxlon = pt.lon
-        if self.__minlon is None or pt.lon <= self.__minlon:
-            self.__minlon = pt.lon
-
 
 class TrackPoint:
     @property

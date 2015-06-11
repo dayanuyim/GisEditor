@@ -158,8 +158,8 @@ class DispBoard(tk.Frame):
 
     def showGpx(self, gpx):
         self.map_ctrl.addGpxLayer(gpx)
-        self.map_ctrl.geo.lon = (gpx.getMinLon() + gpx.getMaxLon()) / 2
-        self.map_ctrl.geo.lat = (gpx.getMaxLat() + gpx.getMinLat()) / 2
+        self.map_ctrl.geo.lon = (gpx.minlon + gpx.maxlon) / 2
+        self.map_ctrl.geo.lat = (gpx.maxlat + gpx.minlat) / 2
 
         disp_w = 800
         disp_h = 600
