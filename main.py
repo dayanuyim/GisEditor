@@ -264,8 +264,8 @@ class MapController:
     def level(self): return self.__geo.level
     @level.setter
     def level(self, level):
-        if self.__tile_map.isSupportedLevel(level):
-            self.__geo.level = level
+        #if self.__tile_map.isSupportedLevel(level):
+        self.__geo.level = level
 
     def __init__(self):
         #def settings
@@ -276,6 +276,7 @@ class MapController:
         #image
         self.disp_img = None
         self.disp_attr = None
+        self.extra_p = 256
 
         #layer
         self.gpx_layers = []
@@ -303,41 +304,67 @@ class MapController:
         return img
 
 
-    #gen disp_map by img_attr, disp_map may larger than img_attr specifying
+    #gen disp_map by req_attr, disp_map may larger than req_attr specifying
     def __genDispMap(self, img_attr):
-        #print("gen disp map")
+        print("gen disp map")
         (img, attr) = self.__genBaseMap(img_attr)
         self.__drawGPX(img, attr)
 
         return (img, attr)
 
     def __genBaseMap(self, img_attr):
+        level_max = self.__tile_map.level_max
+        level_min = self.__tile_map.level_min
 
-        #gen with more tile
-        ext_tile = 1
+        level = max(self.__tile_map.level_min, min(img_attr.level, self.__tile_map.level_max))
 
+        if img_attr.level == level:
+            return self.__genTileMap(img_attr, self.extra_p)
+        else:
+            zoom_attr = img_attr.zoomToLevel(level)
+            extra_p = self.extra_p * 2**(level - img_attr.level)
+
+            (img, attr) = self.__genTileMap(zoom_attr, extra_p)
+            return self.__zoomImage(img, attr, img_attr.level)
+
+    def __zoomImage(self, img, attr, level):
+        s = level - attr.level
+        if s == 0:
+            return (img, attr)
+        elif s > 0:
+            w = (attr.right_px - attr.left_px) << s
+            h = (attr.low_py - attr.up_py) << s
+        else:
+            w = (attr.right_px - attr.left_px) >> (-s)
+            h = (attr.low_py - attr.up_py) >> (-s)
+
+        #Image.NEAREST, Image.BILINEAR, Image.BICUBIC, or Image.LANCZOS 
+        img = img.resize((w,h), Image.BILINEAR)
+
+        #the attr of resized image
+        attr = attr.zoomToLevel(level)
+
+        return (img, attr)
+
+    def __genTileMap(self, img_attr, extra_p):
         #get tile x, y.
-        (t_left, t_upper) = TileSystem.getTileXYByPixcelXY(img_attr.left_px, img_attr.up_py)
-        t_left -= ext_tile
-        t_upper -= ext_tile
-        (t_right, t_lower) = TileSystem.getTileXYByPixcelXY(img_attr.right_px, img_attr.low_py)
-        t_right += ext_tile
-        t_lower += ext_tile
+        (t_left, t_upper) = TileSystem.getTileXYByPixcelXY(img_attr.left_px - extra_p, img_attr.up_py - extra_p)
+        (t_right, t_lower) = TileSystem.getTileXYByPixcelXY(img_attr.right_px + extra_p, img_attr.low_py + extra_p)
 
         tx_num = t_right - t_left +1
         ty_num = t_lower - t_upper +1
 
         #gen image
-        img = Image.new("RGB", (tx_num*256, ty_num*256))
+        disp_img = Image.new("RGB", (tx_num*256, ty_num*256))
         for x in range(tx_num):
             for y in range(ty_num):
                 tile = self.__tile_map.getTileByTileXY(img_attr.level, t_left +x, t_upper +y)
-                img.paste(tile, (x*256, y*256))
+                disp_img.paste(tile, (x*256, y*256))
 
         #reset img_attr
-        img_attr = ImageAttr(img_attr.level, t_left*256, t_upper*256, (t_right+1)*256 -1, (t_lower+1)*256 -1)
+        disp_attr = ImageAttr(img_attr.level, t_left*256, t_upper*256, (t_right+1)*256 -1, (t_lower+1)*256 -1)
 
-        return  (img, img_attr)
+        return  (disp_img, disp_attr)
 
     def __drawGPX(self, img, img_attr):
         if len(self.gpx_layers) == 0:
@@ -456,6 +483,15 @@ class ImageAttr:
         #return self.isPointInImage(px_left, py_up) or self.isPointInImage(px_left, py_low) or \
               #self.isPointInImage(px_right, py_up) or self.isPointInImage(px_right, py_low)
 
+    def zoomToLevel(self, level):
+        if level > self.level:
+            s = level - self.level
+            return ImageAttr(level, self.left_px << s, self.up_py << s, self.right_px << s, self.low_py << s)
+        elif self.level > level:
+            s = self.level - level
+            return ImageAttr(level, self.left_px >> s, self.up_py >> s, self.right_px >> s, self.low_py >> s)
+        else:
+            return self
 
 def isGpxFile(src_path):
     (fname, ext) = os.path.splitext(src_path)
