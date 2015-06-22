@@ -8,7 +8,7 @@ import urllib.request
 import shutil
 from os import listdir
 from os.path import isdir, isfile, exists
-from PIL import Image, ImageTk, ImageDraw, ImageFont
+from PIL import Image, ImageTk, ImageDraw, ImageFont, ExifTags
 from math import floor, ceil
 
 #my modules
@@ -166,11 +166,15 @@ class DispBoard(tk.Frame):
             self.map_ctrl.geo.lat = latlon[0]
             self.map_ctrl.geo.lon = latlon[1]
 
+        #@@ test!
+        self.addPic('bak/test.jpg')
+
         #show map
         disp_w = 800
         disp_h = 600
         self.map_ctrl.shiftGeoPixel(-disp_w/2, -disp_h/2)
         self.setMap(self.map_ctrl.getTileImage(disp_w, disp_h));
+
 
     def __getPrefLatLon(self):
         #prefer track point
@@ -252,6 +256,40 @@ class DispBoard(tk.Frame):
         photo = ImageTk.PhotoImage(img)
         self.disp_label.config(image=photo)
         self.disp_label.image = photo #keep a ref
+
+    def addPic(self, path):
+        img = Image.open(path)
+        exif = self.getExif(img)
+        lat = self.exifDegreeToDecimal(exif['GPSLatitudeRef'], exif['GPSLatitude'])
+        lon = self.exifDegreeToDecimal(exif['GPSLongitudeRef'], exif['GPSLongitude'])
+        self.map_ctrl.geo.lat = lat
+        self.map_ctrl.geo.lon = lon
+
+    @staticmethod
+    def exifDegreeToDecimal(ref, degree):
+        (d, m, s) = degree
+        return d[0]/d[1] + m[0]/m[1]/60 + s[0]/s[1]/3600
+
+    @staticmethod
+    def getExif(img):
+        exif = {}
+
+        for k, v in img._getexif().items():
+            #exif
+            if k not in ExifTags.TAGS:
+                continue
+            name = ExifTags.TAGS[k]
+            exif[name] = v
+
+            #exif - GPS
+            if name == 'GPSInfo':
+                for gk, gv in v.items():
+                    if gk not in ExifTags.GPSTAGS:
+                        continue
+                    gname = ExifTags.GPSTAGS[gk]
+                    exif[gname] = gv
+
+        return exif
 
 class MapController:
     @property
