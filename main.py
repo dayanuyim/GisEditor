@@ -8,7 +8,7 @@ import urllib.request
 import shutil
 from os import listdir
 from os.path import isdir, isfile, exists
-from PIL import Image, ImageTk, ImageDraw, ImageFont, ExifTags
+from PIL import Image, ImageTk, ImageDraw, ImageFont
 from math import floor, ceil
 
 #my modules
@@ -16,6 +16,7 @@ import tile
 from tile import  TileSystem, TileMap, GeoPoint
 from coord import  CoordinateSystem
 from gpx import GpsDocument
+from pic import PicDocument
 
 class SettingBoard(tk.LabelFrame):
     def __init__(self, master):
@@ -159,6 +160,9 @@ class DispBoard(tk.Frame):
     def addGpx(self, gpx):
         self.map_ctrl.addGpxLayer(gpx)
 
+    def addPic(self, pic):
+        self.map_ctrl.addPicLayer(pic)
+
     def initDisp(self):
         #set preferred lat/lon
         latlon = self.__getPrefLatLon()
@@ -166,15 +170,11 @@ class DispBoard(tk.Frame):
             self.map_ctrl.geo.lat = latlon[0]
             self.map_ctrl.geo.lon = latlon[1]
 
-        #@@ test!
-        self.addPic('bak/test.jpg')
-
         #show map
         disp_w = 800
         disp_h = 600
         self.map_ctrl.shiftGeoPixel(-disp_w/2, -disp_h/2)
         self.setMap(self.map_ctrl.getTileImage(disp_w, disp_h));
-
 
     def __getPrefLatLon(self):
         #prefer track point
@@ -187,6 +187,10 @@ class DispBoard(tk.Frame):
         for gpx in self.map_ctrl.gpx_layers:
             for wpt in gpx.way_points:
                 return (wpt.lat, wpt.lon)
+
+        #pic
+        for pic in self.map_ctrl.pic_layers:
+            return (pic.lat, pic.lon)
 
         return None
         
@@ -257,40 +261,6 @@ class DispBoard(tk.Frame):
         self.disp_label.config(image=photo)
         self.disp_label.image = photo #keep a ref
 
-    def addPic(self, path):
-        img = Image.open(path)
-        exif = self.getExif(img)
-        lat = self.exifDegreeToDecimal(exif['GPSLatitudeRef'], exif['GPSLatitude'])
-        lon = self.exifDegreeToDecimal(exif['GPSLongitudeRef'], exif['GPSLongitude'])
-        self.map_ctrl.geo.lat = lat
-        self.map_ctrl.geo.lon = lon
-
-    @staticmethod
-    def exifDegreeToDecimal(ref, degree):
-        (d, m, s) = degree
-        return d[0]/d[1] + m[0]/m[1]/60 + s[0]/s[1]/3600
-
-    @staticmethod
-    def getExif(img):
-        exif = {}
-
-        for k, v in img._getexif().items():
-            #exif
-            if k not in ExifTags.TAGS:
-                continue
-            name = ExifTags.TAGS[k]
-            exif[name] = v
-
-            #exif - GPS
-            if name == 'GPSInfo':
-                for gk, gv in v.items():
-                    if gk not in ExifTags.GPSTAGS:
-                        continue
-                    gname = ExifTags.GPSTAGS[gk]
-                    exif[gname] = gv
-
-        return exif
-
 class MapController:
     @property
     def tile_map(self): return self.__tile_map
@@ -318,6 +288,7 @@ class MapController:
 
         #layer
         self.gpx_layers = []
+        self.pic_layers = []
 
     def shiftGeoPixel(self, px, py):
         self.__geo.px += int(px)
@@ -325,6 +296,9 @@ class MapController:
 
     def addGpxLayer(self, gpx):
         self.gpx_layers.append(gpx)
+
+    def addPicLayer(self, pic):
+        self.pic_layers.append(pic)
 
     def getTileImage(self, width, height):
 
@@ -347,6 +321,7 @@ class MapController:
         print("gen disp map")
         (img, attr) = self.__genBaseMap(img_attr)
         self.__drawGPX(img, attr)
+        self.__drawPic(img, attr)
 
         return (img, attr)
 
@@ -408,7 +383,6 @@ class MapController:
         if len(self.gpx_layers) == 0:
             return
 
-        font = ImageFont.truetype("ARIALUNI.TTF", 18)
         draw = ImageDraw.Draw(img)
 
         for gpx in self.gpx_layers:
@@ -424,18 +398,29 @@ class MapController:
 
             #draw way points
             for wpt in gpx.way_points:
-                (px, py) = TileSystem.getPixcelXYByLatLon(wpt.lat, wpt.lon, img_attr.level)
-                if img_attr.containsPoint(px, py):
-                    px -= img_attr.left_px
-                    py -= img_attr.up_py
-                    #draw point
-                    draw.ellipse((px-3, py-3, px+3, py+3), fill="#404040", outline='white')
-                    #draw text
-                    draw.text((px+1, py+1), wpt.name, fill="white", font=font)
-                    draw.text((px-1, py-1), wpt.name, fill="white", font=font)
-                    draw.text((px, py), wpt.name, fill="gray", font=font)
+                self.drawPoint(draw, img_attr, wpt.lat, wpt.lon, wpt.name)
+
         #recycle draw object
         del draw
+
+    @staticmethod
+    def drawPoint(draw, img_attr, lat, lon, txt=None, font=None):
+        #get px, py
+        (px, py) = TileSystem.getPixcelXYByLatLon(lat, lon, img_attr.level)
+        if not img_attr.containsPoint(px, py):
+            return
+        px -= img_attr.left_px
+        py -= img_attr.up_py
+
+        #draw point
+        draw.ellipse((px-3, py-3, px+3, py+3), fill="#404040", outline='white')
+
+        #draw text
+        if txt is not None:
+            font = ImageFont.truetype("ARIALUNI.TTF", 18)
+            draw.text((px+1, py+1), txt, fill="white", font=font)
+            draw.text((px-1, py-1), txt, fill="white", font=font)
+            draw.text((px, py), txt, fill="gray", font=font)
 
     def isTrackInImage(self, trk, img_attr):
         #if some track point is in disp
@@ -444,6 +429,13 @@ class MapController:
             if img_attr.containsPoint(px, py):
                 return True
         return False
+
+    #draw pic as waypoint
+    def __drawPic(self, img, img_attr):
+        draw = ImageDraw.Draw(img)
+        for pic in self.pic_layers:
+            self.drawPoint(draw, img_attr, pic.lat, pic.lon, pic.desc)
+        del draw
 
     def __getCropMap(self, img_attr):
         disp = self.disp_attr
@@ -531,11 +523,23 @@ class ImageAttr:
         else:
             return self
 
-def isGpxFile(src_path):
-    (fname, ext) = os.path.splitext(src_path)
+def isGpsFile(path):
+    (fname, ext) = os.path.splitext(path)
+    ext = ext.lower()
     if ext == '.gpx':
         return True
+    if ext == '.gdb':
+        return True
     return False
+
+def getGpsDocument(path):
+    (fname, ext) = os.path.splitext(path)
+    ext = ext.lower()
+    if ext == '.gpx':
+        return GpsDocument(filename=path)
+    else:
+        gpx_string = toGpxString(path)
+        return GpsDocument(filestring=gpx_string)
 
 def toGpxString(src_path):
     (fname, ext) = os.path.splitext(src_path)
@@ -547,6 +551,14 @@ def toGpxString(src_path):
     cmd = '"%s" -i %s -f %s -o gpx,gpxver=1.1 -F -' % (exe_file, ext[1:], src_path)
     output = subprocess.check_output(cmd, shell=True)
     return output.decode("utf-8")
+
+def isPicFile(path):
+    (fname, ext) = os.path.splitext(path)
+    ext = ext.lower()
+
+    if ext == '.jpg' or ext == '.jpeg':
+        return True
+    return False
 
 def readConfig(conf_path):
     conf = {}
@@ -578,12 +590,13 @@ if __name__ == '__main__':
     disp_board.pack(side='right', anchor='se', expand=1, fill='both', padx=pad_, pady=pad_)
     #add gpx
     for arg in sys.argv[1:]:
-        if isGpxFile(arg):
-            gpx = GpsDocument(filename=arg)
-        else:
-            gpx = GpsDocument(filestring=toGpxString(arg))
-        disp_board.addGpx(gpx)
-    disp_board.initDisp()
+        if isGpsFile(arg):
+            gpx = getGpsDocument(arg)
+            disp_board.addGpx(gpx)
+        elif isPicFile(arg):
+            pic = PicDocument(arg)
+            disp_board.addPic(pic)
 
+    disp_board.initDisp()
     root.mainloop()
 
