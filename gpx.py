@@ -79,11 +79,9 @@ class GpsDocument:
             return
 
         for wpt_elem in wpt_elems:
-            wpt = WayPoint()
-
-            #attr
-            wpt.lat = float(wpt_elem.attrib['lat'])
-            wpt.lon = float(wpt_elem.attrib['lon'])
+            wpt = WayPoint(
+                float(wpt_elem.attrib['lat']),
+                float(wpt_elem.attrib['lon']))
 
             #child element
             elem = wpt_elem.find("./gpx:ele", self.ns)
@@ -159,15 +157,23 @@ class GpsDocument:
             self.__minlon = pt.lon
 
 class WayPoint:
-    def __init__(self):
-        self.lon = None
-        self.lat = None
+    @property
+    def lat(self): return self.__geo.lat
+    @property
+    def lon(self): return self.__geo.lon
+
+    def __init__(self, lat, lon):
+        self.__geo = GeoPoint(lat=lat, lon=lon)
         self.ele = None
         self.time = None
         self.name = None
         self.desc = None
         self.cmt = None
         self.sym = None
+
+    def getPixel(self, level):
+        self.__geo.level = level
+        return (self.__geo.px, self.__geo.py)
 
 class Track:
     def __init__(self):
