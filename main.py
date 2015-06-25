@@ -568,7 +568,25 @@ def readConfig(conf_path):
             conf[k] = v
     return conf
 
+
+def readFiles(paths):
+    gps_path = []
+    pic_path = []
+    __readFiles(paths, gps_path, pic_path)
+    return gps_path, pic_path
+    
+def __readFiles(paths, gps_path, pic_path):
+    for path in paths:
+        if isdir(path):
+            subpaths = [os.path.join(path, f) for f in listdir(path)]
+            __readFiles(subpaths, gps_path, pic_path)
+        elif isPicFile(path):
+            pic_path.append(path)
+        elif isGpsFile(path):
+            gps_path.append(path)
+
 if __name__ == '__main__':
+
     #read conf
     Config = readConfig('./giseditor.conf')
 
@@ -588,14 +606,13 @@ if __name__ == '__main__':
 
     disp_board = DispBoard(root)
     disp_board.pack(side='right', anchor='se', expand=1, fill='both', padx=pad_, pady=pad_)
-    #add gpx
-    for arg in sys.argv[1:]:
-        if isGpsFile(arg):
-            gpx = getGpsDocument(arg)
-            disp_board.addGpx(gpx)
-        elif isPicFile(arg):
-            pic = PicDocument(arg)
-            disp_board.addPic(pic)
+
+    #add files
+    gps_path, pic_path = readFiles(sys.argv[1:])
+    for path in gps_path:
+        disp_board.addGpx(getGpsDocument(path))
+    for path in pic_path:
+        disp_board.addPic(PicDocument(path))
 
     disp_board.initDisp()
     root.mainloop()
