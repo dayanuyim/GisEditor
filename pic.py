@@ -15,7 +15,7 @@ class PicDocument:
 
     @property
     def desc(self):
-        return self.__exif['ImageDescription']
+        return self.__exif['ImageDescription'].encode('latin-1').decode('utf-8') #PIL use latin-1 by default
 
     def __init__(self, path=None):
         self.__path = path
