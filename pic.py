@@ -3,24 +3,24 @@
 """ handle pic """
 
 from PIL import Image, ExifTags
+from tile import GeoPoint
+from gpx import WayPoint
 
-class PicDocument:
-    @property
-    def lat(self):
-        return self.exifDegreeToDecimal(self.__exif['GPSLatitudeRef'], self.__exif['GPSLatitude'])
-
-    @property
-    def lon(self):
-        return self.exifDegreeToDecimal(self.__exif['GPSLongitudeRef'], self.__exif['GPSLongitude'])
-
-    @property
-    def desc(self):
-        return self.__exif['ImageDescription'].encode('latin-1').decode('utf-8') #PIL use latin-1 by default
-
+class PicDocument(WayPoint):
     def __init__(self, path=None):
         self.__path = path
         self.__img = Image.open(path)
         self.__exif = self.getExif(self.__img)
+
+        super().__init__(
+            lat = self.exifDegreeToDecimal(self.__exif['GPSLatitudeRef'], self.__exif['GPSLatitude']),
+            lon = self.exifDegreeToDecimal(self.__exif['GPSLongitudeRef'], self.__exif['GPSLongitude']))
+        self.ele = None
+        self.time = None
+        self.name = self.__exif['ImageDescription'].encode('latin-1').decode('utf-8') #PIL use latin-1 by default
+        self.desc = None
+        self.cmt = None
+        self.sym = None
 
     @staticmethod
     def exifDegreeToDecimal(ref, degree):

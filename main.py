@@ -10,6 +10,7 @@ from os import listdir
 from os.path import isdir, isfile, exists
 from PIL import Image, ImageTk, ImageDraw, ImageFont
 from math import floor, ceil
+from tkinter import messagebox
 
 #my modules
 import tile
@@ -135,6 +136,7 @@ class DispBoard(tk.Frame):
         super().__init__(master)
 
         self.map_ctrl = MapController()
+        self.focused_wpt = None
 
         #board
         self.bg_color='#D0D0D0'
@@ -152,9 +154,10 @@ class DispBoard(tk.Frame):
         #self.disp_label.config(width=disp_w, height=disp_h)
         self.disp_label.pack(expand=1, fill='both', anchor='n')
         self.disp_label.bind('<MouseWheel>', self.onMouseWheel)
-        self.disp_label.bind("<Button-1>", self.onMouseDown)
-        self.disp_label.bind("<Button1-Motion>", self.onMouseMotion)
-        self.disp_label.bind("<Button1-ButtonRelease>", self.onMouseUp)
+        self.disp_label.bind('<Motion>', self.onMotion)
+        self.disp_label.bind("<Button-1>", self.onClickDown)
+        self.disp_label.bind("<Button1-Motion>", self.onClickMotion)
+        self.disp_label.bind("<Button1-ButtonRelease>", self.onClickUp)
         self.disp_label.bind("<Configure>", self.onResize)
 
     def addGpx(self, gpx):
@@ -167,14 +170,14 @@ class DispBoard(tk.Frame):
         #set preferred lat/lon
         latlon = self.__getPrefLatLon()
         if latlon is not None:
-            self.map_ctrl.geo.lat = latlon[0]
-            self.map_ctrl.geo.lon = latlon[1]
+            self.map_ctrl.lat = latlon[0]
+            self.map_ctrl.lon = latlon[1]
 
         #show map
         disp_w = 800
         disp_h = 600
         self.map_ctrl.shiftGeoPixel(-disp_w/2, -disp_h/2)
-        self.setMap(self.map_ctrl.getTileImage(disp_w, disp_h));
+        self.resetMap(disp_w, disp_h)
 
     def __getPrefLatLon(self):
         #prefer track point
@@ -210,21 +213,26 @@ class DispBoard(tk.Frame):
         self.map_ctrl.shiftGeoPixel(-event.x, -event.y)
 
         self.setMapInfo()
-        self.setMap(self.map_ctrl.getTileImage(label.winfo_width(), label.winfo_height()))
+        self.resetMap(label.winfo_width(), label.winfo_height())
 
-    def onMouseDown(self, event):
+    def onClickDown(self, event):
         self.__mouse_down_pos = (event.x, event.y)
 
         #show lat/lon
         c = self.map_ctrl
-        geo = GeoPoint(px=c.geo.px + event.x, py=c.geo.py + event.y, level=c.geo.level) 
+        geo = GeoPoint(px=c.px + event.x, py=c.py + event.y, level=c.level) 
         (x_tm2_97, y_tm2_97) = CoordinateSystem.TWD97_LatLonToTWD97_TM2(geo.lat, geo.lon)
         (x_tm2_67, y_tm2_67) = CoordinateSystem.TWD97_TM2ToTWD67_TM2(x_tm2_97, y_tm2_97)
 
         txt = "LatLon/97: (%f, %f), TM2/97: (%.3f, %.3f), TM2/67: (%.3f, %.3f)" % (geo.lat, geo.lon, x_tm2_97/1000, y_tm2_97/1000, x_tm2_67/1000, y_tm2_67/1000)
         self.setMapInfo(txt=txt)
 
-    def onMouseMotion(self, event):
+        #show wpt frame
+        wpt = c.getWptAt(geo.px, geo.py)
+        if wpt is not None:
+            messagebox.showinfo("get wpt", wpt.name)
+
+    def onClickMotion(self, event):
         if self.__mouse_down_pos is not None:
             label = event.widget
 
@@ -232,11 +240,39 @@ class DispBoard(tk.Frame):
             (last_x, last_y) = self.__mouse_down_pos
             self.map_ctrl.shiftGeoPixel(last_x - event.x, last_y - event.y)
             self.setMapInfo()
-            self.setMap(self.map_ctrl.getTileImage(label.winfo_width(), label.winfo_height()))
+            self.resetMap(label.winfo_width(), label.winfo_height())
 
             self.__mouse_down_pos = (event.x, event.y)
 
-    def onMouseUp(self, event):
+    def onMotion(self, event):
+        #draw point
+        c = self.map_ctrl
+        px=c.px + event.x
+        py=c.py + event.y
+
+        wpt = c.getWptAt(px, py)
+        #restore color
+        if self.focused_wpt is not None:
+            if wpt is None or wpt != self.focused_wpt:
+                self.drawWayPoint(self.focused_wpt, "gray")
+        #highlight color
+        if wpt is not None:
+            if self.focused_wpt is None or wpt != self.focused_wpt:
+                self.drawWayPoint(wpt, "red")
+        self.focused_wpt = wpt
+
+        #reset
+        self.__setMap(self.img)
+
+    def drawWayPoint(self, wpt, color):
+        c = self.map_ctrl
+        (px, py) = wpt.getPixel(c.level)
+        px -= c.px
+        py -= c.py
+        c.drawPoint(self.img, px, py, wpt.name, color)
+
+
+    def onClickUp(self, event):
         self.__mouse_down_pos = None
 
         #clear lat/lon
@@ -245,7 +281,7 @@ class DispBoard(tk.Frame):
     def onResize(self, event):
         label = event.widget
         self.setMapInfo()
-        self.setMap(self.map_ctrl.getTileImage(label.winfo_width(), label.winfo_height()))
+        self.resetMap(label.winfo_width(), label.winfo_height())
 
     def setMapInfo(self, lat=None, lon=None, txt=None):
         c = self.map_ctrl
@@ -256,7 +292,11 @@ class DispBoard(tk.Frame):
         else:
             self.info_label.config(text="[%s] level: %s" % (c.tile_map.getMapName(), c.level))
 
-    def setMap(self, img):
+    def resetMap(self, w, h):
+        self.img = self.map_ctrl.getTileImage(w, h);
+        self.__setMap(self.img)
+
+    def __setMap(self, img):
         photo = ImageTk.PhotoImage(img)
         self.disp_label.config(image=photo)
         self.disp_label.image = photo #keep a ref
@@ -265,15 +305,31 @@ class MapController:
     @property
     def tile_map(self): return self.__tile_map
 
+    # geo point properties ============
     @property
-    def geo(self): return self.__geo
+    def lat(self): return self.__geo.lat
+    @lat.setter
+    def lat(self, v): self.__geo.lat = v
+
+    @property
+    def lon(self): return self.__geo.lon
+    @lon.setter
+    def lon(self, v): self.__geo.lon = v
+
+    @property
+    def px(self): return self.__geo.px
+    @px.setter
+    def px(self, v): self.__geo.px = v
+
+    @property
+    def py(self): return self.__geo.py
+    @py.setter
+    def py(self, v): self.__geo.py = v
 
     @property
     def level(self): return self.__geo.level
     @level.setter
-    def level(self, level):
-        #if self.__tile_map.isSupportedLevel(level):
-        self.__geo.level = level
+    def level(self, v): self.__geo.level = v
 
     def __init__(self):
         #def settings
@@ -285,10 +341,12 @@ class MapController:
         self.disp_img = None
         self.disp_attr = None
         self.extra_p = 256
+        self.pt_size = 3
 
         #layer
         self.gpx_layers = []
         self.pic_layers = []
+
 
     def shiftGeoPixel(self, px, py):
         self.__geo.px += int(px)
@@ -300,10 +358,22 @@ class MapController:
     def addPicLayer(self, pic):
         self.pic_layers.append(pic)
 
+    def getWptAt(self, px, py):
+        for gpx in self.gpx_layers:
+            for wpt in gpx.wpts:
+                wpx, wpy = wpt.getPixel(self.level)
+                if abs(wpx - px) <= self.pt_size and abs(wpy - py) <= self.pt_size:
+                    return wpt
+        for pic in self.pic_layers:
+            wpx, wpy = pic.getPixel(self.level)
+            if abs(wpx - px) <= self.pt_size and abs(wpy - py) <= self.pt_size:
+                return pic
+        return None
+
     def getTileImage(self, width, height):
 
         #The image attributes with which we want to create a image compatible.
-        img_attr = ImageAttr(self.level, self.geo.px, self.geo.py, self.geo.px + width, self.geo.py + height)
+        img_attr = ImageAttr(self.level, self.px, self.py, self.px + width, self.py + height)
 
         #gen new map if need
         if self.disp_attr is None or not self.disp_attr.containsImgae(img_attr):
@@ -398,29 +468,38 @@ class MapController:
 
             #draw way points
             for wpt in gpx.way_points:
-                self.drawPoint(draw, img_attr, wpt.lat, wpt.lon, wpt.name)
+                self.drawWayPoint(img, img_attr, wpt, "gray", draw=draw)
 
         #recycle draw object
         del draw
 
-    @staticmethod
-    def drawPoint(draw, img_attr, lat, lon, txt=None, font=None):
-        #get px, py
-        (px, py) = TileSystem.getPixcelXYByLatLon(lat, lon, img_attr.level)
-        if not img_attr.containsPoint(px, py):
-            return
+    def drawWayPoint(self, img, img_attr, wpt, color, draw=None):
+        (px, py) = wpt.getPixel(img_attr.level)
         px -= img_attr.left_px
         py -= img_attr.up_py
+        self.drawPoint(img, px, py, wpt.name, color, draw)
+
+    def drawPoint(self, img, px, py, txt, color, draw=None):
+        #check range
+        (w, h) = img.size
+        if px < 0 or px > w or py < 0 or py > h:
+            return
+
+        #get draw
+        _draw = draw if draw is not None else ImageDraw.Draw(img)
 
         #draw point
-        draw.ellipse((px-3, py-3, px+3, py+3), fill="#404040", outline='white')
+        n = self.pt_size
+        _draw.ellipse((px-n, py-n, px+n, py+n), fill=color, outline='white')
 
         #draw text
-        if txt is not None:
-            font = ImageFont.truetype("ARIALUNI.TTF", 18)
-            draw.text((px+1, py+1), txt, fill="white", font=font)
-            draw.text((px-1, py-1), txt, fill="white", font=font)
-            draw.text((px, py), txt, fill="gray", font=font)
+        font = ImageFont.truetype("ARIALUNI.TTF", 18)
+        _draw.text((px+1, py+1), txt, fill="white", font=font)
+        _draw.text((px-1, py-1), txt, fill="white", font=font)
+        _draw.text((px, py), txt, fill=color, font=font)
+
+        if draw is None:
+            del _draw
 
     def isTrackInImage(self, trk, img_attr):
         #if some track point is in disp
@@ -433,8 +512,9 @@ class MapController:
     #draw pic as waypoint
     def __drawPic(self, img, img_attr):
         draw = ImageDraw.Draw(img)
-        for pic in self.pic_layers:
-            self.drawPoint(draw, img_attr, pic.lat, pic.lon, pic.desc)
+        for pic_wpt in self.pic_layers:
+            (px, py) = pic_wpt.getPixel(img_attr.level)
+            self.drawWayPoint(img, img_attr, pic_wpt, "gray", draw=draw)
         del draw
 
     def __getCropMap(self, img_attr):
@@ -596,13 +676,13 @@ if __name__ == '__main__':
     root.geometry('800x600')
 
     pad_ = 2
-    setting_board = SettingBoard(root)
+    #setting_board = SettingBoard(root)
     #setting_board.pack(side='top', anchor='nw', expand=0, fill='x', padx=pad_, pady=pad_)
 
-    pic_board = PicBoard(root)
+    #pic_board = PicBoard(root)
     #pic_board.pack(side='left', anchor='nw', expand=0, fill='y', padx=pad_, pady=pad_)
     #add callback on pic added
-    setting_board.onPicAdded(lambda fname:pic_board.addPic(fname))
+    #setting_board.onPicAdded(lambda fname:pic_board.addPic(fname))
 
     disp_board = DispBoard(root)
     disp_board.pack(side='right', anchor='se', expand=1, fill='both', padx=pad_, pady=pad_)
