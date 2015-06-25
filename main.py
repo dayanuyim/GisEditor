@@ -266,10 +266,11 @@ class DispBoard(tk.Frame):
 
     def drawWayPoint(self, wpt, color):
         c = self.map_ctrl
-        (px, py) = wpt.getPixel(c.level)
-        px -= c.px
-        py -= c.py
-        c.drawPoint(self.img, px, py, wpt.name, color)
+        #coin attr
+        (w, h) = self.img.size
+        img_attr = ImageAttr(c.level, c.px, c.py, c.px + w, c.py + h)
+        #draw
+        c.drawWayPoint(self.img, img_attr, wpt, color)
 
 
     def onClickUp(self, event):
@@ -474,16 +475,13 @@ class MapController:
         del draw
 
     def drawWayPoint(self, img, img_attr, wpt, color, draw=None):
+        #check range
         (px, py) = wpt.getPixel(img_attr.level)
+        if not img_attr.containsPoint(px, py):
+            return
+
         px -= img_attr.left_px
         py -= img_attr.up_py
-        self.drawPoint(img, px, py, wpt.name, color, draw)
-
-    def drawPoint(self, img, px, py, txt, color, draw=None):
-        #check range
-        (w, h) = img.size
-        if px < 0 or px > w or py < 0 or py > h:
-            return
 
         #get draw
         _draw = draw if draw is not None else ImageDraw.Draw(img)
@@ -493,6 +491,7 @@ class MapController:
         _draw.ellipse((px-n, py-n, px+n, py+n), fill=color, outline='white')
 
         #draw text
+        txt = wpt.name
         font = ImageFont.truetype("ARIALUNI.TTF", 18)
         _draw.text((px+1, py+1), txt, fill="white", font=font)
         _draw.text((px-1, py-1), txt, fill="white", font=font)
