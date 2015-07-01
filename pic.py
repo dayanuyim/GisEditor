@@ -7,6 +7,9 @@ from tile import GeoPoint
 from gpx import WayPoint
 
 class PicDocument(WayPoint):
+    @property
+    def img(self): return self.__img
+
     def __init__(self, path=None):
         self.__path = path
         self.__img = Image.open(path)

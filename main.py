@@ -231,7 +231,18 @@ class DispBoard(tk.Frame):
         #show wpt frame
         wpt = c.getWptAt(geo.px, geo.py)
         if wpt is not None:
-            messagebox.showinfo("get wpt", wpt.name)
+            self.doDispWpt(wpt)
+
+    def doDispWpt(self, wpt):
+        wpt_list = []
+        for gpx in self.map_ctrl.gpx_layers:
+            for wpt in gpx.wpts:
+                wpt_list.append(wpt)
+        for pic in self.map_ctrl.pic_layers:
+                wpt_list.append(pic)
+
+        wpt_board = WptBoard(self, wpt, wpt_list)
+        wpt_board.transient(self)
 
     def onClickMotion(self, event):
         if self.__mouse_down_pos is not None:
@@ -613,6 +624,42 @@ class ImageAttr:
             return ImageAttr(level, self.left_px >> s, self.up_py >> s, self.right_px >> s, self.low_py >> s)
         else:
             return self
+
+class WptBoard(tk.Toplevel):
+    def __init__(self, master, wpt, wpt_list):
+        super().__init__(master)
+
+        self.__curr_wpt = wpt
+        self.__wpt_list = wpt_list
+
+        self.title(wpt.name)
+        self.geometry('600x450+100+100')
+        #def onDispWptClose():
+            #disp.destroy()
+        #disp.protocol('WM_DELETE_WINDOW', close_search)
+
+
+        img_label = tk.Label(self)
+        img_label.pack(side='top', anchor='nw', expand=1, fill='both', padx=0, pady=0)
+        if isinstance(self.__curr_wpt, PicDocument):
+            img = self.__curr_wpt.img
+            img = imgAspectResize(img, 600, 450)
+            photo = ImageTk.PhotoImage(img)
+            img_label.config(image=photo)
+            img_label.image = photo #keep a ref
+        
+def imgAspectResize(img, w, h):
+    img_w, img_h = img.size
+    w_ratio = w / img_w
+    h_ratio = h / img_h
+    ratio = min(w_ratio, h_ratio)
+
+    img_w = int(img_w*ratio)
+    img_h = int(img_h*ratio)
+
+    img = img.resize((img_w, img_h))
+    return img
+
 
 def isGpsFile(path):
     (fname, ext) = os.path.splitext(path)
