@@ -11,6 +11,7 @@ from os.path import isdir, isfile, exists
 from PIL import Image, ImageTk, ImageDraw, ImageFont
 from math import floor, ceil
 from tkinter import messagebox
+from datetime import datetime
 
 #my modules
 import tile
@@ -343,6 +344,7 @@ class MapController:
         self.disp_attr = None
         self.extra_p = 256
         self.pt_size = 3
+        self.__wpt_font = ImageFont.truetype("ARIALUNI.TTF", 18)  #time wasting op...
 
         #layer
         self.gpx_layers = []
@@ -389,14 +391,16 @@ class MapController:
 
     #gen disp_map by req_attr, disp_map may larger than req_attr specifying
     def __genDispMap(self, img_attr):
-        print("gen disp map")
+        print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen disp map...")
         (img, attr) = self.__genBaseMap(img_attr)
         self.__drawGPX(img, attr)
         self.__drawPic(img, attr)
+        print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen disp map...done")
 
         return (img, attr)
 
     def __genBaseMap(self, img_attr):
+        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen base map...")
         level_max = self.__tile_map.level_max
         level_min = self.__tile_map.level_min
 
@@ -451,6 +455,7 @@ class MapController:
         return  (disp_img, disp_attr)
 
     def __drawGPX(self, img, img_attr):
+        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw gpx...")
         if len(self.gpx_layers) == 0:
             return
 
@@ -458,6 +463,7 @@ class MapController:
 
         for gpx in self.gpx_layers:
             #draw tracks
+            #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw gpx...")
             for trk in gpx.tracks:
                 if self.isTrackInImage(trk, img_attr):
                     xy = []
@@ -467,6 +473,7 @@ class MapController:
                         xy.append(py - img_attr.up_py)
                     draw.line(xy, fill=trk.color, width=2)
 
+            #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw", len(gpx.way_points), "wpt...")
             #draw way points
             for wpt in gpx.way_points:
                 self.drawWayPoint(img, img_attr, wpt, "gray", draw=draw)
@@ -475,6 +482,7 @@ class MapController:
         del draw
 
     def drawWayPoint(self, img, img_attr, wpt, color, draw=None):
+        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw wpt'", wpt.name, "'")
         #check range
         (px, py) = wpt.getPixel(img_attr.level)
         if not img_attr.containsPoint(px, py):
@@ -487,12 +495,15 @@ class MapController:
         _draw = draw if draw is not None else ImageDraw.Draw(img)
 
         #draw point
+        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw wpt point")
         n = self.pt_size
         _draw.ellipse((px-n, py-n, px+n, py+n), fill=color, outline='white')
 
         #draw text
+        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "get wpt font")
         txt = wpt.name
-        font = ImageFont.truetype("ARIALUNI.TTF", 18)
+        font = self.__wpt_font
+        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw wpt text")
         _draw.text((px+1, py+1), txt, fill="white", font=font)
         _draw.text((px-1, py-1), txt, fill="white", font=font)
         _draw.text((px, py), txt, fill=color, font=font)
@@ -510,6 +521,7 @@ class MapController:
 
     #draw pic as waypoint
     def __drawPic(self, img, img_attr):
+        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw pic...")
         draw = ImageDraw.Draw(img)
         for pic_wpt in self.pic_layers:
             (px, py) = pic_wpt.getPixel(img_attr.level)
