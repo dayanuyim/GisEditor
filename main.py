@@ -233,13 +233,7 @@ class DispBoard(tk.Frame):
             self.doDispWpt(wpt)
 
     def doDispWpt(self, wpt):
-        wpt_list = []
-        for gpx in self.map_ctrl.gpx_layers:
-            for wpt in gpx.wpts:
-                wpt_list.append(wpt)
-        for pic in self.map_ctrl.pic_layers:
-                wpt_list.append(pic)
-
+        wpt_list = self.map_ctrl.getWpts()
         wpt_board = WptBoard(self, wpt_list, wpt)
         wpt_board.transient(self)
 
@@ -354,7 +348,9 @@ class MapController:
         self.disp_attr = None
         self.extra_p = 256
         self.pt_size = 3
+        self.icon_size = 32
         self.__font = ImageFont.truetype("ARIALUNI.TTF", 18) #create font is time wasting
+        self.__wpt_icons = {}
 
         #layer
         self.gpx_layers = []
@@ -371,16 +367,24 @@ class MapController:
     def addPicLayer(self, pic):
         self.pic_layers.append(pic)
 
-    def getWptAt(self, px, py):
+    def getWpts(self):
+        wpts = []
         for gpx in self.gpx_layers:
             for wpt in gpx.wpts:
-                wpx, wpy = wpt.getPixel(self.level)
-                if abs(wpx - px) <= self.pt_size and abs(wpy - py) <= self.pt_size:
-                    return wpt
+                wpts.append(wpt)
         for pic in self.pic_layers:
-            wpx, wpy = pic.getPixel(self.level)
-            if abs(wpx - px) <= self.pt_size and abs(wpy - py) <= self.pt_size:
-                return pic
+                wpts.append(pic)
+        return wpts
+
+    def getWptAt(self, px, py):
+        r = self.pt_size + self.icon_size 
+        for wpt in self.getWpts():
+            wpx, wpy = wpt.getPixel(self.level)
+            dx = px - (wpx - self.pt_size)
+            dy = py - (wpy - self.pt_size)
+            if dx >= 0 and dx <= r and dy >= 0 and dy <= r:
+                return wpt
+
         return None
 
     def getTileImage(self, width, height):
@@ -413,7 +417,6 @@ class MapController:
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen base map...")
         level_max = self.__tile_map.level_max
         level_min = self.__tile_map.level_min
-
         level = max(self.__tile_map.level_min, min(img_attr.level, self.__tile_map.level_max))
 
         if img_attr.level == level:
@@ -461,6 +464,7 @@ class MapController:
 
         #reset img_attr
         disp_attr = ImageAttr(img_attr.level, t_left*256, t_upper*256, (t_right+1)*256 -1, (t_lower+1)*256 -1)
+        #disp_img = disp_img.convert(mode="RGBA")
 
         return  (disp_img, disp_attr)
 
@@ -508,6 +512,13 @@ class MapController:
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw wpt point")
         n = self.pt_size
         _draw.ellipse((px-n, py-n, px+n, py+n), fill=color, outline='white')
+
+        #paste icon
+        if wpt.sym is not None:
+            icon = self.getWptIcon(wpt.sym)
+            if icon is not None:
+                img.paste(icon, (px, py), icon)
+                px += self.icon_size
 
         #draw text
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "get wpt font")
@@ -578,6 +589,20 @@ class MapController:
             draw.text((px, py -py_shift), str(y), fill="black", font=font)
 
         del draw
+
+    def getWptIcon(self, name):
+        name = name.lower()
+        icon = self.__wpt_icons.get(name)
+        if icon is None:
+            fname = name + ".png"
+            path = os.path.join("icon", fname)
+            if not os.path.exists(path):
+                return None
+            icon = Image.open(path)
+            icon = icon.resize((self.icon_size, self.icon_size))
+            self.__wpt_icons[name] = icon
+        return icon
+
 
     @staticmethod
     def getTWD67TM2ByPixcelXY(x, y, level):
@@ -650,6 +675,9 @@ class WptBoard(tk.Toplevel):
             photo = ImageTk.PhotoImage(img)
             label.config(image=photo)
             label.image = photo #keep a ref
+        else:
+            label.config(text="(no pic)")
+
         return label
 
     def getInfoFrame(self):
@@ -689,7 +717,6 @@ class WptBoard(tk.Toplevel):
         else:
             time = "N/A"
         tk.Label(frame, text=time, font=font).grid(row=3, column=1, sticky='w')
-
 
         return frame
         
