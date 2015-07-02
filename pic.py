@@ -15,16 +15,15 @@ class PicDocument(WayPoint):
         self.__path = path
         self.__img = Image.open(path)
         self.__exif = self.getExif(self.__img)
+        #for k, v in self.__exif.items(): #print(k, v)
 
         super().__init__(
             lat = self.exifToDegree(self.__exif['GPSLatitudeRef'], self.__exif['GPSLatitude']),
             lon = self.exifToDegree(self.__exif['GPSLongitudeRef'], self.__exif['GPSLongitude']))
         self.ele = self.exifToAltitude(self.__exif['GPSAltitudeRef'], self.__exif['GPSAltitude'])
         self.time = self.exifToDateTime(self.__exif['DateTimeOriginal'])
-        self.name = self.__exif['ImageDescription'].encode('latin-1').decode('utf-8') #PIL use latin-1 by default
-        self.desc = None
-        self.cmt = None
-        self.sym = None
+        if 'ImageDescription' in self.__exif.keys():
+            self.name = self.__exif['ImageDescription'].encode('latin-1').decode('utf-8') #PIL use latin-1 by default
 
     @staticmethod
     def exifToDateTime(time_str):

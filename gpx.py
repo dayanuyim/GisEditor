@@ -121,8 +121,11 @@ class GpsDocument:
             elem = trk_elem.find("./gpx:extensions/gpxx:TrackExtension/gpxx:DisplayColor", self.ns)
             trk.color = elem.text if elem is not None else "DarkMagenta"
 
-            elem = trk_elem.find("./gpx:trkseg", self.ns)
-            if elem is not None: self.loadTrkSeg(elem, trk)
+            #may have multi trkseg
+            elems = trk_elem.findall("./gpx:trkseg", self.ns)
+            if elems is not None:
+                for elem in elems:
+                    self.loadTrkSeg(elem, trk)
 
             self.trks.append(trk)
 
@@ -164,12 +167,12 @@ class WayPoint:
 
     def __init__(self, lat, lon):
         self.__geo = GeoPoint(lat=lat, lon=lon)
-        self.ele = None
+        self.ele = 0.0
         self.time = None
-        self.name = None
-        self.desc = None
-        self.cmt = None
-        self.sym = None
+        self.name = ""
+        self.desc = ""
+        self.cmt = ""
+        self.sym = ""
 
     def getPixel(self, level):
         self.__geo.level = level

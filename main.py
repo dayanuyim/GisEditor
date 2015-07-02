@@ -522,6 +522,7 @@ class MapController:
 
         #draw text
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "get wpt font")
+
         txt = wpt.name
         font = self.__font
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw wpt text")
