@@ -152,7 +152,6 @@ class DispBoard(tk.Frame):
         disp_w = 800
         disp_h = 600
         self.disp_label = tk.Label(self, width=disp_w, height=disp_h, bg='#808080')
-        #self.disp_label.config(width=disp_w, height=disp_h)
         self.disp_label.pack(expand=1, fill='both', anchor='n')
         self.disp_label.bind('<MouseWheel>', self.onMouseWheel)
         self.disp_label.bind('<Motion>', self.onMotion)
@@ -241,7 +240,7 @@ class DispBoard(tk.Frame):
         for pic in self.map_ctrl.pic_layers:
                 wpt_list.append(pic)
 
-        wpt_board = WptBoard(self, wpt, wpt_list)
+        wpt_board = WptBoard(self, wpt_list, wpt)
         wpt_board.transient(self)
 
     def onClickMotion(self, event):
@@ -355,7 +354,7 @@ class MapController:
         self.disp_attr = None
         self.extra_p = 256
         self.pt_size = 3
-        self.__wpt_font = ImageFont.truetype("ARIALUNI.TTF", 18)  #time wasting op...
+        self.__font = ImageFont.truetype("ARIALUNI.TTF", 18) #create font is time wasting
 
         #layer
         self.gpx_layers = []
@@ -513,7 +512,7 @@ class MapController:
         #draw text
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "get wpt font")
         txt = wpt.name
-        font = self.__wpt_font
+        font = self.__font
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw wpt text")
         _draw.text((px+1, py+1), txt, fill="white", font=font)
         _draw.text((px-1, py-1), txt, fill="white", font=font)
@@ -548,25 +547,24 @@ class MapController:
         low   = img_attr.low_py - disp.up_py
         return self.disp_img.crop((left, up, right, low))
 
-    @classmethod
-    def __drawTM2Coord(cls, img, attr):
+    def __drawTM2Coord(self, img, attr):
 
         if attr.level <= 12:  #too crowded to show
             return
 
         #set draw
         py_shift = 20
-        font = ImageFont.truetype("ARIALUNI.TTF", 18)
+        font = self.__font
         draw = ImageDraw.Draw(img)
 
         #get xy of TM2
-        (left_x, up_y) = cls.getTWD67TM2ByPixcelXY(attr.left_px, attr.up_py, attr.level)
-        (right_x, low_y) = cls.getTWD67TM2ByPixcelXY(attr.right_px, attr.low_py, attr.level)
+        (left_x, up_y) = self.getTWD67TM2ByPixcelXY(attr.left_px, attr.up_py, attr.level)
+        (right_x, low_y) = self.getTWD67TM2ByPixcelXY(attr.right_px, attr.low_py, attr.level)
 
         #draw TM2' x per KM
         for x in range(ceil(left_x/1000), floor(right_x/1000) +1):
             #print("tm: ", x)
-            (px, py) = cls.getPixcelXYByTWD67TM2(x*1000, low_y, attr.level)
+            (px, py) = self.getPixcelXYByTWD67TM2(x*1000, low_y, attr.level)
             px -= attr.left_px
             py -= attr.up_py
             draw.text((px, py - py_shift), str(x), fill="black", font=font)
@@ -574,7 +572,7 @@ class MapController:
         #draw TM2' y per KM
         for y in range(ceil(low_y/1000), floor(up_y/1000) +1):
             #print("tm: ", y)
-            (px, py) = cls.getPixcelXYByTWD67TM2(left_x, y*1000, attr.level)
+            (px, py) = self.getPixcelXYByTWD67TM2(left_x, y*1000, attr.level)
             px -= attr.left_px
             py -= attr.up_py
             draw.text((px, py -py_shift), str(y), fill="black", font=font)
@@ -626,27 +624,74 @@ class ImageAttr:
             return self
 
 class WptBoard(tk.Toplevel):
-    def __init__(self, master, wpt, wpt_list):
+    def __init__(self, master, wpt_list, wpt=None):
         super().__init__(master)
 
-        self.__curr_wpt = wpt
+        self.__curr_wpt = wpt_list[0] if wpt is None and len(wpt_list) > 0 else wpt
         self.__wpt_list = wpt_list
 
         self.title(wpt.name)
-        self.geometry('600x450+100+100')
+        self.geometry('+100+100')
         #def onDispWptClose():
             #disp.destroy()
         #disp.protocol('WM_DELETE_WINDOW', close_search)
 
+        img_label = self.getImgLabel()
+        img_label.pack(side='top', anchor='nw', expand=0, fill='both', padx=0, pady=0)
 
-        img_label = tk.Label(self)
-        img_label.pack(side='top', anchor='nw', expand=1, fill='both', padx=0, pady=0)
-        if isinstance(self.__curr_wpt, PicDocument):
-            img = self.__curr_wpt.img
-            img = imgAspectResize(img, 600, 450)
+        info_frame = self.getInfoFrame()
+        info_frame.pack(side='left', anchor='nw', expand=1, fill='x')
+
+    def getImgLabel(self):
+        label = tk.Label(self, width=600, height=450, anchor='n', bg='black')
+        wpt = self.__curr_wpt
+        if wpt is not None and isinstance(wpt, PicDocument):
+            img = imgAspectResize(wpt.img, 600, 450)
             photo = ImageTk.PhotoImage(img)
-            img_label.config(image=photo)
-            img_label.image = photo #keep a ref
+            label.config(image=photo)
+            label.image = photo #keep a ref
+        return label
+
+    def getInfoFrame(self):
+        wpt = self.__curr_wpt
+        font = 'Arialuni 12'
+        bold_font = 'Arialuni 12 bold'
+
+        frame = tk.Frame(self)#, bg='blue')
+
+        #wpt name
+        tk.Label(frame, text="(icon)").grid(row=0, column=0, sticky='e')
+        name_var = tk.StringVar()
+        name_var.set(wpt.name if wpt is not None else "")
+        tk.Entry(frame, textvariable=name_var, font=font).grid(row=0, column=1, sticky='w')
+        self.__name_var = name_var
+
+        #wpt positoin
+        tk.Label(frame, text="TWD67/TM2", font=bold_font).grid(row=1, column=0, sticky='e')
+        if wpt is not None:
+            x_tm2_97, y_tm2_97 = CoordinateSystem.TWD97_LatLonToTWD97_TM2(wpt.lat, wpt.lon)
+            x_tm2_67, y_tm2_67 = CoordinateSystem.TWD97_TM2ToTWD67_TM2(x_tm2_97, y_tm2_97)
+            pos = "(%.3f, %.3f)" % (x_tm2_67/1000, y_tm2_67/1000)
+            tk.Label(frame, text=pos, font=font).grid(row=1, column=1, sticky='w')
+
+        #ele
+        tk.Label(frame, text="Elevation", font=bold_font).grid(row=2, column=0, sticky='e')
+        if wpt is not None and wpt.ele is not None:
+            ele = "%.1f m" % (wpt.ele) 
+        else:
+            ele = "N/A"
+        tk.Label(frame, text=ele, font=font).grid(row=2, column=1, sticky='w')
+
+        #time
+        tk.Label(frame, text="Time", font=bold_font).grid(row=3, column=0, sticky='e')
+        if wpt is not None and wpt.time is not None:
+            time = wpt.time.strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            time = "N/A"
+        tk.Label(frame, text=time, font=font).grid(row=3, column=1, sticky='w')
+
+
+        return frame
         
 def imgAspectResize(img, w, h):
     img_w, img_h = img.size

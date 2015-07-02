@@ -5,6 +5,7 @@
 from PIL import Image, ExifTags
 from tile import GeoPoint
 from gpx import WayPoint
+from datetime import datetime
 
 class PicDocument(WayPoint):
     @property
@@ -16,22 +17,30 @@ class PicDocument(WayPoint):
         self.__exif = self.getExif(self.__img)
 
         super().__init__(
-            lat = self.exifDegreeToDecimal(self.__exif['GPSLatitudeRef'], self.__exif['GPSLatitude']),
-            lon = self.exifDegreeToDecimal(self.__exif['GPSLongitudeRef'], self.__exif['GPSLongitude']))
-        self.ele = None
-        self.time = None
+            lat = self.exifToDegree(self.__exif['GPSLatitudeRef'], self.__exif['GPSLatitude']),
+            lon = self.exifToDegree(self.__exif['GPSLongitudeRef'], self.__exif['GPSLongitude']))
+        self.ele = self.exifToAltitude(self.__exif['GPSAltitudeRef'], self.__exif['GPSAltitude'])
+        self.time = self.exifToDateTime(self.__exif['DateTimeOriginal'])
         self.name = self.__exif['ImageDescription'].encode('latin-1').decode('utf-8') #PIL use latin-1 by default
         self.desc = None
         self.cmt = None
         self.sym = None
 
     @staticmethod
-    def exifDegreeToDecimal(ref, degree):
+    def exifToDateTime(time_str):
+        return datetime.strptime(time_str, "%Y:%m:%d %H:%M:%S")
+
+    @staticmethod
+    def exifToDegree(ref, degree):
         (d, m, s) = degree
         dec = d[0]/d[1] + m[0]/m[1]/60 + s[0]/s[1]/3600
         if ref == 'S' or ref == 'W':
             return -dec
         return dec
+
+    @staticmethod
+    def exifToAltitude(ref, alt):
+        return ref + alt[0]/alt[1]
 
     @staticmethod
     def getExif(img):
