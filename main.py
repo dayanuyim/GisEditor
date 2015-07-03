@@ -658,9 +658,11 @@ class WptBoard(tk.Toplevel):
 
         self.title(wpt.name)
         self.geometry('+100+100')
+        self.bind('<Escape>', lambda e: e.widget.destroy())
+        self.focus_set()
         #def onDispWptClose():
             #disp.destroy()
-        #disp.protocol('WM_DELETE_WINDOW', close_search)
+        #disp.protocol('WM_DELETE_WINDOW', onDispWptClose)
 
         img_label = self.getImgLabel()
         img_label.pack(side='top', anchor='nw', expand=0, fill='both', padx=0, pady=0)
@@ -692,7 +694,8 @@ class WptBoard(tk.Toplevel):
         tk.Label(frame, text="(icon)").grid(row=0, column=0, sticky='e')
         name_var = tk.StringVar()
         name_var.set(wpt.name if wpt is not None else "")
-        tk.Entry(frame, textvariable=name_var, font=font).grid(row=0, column=1, sticky='w')
+        name_entry = tk.Entry(frame, textvariable=name_var, font=font)
+        name_entry.grid(row=0, column=1, sticky='w')
         self.__name_var = name_var
 
         #wpt positoin
