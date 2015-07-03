@@ -17,7 +17,7 @@ from datetime import datetime
 import tile
 from tile import  TileSystem, TileMap, GeoPoint
 from coord import  CoordinateSystem
-from gpx import GpsDocument
+from gpx import GpsDocument, WayPoint
 from pic import PicDocument
 
 class SettingBoard(tk.LabelFrame):
@@ -308,10 +308,11 @@ class DispBoard(tk.Frame):
         self.disp_label.image = photo #keep a ref
 
 class MapController:
+
+    #{{ properties
     @property
     def tile_map(self): return self.__tile_map
 
-    # geo point properties ============
     @property
     def lat(self): return self.__geo.lat
     @lat.setter
@@ -348,9 +349,7 @@ class MapController:
         self.disp_attr = None
         self.extra_p = 256
         self.pt_size = 3
-        self.icon_size = 32
         self.__font = ImageFont.truetype("ARIALUNI.TTF", 18) #create font is time wasting
-        self.__wpt_icons = {}
 
         #layer
         self.gpx_layers = []
@@ -377,7 +376,7 @@ class MapController:
         return wpts
 
     def getWptAt(self, px, py):
-        r = self.pt_size + self.icon_size 
+        r = self.pt_size + WayPoint.ICON_SIZE 
         for wpt in self.getWpts():
             wpx, wpy = wpt.getPixel(self.level)
             dx = px - (wpx - self.pt_size)
@@ -515,10 +514,10 @@ class MapController:
 
         #paste icon
         if wpt.sym is not None:
-            icon = self.getWptIcon(wpt.sym)
+            icon = WayPoint.getIcon(wpt.sym)
             if icon is not None:
                 img.paste(icon, (px, py), icon)
-                px += self.icon_size
+                px += WayPoint.ICON_SIZE
 
         #draw text
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "get wpt font")
@@ -591,19 +590,6 @@ class MapController:
 
         del draw
 
-    def getWptIcon(self, name):
-        name = name.lower()
-        icon = self.__wpt_icons.get(name)
-        if icon is None:
-            fname = name + ".png"
-            path = os.path.join("icon", fname)
-            if not os.path.exists(path):
-                return None
-            icon = Image.open(path)
-            icon = icon.resize((self.icon_size, self.icon_size))
-            self.__wpt_icons[name] = icon
-        return icon
-
 
     @staticmethod
     def getTWD67TM2ByPixcelXY(x, y, level):
@@ -671,15 +657,14 @@ class WptBoard(tk.Toplevel):
         info_frame.pack(side='left', anchor='nw', expand=1, fill='x')
 
     def getImgLabel(self):
-        label = tk.Label(self, width=600, height=450, anchor='n', bg='black')
+        label = tk.Label(self, anchor='n', fg='lightgray', bg='black')
         wpt = self.__curr_wpt
         if wpt is not None and isinstance(wpt, PicDocument):
             img = imgAspectResize(wpt.img, 600, 450)
             photo = ImageTk.PhotoImage(img)
-            label.config(image=photo)
+            label.config(text="(no photo)")
+            label.config(image=photo, width=600, height=450)
             label.image = photo #keep a ref
-        else:
-            label.config(text="(no pic)")
 
         return label
 
@@ -691,7 +676,10 @@ class WptBoard(tk.Toplevel):
         frame = tk.Frame(self)#, bg='blue')
 
         #wpt name
-        tk.Label(frame, text="(icon)").grid(row=0, column=0, sticky='e')
+        icon = ImageTk.PhotoImage(WayPoint.getIcon(wpt.sym))
+        icon_label = tk.Label(frame, image=icon)
+        icon_label.image = icon
+        icon_label.grid(row=0, column=0, sticky='e')
         name_var = tk.StringVar()
         name_var.set(wpt.name if wpt is not None else "")
         name_entry = tk.Entry(frame, textvariable=name_var, font=font)
