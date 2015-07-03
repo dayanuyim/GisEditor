@@ -164,7 +164,7 @@ class GpsDocument:
 class WayPoint:
     #{{ static
     __wpt_icons = {}
-    ICON_SIZE = 32
+    ICON_SIZE = 24
     #}}
 
     @property

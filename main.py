@@ -376,12 +376,10 @@ class MapController:
         return wpts
 
     def getWptAt(self, px, py):
-        r = self.pt_size + WayPoint.ICON_SIZE 
+        r = int(WayPoint.ICON_SIZE/2)
         for wpt in self.getWpts():
             wpx, wpy = wpt.getPixel(self.level)
-            dx = px - (wpx - self.pt_size)
-            dy = py - (wpy - self.pt_size)
-            if dx >= 0 and dx <= r and dy >= 0 and dy <= r:
+            if abs(px-wpx) < r and abs(py-wpy) < r:
                 return wpt
 
         return None
@@ -503,28 +501,25 @@ class MapController:
 
         px -= img_attr.left_px
         py -= img_attr.up_py
+        adj = int(WayPoint.ICON_SIZE/2)
 
         #get draw
         _draw = draw if draw is not None else ImageDraw.Draw(img)
-
-        #draw point
-        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw wpt point")
-        n = self.pt_size
-        _draw.ellipse((px-n, py-n, px+n, py+n), fill=color, outline='white')
 
         #paste icon
         if wpt.sym is not None:
             icon = WayPoint.getIcon(wpt.sym)
             if icon is not None:
-                img.paste(icon, (px, py), icon)
-                px += WayPoint.ICON_SIZE
+                img.paste(icon, (px-adj, py-adj), icon)
+
+        #draw point   //replace by icon
+        #n = self.pt_size
+        #_draw.ellipse((px-n, py-n, px+n, py+n), fill=color, outline='white')
 
         #draw text
-        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "get wpt font")
-
         txt = wpt.name
         font = self.__font
-        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw wpt text")
+        px, py = px +adj, py -adj  #adjust position for aligning icon
         _draw.text((px+1, py+1), txt, fill="white", font=font)
         _draw.text((px-1, py-1), txt, fill="white", font=font)
         _draw.text((px, py), txt, fill=color, font=font)
