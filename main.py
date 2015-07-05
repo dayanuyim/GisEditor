@@ -791,6 +791,7 @@ def getAspectResize(img, size):
     return img.resize((w, h))
 
 def getTextImag(text, size):
+    w, h = size
     img = Image.new("RGBA", size)
     draw = ImageDraw.Draw(img)
     draw.text( (int(w/2-20), int(h/2)), text, fill='lightgray', font=IMG_FONT)
