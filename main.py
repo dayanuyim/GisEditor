@@ -20,6 +20,8 @@ from coord import  CoordinateSystem
 from gpx import GpsDocument, WayPoint
 from pic import PicDocument
 
+IMG_FONT = ImageFont.truetype("ARIALUNI.TTF", 18) #global use font (Note: the operation is time wasting)
+
 class SettingBoard(tk.LabelFrame):
     def __init__(self, master):
         super().__init__(master)
@@ -233,8 +235,8 @@ class DispBoard(tk.Frame):
             self.doDispWpt(wpt)
 
     def doDispWpt(self, wpt):
-        wpt_list = self.map_ctrl.getWpts()
-        wpt_board = WptBoard(self, wpt_list, wpt)
+        wpt_list = self.map_ctrl.getAllWpts()
+        wpt_board = WptBoard(self, wpt, wpt_list)
         wpt_board.transient(self)
 
     def onClickMotion(self, event):
@@ -349,7 +351,7 @@ class MapController:
         self.disp_attr = None
         self.extra_p = 256
         self.pt_size = 3
-        self.__font = ImageFont.truetype("ARIALUNI.TTF", 18) #create font is time wasting
+        self.__font = ImageFont.truetype("ARIALUNI.TTF", 18)
 
         #layer
         self.gpx_layers = []
@@ -366,7 +368,7 @@ class MapController:
     def addPicLayer(self, pic):
         self.pic_layers.append(pic)
 
-    def getWpts(self):
+    def getAllWpts(self):
         wpts = []
         for gpx in self.gpx_layers:
             for wpt in gpx.wpts:
@@ -377,7 +379,7 @@ class MapController:
 
     def getWptAt(self, px, py):
         r = int(WayPoint.ICON_SIZE/2)
-        for wpt in self.getWpts():
+        for wpt in self.getAllWpts():
             wpx, wpy = wpt.getPixel(self.level)
             if abs(px-wpx) < r and abs(py-wpy) < r:
                 return wpt
@@ -453,7 +455,7 @@ class MapController:
         ty_num = t_lower - t_upper +1
 
         #gen image
-        disp_img = Image.new("RGB", (tx_num*256, ty_num*256))
+        disp_img = Image.new("RGBA", (tx_num*256, ty_num*256))
         for x in range(tx_num):
             for y in range(ty_num):
                 tile = self.__tile_map.getTileByTileXY(img_attr.level, t_left +x, t_upper +y)
@@ -461,7 +463,6 @@ class MapController:
 
         #reset img_attr
         disp_attr = ImageAttr(img_attr.level, t_left*256, t_upper*256, (t_right+1)*256 -1, (t_lower+1)*256 -1)
-        #disp_img = disp_img.convert(mode="RGBA")
 
         return  (disp_img, disp_attr)
 
@@ -631,13 +632,19 @@ class ImageAttr:
             return self
 
 class WptBoard(tk.Toplevel):
-    def __init__(self, master, wpt_list, wpt=None):
+    def __init__(self, master, wpt, wpt_list=None):
         super().__init__(master)
 
-        self.__curr_wpt = wpt_list[0] if wpt is None and len(wpt_list) > 0 else wpt
-        self.__wpt_list = wpt_list
+        self.__curr_wpt = wpt
 
-        self.title(wpt.name)
+        if wpt_list is None or wpt in wpt_list:
+            self.__wpt_list = wpt_list
+        else:
+            print('Warning: wpt is not in wpt_list')
+            self.__wpt_list = None
+
+        self.__def_img = None
+
         self.geometry('+100+100')
         self.bind('<Escape>', lambda e: e.widget.destroy())
         self.focus_set()
@@ -645,78 +652,150 @@ class WptBoard(tk.Toplevel):
             #disp.destroy()
         #disp.protocol('WM_DELETE_WINDOW', onDispWptClose)
 
-        img_label = self.getImgLabel()
-        img_label.pack(side='top', anchor='nw', expand=0, fill='both', padx=0, pady=0)
+        #info
+        self.info_frame = self.getInfoFrame()
+        self.info_frame.pack(side='bottom', anchor='sw', expand=0, fill='x')
 
-        info_frame = self.getInfoFrame()
-        info_frame.pack(side='left', anchor='nw', expand=1, fill='x')
+        #change buttons
+        if wpt_list is not None:
+            self.__left_btn = tk.Button(self, text="<<", command=lambda:self.onWptChanged(-1), disabledforeground='lightgray')
+            self.__left_btn.pack(side='left', anchor='w', expand=0, fill='y')
+            self.__right_btn = tk.Button(self, text=">>", command=lambda:self.onWptChanged(1), disabledforeground='lightgray')
+            self.__right_btn.pack(side='right', anchor='e', expand=0, fill='y')
+        
+        #image
+        self.__img_label = tk.Label(self, anchor='n', bg='black')
+        self.__img_label.pack(side='top', anchor='nw', expand=1, fill='both', padx=0, pady=0)
 
-    def getImgLabel(self):
-        label = tk.Label(self, anchor='n', fg='lightgray', bg='black')
-        wpt = self.__curr_wpt
-        if wpt is not None and isinstance(wpt, PicDocument):
-            img = imgAspectResize(wpt.img, 600, 450)
-            photo = ImageTk.PhotoImage(img)
-            label.config(text="(no photo)")
-            label.config(image=photo, width=600, height=450)
-            label.image = photo #keep a ref
+        #set wpt
+        self.setCurrWpt(wpt)
 
-        return label
+    def onWptChanged(self, inc):
+        if self.__wpt_list is None:
+            messagebox.showinfo('', 'no wpt list')
+            return
+
+        idx = self.__wpt_list.index(self.__curr_wpt) + inc
+        if idx < 0 or idx >= len(self.__wpt_list):
+            messagebox.showinfo('', 'get wpt out of range')
+            return
+
+        self.setCurrWpt(self.__wpt_list[idx])
 
     def getInfoFrame(self):
-        wpt = self.__curr_wpt
         font = 'Arialuni 12'
         bold_font = 'Arialuni 12 bold'
 
         frame = tk.Frame(self)#, bg='blue')
 
+        #wpt icon
+        self.__icon_label = tk.Label(frame)
+        self.__icon_label.grid(row=0, column=0, sticky='e')
+
         #wpt name
-        icon = ImageTk.PhotoImage(WayPoint.getIcon(wpt.sym))
-        icon_label = tk.Label(frame, image=icon)
-        icon_label.image = icon
-        icon_label.grid(row=0, column=0, sticky='e')
-        name_var = tk.StringVar()
-        name_var.set(wpt.name if wpt is not None else "")
-        name_entry = tk.Entry(frame, textvariable=name_var, font=font)
+        self.__var_name = tk.StringVar()
+        self.__var_name.trace('w', self.onWptNameChanged)
+        name_entry = tk.Entry(frame, textvariable=self.__var_name, font=font)
         name_entry.grid(row=0, column=1, sticky='w')
-        self.__name_var = name_var
 
         #wpt positoin
         tk.Label(frame, text="TWD67/TM2", font=bold_font).grid(row=1, column=0, sticky='e')
-        if wpt is not None:
-            x_tm2_97, y_tm2_97 = CoordinateSystem.TWD97_LatLonToTWD97_TM2(wpt.lat, wpt.lon)
-            x_tm2_67, y_tm2_67 = CoordinateSystem.TWD97_TM2ToTWD67_TM2(x_tm2_97, y_tm2_97)
-            pos = "(%.3f, %.3f)" % (x_tm2_67/1000, y_tm2_67/1000)
-            tk.Label(frame, text=pos, font=font).grid(row=1, column=1, sticky='w')
+        self.__var_pos = tk.StringVar()
+        tk.Label(frame, font=font, textvariable=self.__var_pos).grid(row=1, column=1, sticky='w')
 
         #ele
         tk.Label(frame, text="Elevation", font=bold_font).grid(row=2, column=0, sticky='e')
-        if wpt is not None and wpt.ele is not None:
-            ele = "%.1f m" % (wpt.ele) 
-        else:
-            ele = "N/A"
-        tk.Label(frame, text=ele, font=font).grid(row=2, column=1, sticky='w')
+        self.__var_ele = tk.StringVar()
+        tk.Label(frame, font=font, textvariable=self.__var_ele).grid(row=2, column=1, sticky='w')
 
         #time
         tk.Label(frame, text="Time", font=bold_font).grid(row=3, column=0, sticky='e')
-        if wpt is not None and wpt.time is not None:
-            time = wpt.time.strftime("%Y-%m-%d %H:%M:%S")
-        else:
-            time = "N/A"
-        tk.Label(frame, text=time, font=font).grid(row=3, column=1, sticky='w')
+        self.__var_time = tk.StringVar()
+        tk.Label(frame, textvariable=self.__var_time, font=font).grid(row=3, column=1, sticky='w')
 
         return frame
+
+    def onWptNameChanged(self, *args):
+        #print('change to', self.__var_name.get())
+        name = self.__var_name.get()
+        #sym = self.getWptSymByNameRule(name)
+
+        self.__curr_wpt.name = name
+        #self.__curr_wpt.sym = sym
+
+        self.showWptIcon(self.__curr_wpt.sym)
+    
+    def getWptSymByNameRule(self, name):
+        pass
+
+    def showWptIcon(self, sym):
+        icon = ImageTk.PhotoImage(WayPoint.getIcon(sym))
+        self.__icon_label.image = icon
+        self.__icon_label.config(image=icon)
+    
+    def setCurrWpt(self, wpt):
+        size = (width, height) = 600, 450
+
+        self.__curr_wpt = wpt
+
+        #title
+        self.title(wpt.name)
+
+        #set imgae
+        img = getAspectResize(wpt.img, size) if isinstance(wpt, PicDocument) else getTextImag("(No Pic)", size)
+        img = ImageTk.PhotoImage(img)
+        self.__img_label.config(image=img)
+        self.__img_label.image = img #keep a ref
+
+        #info
+        self.__var_name.set(wpt.name)   #this have side effect to set symbol icon
+        self.__var_pos.set(self.getWptPosText(wpt))
+        self.__var_ele.set(self.getWptEleText(wpt))
+        self.__var_time.set(self.getWptTimeText(wpt))
+
+        #button state
+        if self.__wpt_list is not None:
+            idx = self.__wpt_list.index(wpt)
+            sz = len(self.__wpt_list)
+            self.__left_btn.config(state=('disabled' if idx == 0 else 'normal'))
+            self.__right_btn.config(state=('disabled' if idx == sz-1 else 'normal'))
+
+    def getWptPosText(self, wpt):
+        x_tm2_97, y_tm2_97 = CoordinateSystem.TWD97_LatLonToTWD97_TM2(wpt.lat, wpt.lon)
+        x_tm2_67, y_tm2_67 = CoordinateSystem.TWD97_TM2ToTWD67_TM2(x_tm2_97, y_tm2_97)
+        text = "(%.3f, %.3f)" % (x_tm2_67/1000, y_tm2_67/1000)
+        return text
+
+    def getWptEleText(self, wpt):
+        if wpt is not None and wpt.ele is not None:
+            return "%.1f m" % (wpt.ele) 
+        return "N/A"
+
+    def getWptTimeText(self, wpt):
+        if wpt is not None and wpt.time is not None:
+            return  wpt.time.strftime("%Y-%m-%d %H:%M:%S")
+        return "N/A"
+
         
-def imgAspectResize(img, w, h):
-    img_w, img_h = img.size
-    w_ratio = w / img_w
-    h_ratio = h / img_h
+def getAspectResize(img, size):
+    dst_w, dst_h = size
+    src_w, src_h = img.size
+
+    w_ratio = dst_w / src_w
+    h_ratio = dst_h / src_h
     ratio = min(w_ratio, h_ratio)
 
-    img_w = int(img_w*ratio)
-    img_h = int(img_h*ratio)
+    w = int(src_w*ratio)
+    h = int(src_h*ratio)
 
-    img = img.resize((img_w, img_h))
+    return img.resize((w, h))
+
+def getTextImag(text, size):
+    img = Image.new("RGBA", size)
+    draw = ImageDraw.Draw(img)
+    draw.text( (int(w/2-20), int(h/2)), text, fill='lightgray', font=IMG_FONT)
+    del draw
+
     return img
 
 
@@ -781,6 +860,7 @@ def __readFiles(paths, gps_path, pic_path):
             pic_path.append(path)
         elif isGpsFile(path):
             gps_path.append(path)
+
 
 if __name__ == '__main__':
 
