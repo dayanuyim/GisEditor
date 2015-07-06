@@ -19,6 +19,20 @@ from coord import  CoordinateSystem
 from gpx import GpsDocument, WayPoint
 from pic import PicDocument
 from sym import SymRule, SymbolRules
+from datetime import timedelta
+
+def __readConfig(conf_path):
+    conf = {}
+    with open(conf_path) as conf_file:
+        for line in conf_file:
+            k, v = line.rstrip().split('=', 1)
+            conf[k] = v
+    return conf
+
+IMG_FONT = ImageFont.truetype("ARIALUNI.TTF", 18) #global use font (Note: the operation is time wasting)
+Config = __readConfig('./giseditor.conf')
+Sym_rules = SymbolRules('./sym_rule.conf')
+TZ = timedelta(hours=8)
 
 class SettingBoard(tk.LabelFrame):
     def __init__(self, master):
@@ -774,7 +788,8 @@ class WptBoard(tk.Toplevel):
 
     def getWptTimeText(self, wpt):
         if wpt is not None and wpt.time is not None:
-            return  wpt.time.strftime("%Y-%m-%d %H:%M:%S")
+            time = wpt.time + TZ
+            return  time.strftime("%Y-%m-%d %H:%M:%S")
         return "N/A"
 
         
@@ -813,11 +828,13 @@ def isGpsFile(path):
 def getGpsDocument(path):
     (fname, ext) = os.path.splitext(path)
     ext = ext.lower()
+    gpx = GpsDocument(TZ)
     if ext == '.gpx':
-        return GpsDocument(filename=path)
+        gpx.load(filename=path)
     else:
         gpx_string = toGpxString(path)
-        return GpsDocument(filestring=gpx_string)
+        gpx.load(filestring=gpx_string)
+    return gpx
 
 def toGpxString(src_path):
     (fname, ext) = os.path.splitext(src_path)
@@ -837,15 +854,6 @@ def isPicFile(path):
     if ext == '.jpg' or ext == '.jpeg':
         return True
     return False
-
-def readConfig(conf_path):
-    conf = {}
-    with open(conf_path) as conf_file:
-        for line in conf_file:
-            k, v = line.rstrip().split('=', 1)
-            conf[k] = v
-    return conf
-
 
 def readFiles(paths):
     gps_path = []
@@ -870,9 +878,6 @@ def getSymbol(name):
 
 
 if __name__ == '__main__':
-    IMG_FONT = ImageFont.truetype("ARIALUNI.TTF", 18) #global use font (Note: the operation is time wasting)
-    Config = readConfig('./giseditor.conf')
-    Sym_rules = SymbolRules('./sym_rule.conf')
 
     #create window
     root = tk.Tk()
@@ -896,7 +901,7 @@ if __name__ == '__main__':
     for path in gps_path:
         disp_board.addGpx(getGpsDocument(path))
     for path in pic_path:
-        disp_board.addPic(PicDocument(path))
+        disp_board.addPic(PicDocument(path, TZ))
 
     disp_board.initDisp()
     root.mainloop()

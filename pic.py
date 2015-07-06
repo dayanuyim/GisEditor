@@ -12,7 +12,8 @@ class PicDocument(WayPoint):
     @property
     def img(self): return self.__img
 
-    def __init__(self, path):
+    def __init__(self, path, tz=None):
+        self.__tz = tz
         self.__path = path
         self.__img = Image.open(path)
         self.__exif = self.getExif(self.__img)
@@ -27,9 +28,11 @@ class PicDocument(WayPoint):
         self.ele = self.exifToAltitude(self.__exif['GPSAltitudeRef'], self.__exif['GPSAltitude'])
         self.time = self.exifToDateTime(self.__exif['DateTimeOriginal'])
 
-    @staticmethod
-    def exifToDateTime(time_str):
-        return datetime.strptime(time_str, "%Y:%m:%d %H:%M:%S")
+    def exifToDateTime(self, time_str):
+        time = datetime.strptime(time_str, "%Y:%m:%d %H:%M:%S")
+        if self.__tz is not None:
+            time -= self.__tz  #to utc
+        return time
 
     @staticmethod
     def exifToDegree(ref, degree):

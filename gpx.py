@@ -4,7 +4,7 @@
 """ handle gpx file """
 
 import os
-from xml.etree import ElementTree
+from xml.etree import ElementTree as ET
 from datetime import datetime
 from tile import TileSystem, GeoPoint
 from PIL import Image
@@ -25,7 +25,9 @@ class GpsDocument:
     @property
     def tracks(self): return self.trks
 
-    def __init__(self, filename=None, filestring=None):
+    def __init__(self, tz=None):
+        self.__tz = tz
+
         self.wpts = []
         self.trks = []
         self.__maxlon = None
@@ -33,25 +35,28 @@ class GpsDocument:
         self.__maxlat = None
         self.__minlat = None
 
+        #set ns
+        self.ns = {}
+        self.ns['gpx'] = "http://www.topografix.com/GPX/1/1"
+        self.ns['xsi'] = "http://www.w3.org/2001/XMLSchema-instance"
+        self.ns['gpxx'] = "http://www.garmin.com/xmlschemas/GpxExtensions/v3"
+
+    def load(self, filename=None, filestring=None):
         #get root element
         xml_root = None
         if filename is not None:
-            xml_root = ElementTree.parse(filename).getroot()
+            xml_root = ET.parse(filename).getroot()
         elif filestring is not None:
-            xml_root = ElementTree.fromstring(filestring)
+            xml_root = ET.fromstring(filestring)
         else:
             raise ValueError("Gpx filename and filestring both None")
 
-        #set ns
-        self.ns = {}
+        #override 'gpx ns
         if xml_root.tag[0] == '{':
             ns, name = xml_root.tag[1:].split("}")
-            self.ns["gpx"] = ns
+            self.ns["gpx"] = ns 
             if name != "gpx":
                 print("Warning: the root element's namespace is not 'gpx'")
-
-        self.ns['xsi'] = "http://www.w3.org/2001/XMLSchema-instance"
-        self.ns['gpxx'] = "http://www.garmin.com/xmlschemas/GpxExtensions/v3"
 
         #load data
         self.loadMetadata(xml_root)
@@ -161,6 +166,78 @@ class GpsDocument:
         if self.__minlon is None or pt.lon <= self.__minlon:
             self.__minlon = pt.lon
 
+    def save(self, path):
+        gpx = self.genRootElement()
+        self.subMetadataElement(gpx)
+        self.subWptElement(gpx)
+
+        #write
+        doc = ET.ElementTree(element=gpx)
+        doc.write(path, encoding="UTF-8", xml_declaration=True)#, default_namespace=self.ns['gpx'])
+
+    def genRootElement(self):
+        gpx = ET.Element('gpx')
+        gpx.set("xmlns", self.ns['gpx'])
+        gpx.set("creator", "TT GpsToolset");
+        gpx.set("version", "1.1");
+        gpx.set("xmlns:xsi", self.ns['xsi'])
+        gpx.set('xsi:schemaLocation', "http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd")
+        return gpx
+
+    def subMetadataElement(self, parent):
+        metadata = ET.SubElement(parent, 'metadata')
+        link = ET.SubElement(metadata, 'link')
+        link.set("href", "http://www.garmin.com");
+        text = ET.SubElement(link, "text");
+        text.text = "Garmin International";
+
+        time = ET.SubElement(metadata, 'time')
+        if self.__tz is not None:
+            utc = datetime.now() - self.__tz
+        else:
+            utc = datetime.now()
+        time.text = utc.strftime("%Y-%m-%dT%H:%M:%SZ");
+
+        bounds = ET.SubElement(metadata, 'bounds')
+        bounds.set("maxlat", str(self.maxlat))
+        bounds.set("maxlon", str(self.maxlon))
+        bounds.set("minlat", str(self.minlat))
+        bounds.set("minlon", str(self.minlon))
+
+    def subWptElement(self, parent):
+        for w in self.wpts:
+            wpt = ET.SubElement(parent, 'wpt')
+            wpt.set("lat", str(w.lat))
+            wpt.set("lon", str(w.lon))
+
+            ele = ET.SubElement(wpt, "ele");
+            ele.text = str(w.ele);
+
+            time = ET.SubElement(wpt, "time");
+            time.text = w.time.strftime("%Y-%m-%dT%H:%M:%SZ");
+
+            name = ET.SubElement(wpt, "name");
+            name.text = w.name;
+
+            if len(w.cmt) > 0:
+                cmt = ET.SubElement(wpt, "cmt");
+                cmt.text = w.cmt;
+
+            if len(w.desc) > 0:
+                desc = ET.SubElement(wpt, "desc");
+                desc.text = w.desc;
+
+            sym = ET.SubElement(wpt, "sym");
+            sym.text = w.sym;
+
+            #extension =====
+            extensions = ET.SubElement(wpt, "extensions");
+            wpt_ext = ET.SubElement(extensions, "gpxx:WaypointExtension")
+            wpt_ext.set('xmlns:gpxx', self.ns['gpxx'])
+            disp_mode = ET.SubElement(wpt_ext, "gpxx:DisplayMode")
+            disp_mode.text = "SymbolAndName";
+
+
 class WayPoint:
     @property
     def lat(self): return self.__geo.lat
@@ -211,4 +288,8 @@ class TrackPoint:
         return (self.__geo.px, self.__geo.py)
 
 if __name__ == '__main__':
-    gpx = GpsDocument("bak/2015_0101-04.gpx")
+    #gpx = GpsDocument("bak/2015_0101-04.gpx")
+    gpx = GpsDocument()
+    gpx.load('bak/test.gpx')
+    gpx.save('out.gpx')
+
