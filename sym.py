@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
 import re
+import os
 import codecs
+from PIL import Image
 
 class SymRuleType:
     UNKNOWN = 0
@@ -105,11 +107,17 @@ class SymbolRules:
         return None
 
 class SymRule:
+    #{{ static
+    __icons = {}
+    ICON_SIZE = 24
+    DEF_SYMBOL = "Waypoint"
+    #}}
+
     def __init__(self):
         self.enabled = True
         self.type = SymRuleType.CONTAIN
         self.text = ""
-        self.symbol = "Flag, Green" #default sym
+        self.symbol = self.DEF_SYMBOL
 
     def isMatch(self, wpt_name):
         if not self.enabled:
@@ -128,7 +136,22 @@ class SymRule:
         else:
             return False
 
+    @classmethod
+    def getIcon(cls, name):
+        name = name.lower()
+        icon = cls.__icons.get(name)
+        if icon is None:
+            path = os.path.join("./icon", name + ".png")
+            if not os.path.exists(path) and name != cls.DEF_SYMBOL:
+                return cls.getIcon(cls.DEF_SYMBOL)
+            icon = Image.open(path)
+            icon = icon.resize((cls.ICON_SIZE, cls.ICON_SIZE))
+            cls.__icons[name] = icon
+        return icon
+
+
 if __name__ == '__main__':
     rules = SymbolRules('./sym_rule.conf')
     rules.save('./sym_rule.conf.out')
     print(rules.getMatchRule('-').symbol)
+    print(rules.getMatchRule('2.2k').symbol)

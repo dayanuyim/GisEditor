@@ -6,12 +6,13 @@ from PIL import Image, ExifTags
 from tile import GeoPoint
 from gpx import WayPoint
 from datetime import datetime
+from sym import SymRule
 
 class PicDocument(WayPoint):
     @property
     def img(self): return self.__img
 
-    def __init__(self, path=None):
+    def __init__(self, path, rules=None):
         self.__path = path
         self.__img = Image.open(path)
         self.__exif = self.getExif(self.__img)
@@ -20,10 +21,14 @@ class PicDocument(WayPoint):
         super().__init__(
             lat = self.exifToDegree(self.__exif['GPSLatitudeRef'], self.__exif['GPSLatitude']),
             lon = self.exifToDegree(self.__exif['GPSLongitudeRef'], self.__exif['GPSLongitude']))
-        self.ele = self.exifToAltitude(self.__exif['GPSAltitudeRef'], self.__exif['GPSAltitude'])
-        self.time = self.exifToDateTime(self.__exif['DateTimeOriginal'])
+
         if 'ImageDescription' in self.__exif.keys():
             self.name = self.__exif['ImageDescription'].encode('latin-1').decode('utf-8') #PIL use latin-1 by default
+        self.ele = self.exifToAltitude(self.__exif['GPSAltitudeRef'], self.__exif['GPSAltitude'])
+        self.time = self.exifToDateTime(self.__exif['DateTimeOriginal'])
+
+        rule = rules.getMatchRule(self.name) if rules is not None else None
+        self.sym = rule.symbol if rule is not None else SymRule.DEF_SYMBOL
 
     @staticmethod
     def exifToDateTime(time_str):

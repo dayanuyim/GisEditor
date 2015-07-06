@@ -19,6 +19,7 @@ from tile import  TileSystem, TileMap, GeoPoint
 from coord import  CoordinateSystem
 from gpx import GpsDocument, WayPoint
 from pic import PicDocument
+from sym import SymRule
 
 IMG_FONT = ImageFont.truetype("ARIALUNI.TTF", 18) #global use font (Note: the operation is time wasting)
 
@@ -378,7 +379,7 @@ class MapController:
         return wpts
 
     def getWptAt(self, px, py):
-        r = int(WayPoint.ICON_SIZE/2)
+        r = int(SymRule.ICON_SIZE/2)
         for wpt in self.getAllWpts():
             wpx, wpy = wpt.getPixel(self.level)
             if abs(px-wpx) < r and abs(py-wpy) < r:
@@ -502,14 +503,14 @@ class MapController:
 
         px -= img_attr.left_px
         py -= img_attr.up_py
-        adj = int(WayPoint.ICON_SIZE/2)
+        adj = int(SymRule.ICON_SIZE/2)
 
         #get draw
         _draw = draw if draw is not None else ImageDraw.Draw(img)
 
         #paste icon
         if wpt.sym is not None:
-            icon = WayPoint.getIcon(wpt.sym)
+            icon = SymRule.getIcon(wpt.sym)
             if icon is not None:
                 img.paste(icon, (px-adj, py-adj), icon)
 
@@ -729,7 +730,7 @@ class WptBoard(tk.Toplevel):
         pass
 
     def showWptIcon(self, sym):
-        icon = ImageTk.PhotoImage(WayPoint.getIcon(sym))
+        icon = ImageTk.PhotoImage(SymRule.getIcon(sym))
         self.__icon_label.image = icon
         self.__icon_label.config(image=icon)
     

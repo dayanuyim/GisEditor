@@ -162,11 +162,6 @@ class GpsDocument:
             self.__minlon = pt.lon
 
 class WayPoint:
-    #{{ static
-    __wpt_icons = {}
-    ICON_SIZE = 24
-    #}}
-
     @property
     def lat(self): return self.__geo.lat
     @property
@@ -184,20 +179,6 @@ class WayPoint:
     def getPixel(self, level):
         self.__geo.level = level
         return (self.__geo.px, self.__geo.py)
-
-    @classmethod
-    def getIcon(cls, name):
-        name = name.lower()
-        icon = cls.__wpt_icons.get(name)
-        if icon is None:
-            path = os.path.join("icon", name + ".png")
-            if not os.path.exists(path) and name != "default":
-                return cls.getIcon("default")
-            icon = Image.open(path)
-            icon = icon.resize((cls.ICON_SIZE, cls.ICON_SIZE))
-            cls.__wpt_icons[name] = icon
-        return icon
-
 
 class Track:
     def __init__(self):
