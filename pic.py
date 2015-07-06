@@ -12,7 +12,7 @@ class PicDocument(WayPoint):
     @property
     def img(self): return self.__img
 
-    def __init__(self, path, rules=None):
+    def __init__(self, path):
         self.__path = path
         self.__img = Image.open(path)
         self.__exif = self.getExif(self.__img)
@@ -26,9 +26,6 @@ class PicDocument(WayPoint):
             self.name = self.__exif['ImageDescription'].encode('latin-1').decode('utf-8') #PIL use latin-1 by default
         self.ele = self.exifToAltitude(self.__exif['GPSAltitudeRef'], self.__exif['GPSAltitude'])
         self.time = self.exifToDateTime(self.__exif['DateTimeOriginal'])
-
-        rule = rules.getMatchRule(self.name) if rules is not None else None
-        self.sym = rule.symbol if rule is not None else SymRule.DEF_SYMBOL
 
     @staticmethod
     def exifToDateTime(time_str):

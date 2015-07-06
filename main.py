@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 
 import os
 import subprocess
@@ -6,8 +6,7 @@ import sys
 import tkinter as tk
 import urllib.request
 import shutil
-from os import listdir
-from os.path import isdir, isfile, exists
+from os import path
 from PIL import Image, ImageTk, ImageDraw, ImageFont
 from math import floor, ceil
 from tkinter import messagebox
@@ -19,9 +18,7 @@ from tile import  TileSystem, TileMap, GeoPoint
 from coord import  CoordinateSystem
 from gpx import GpsDocument, WayPoint
 from pic import PicDocument
-from sym import SymRule
-
-IMG_FONT = ImageFont.truetype("ARIALUNI.TTF", 18) #global use font (Note: the operation is time wasting)
+from sym import SymRule, SymbolRules
 
 class SettingBoard(tk.LabelFrame):
     def __init__(self, master):
@@ -77,17 +74,17 @@ class SettingBoard(tk.LabelFrame):
         #error check
         if(path is None or len(path) == 0):
             return
-        if(not exists(path)):
+        if(not path.exists(path)):
             print("The path does not exist")
             return
 
         #add file, if support
         has_new = False
-        if(isdir(path)):
-            for f in listdir(path):
+        if(path.isdir(path)):
+            for f in os.listdir(path):
                 if(self.addPicFile(f)):
                     has_new = True
-        elif(isfile(path)):
+        elif(path.isfile(path)):
             if(self.addPicFile(f)):
                 has_new = True
         else:
@@ -259,11 +256,11 @@ class DispBoard(tk.Frame):
         py=c.py + event.y
 
         wpt = c.getWptAt(px, py)
-        #restore color
+        #restore the last wpt
         if self.focused_wpt is not None:
             if wpt is None or wpt != self.focused_wpt:
                 self.drawWayPoint(self.focused_wpt, "gray")
-        #highlight color
+        #highlight the current wpt
         if wpt is not None:
             if self.focused_wpt is None or wpt != self.focused_wpt:
                 self.drawWayPoint(wpt, "red")
@@ -352,7 +349,7 @@ class MapController:
         self.disp_attr = None
         self.extra_p = 256
         self.pt_size = 3
-        self.__font = ImageFont.truetype("ARIALUNI.TTF", 18)
+        self.__font = IMG_FONT
 
         #layer
         self.gpx_layers = []
@@ -367,6 +364,9 @@ class MapController:
         self.gpx_layers.append(gpx)
 
     def addPicLayer(self, pic):
+        #set sym according rules
+        pic.sym = getSymbol(pic.name)
+        #add
         self.pic_layers.append(pic)
 
     def getAllWpts(self):
@@ -512,7 +512,11 @@ class MapController:
         if wpt.sym is not None:
             icon = SymRule.getIcon(wpt.sym)
             if icon is not None:
-                img.paste(icon, (px-adj, py-adj), icon)
+                if icon.mode == 'RGBA':
+                    img.paste(icon, (px-adj, py-adj), icon)
+                else:
+                    #print("Warning: Icon for '%s' is not RGBA" % wpt.sym)
+                    img.paste(icon, (px-adj, py-adj))
 
         #draw point   //replace by icon
         #n = self.pt_size
@@ -636,15 +640,11 @@ class WptBoard(tk.Toplevel):
     def __init__(self, master, wpt, wpt_list=None):
         super().__init__(master)
 
-        self.__curr_wpt = wpt
-
         if wpt_list is None or wpt in wpt_list:
             self.__wpt_list = wpt_list
         else:
             print('Warning: wpt is not in wpt_list')
             self.__wpt_list = None
-
-        self.__def_img = None
 
         self.geometry('+100+100')
         self.bind('<Escape>', lambda e: e.widget.destroy())
@@ -719,10 +719,10 @@ class WptBoard(tk.Toplevel):
     def onWptNameChanged(self, *args):
         #print('change to', self.__var_name.get())
         name = self.__var_name.get()
-        #sym = self.getWptSymByNameRule(name)
+        sym = getSymbol(name)
 
         self.__curr_wpt.name = name
-        #self.__curr_wpt.sym = sym
+        self.__curr_wpt.sym = sym
 
         self.showWptIcon(self.__curr_wpt.sym)
     
@@ -855,19 +855,24 @@ def readFiles(paths):
     
 def __readFiles(paths, gps_path, pic_path):
     for path in paths:
-        if isdir(path):
-            subpaths = [os.path.join(path, f) for f in listdir(path)]
+        if os.path.isdir(path):
+            subpaths = [os.path.join(path, f) for f in os.listdir(path)]
             __readFiles(subpaths, gps_path, pic_path)
         elif isPicFile(path):
             pic_path.append(path)
         elif isGpsFile(path):
             gps_path.append(path)
 
+def getSymbol(name):
+    rule = Sym_rules.getMatchRule(name)
+    sym = rule.symbol if rule is not None else SymRule.DEF_SYMBOL
+    return sym
+
 
 if __name__ == '__main__':
-
-    #read conf
+    IMG_FONT = ImageFont.truetype("ARIALUNI.TTF", 18) #global use font (Note: the operation is time wasting)
     Config = readConfig('./giseditor.conf')
+    Sym_rules = SymbolRules('./sym_rule.conf')
 
     #create window
     root = tk.Tk()

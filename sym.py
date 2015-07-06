@@ -4,6 +4,7 @@ import re
 import os
 import codecs
 from PIL import Image
+from os import path
 
 class SymRuleType:
     UNKNOWN = 0
@@ -109,6 +110,7 @@ class SymbolRules:
 class SymRule:
     #{{ static
     __icons = {}
+    ICON_DIR = 'icon'
     ICON_SIZE = 24
     DEF_SYMBOL = "Waypoint"
     #}}
@@ -127,8 +129,8 @@ class SymRule:
             return self.text in wpt_name
         elif self.type == SymRuleType.BEGIN_WITH:
             return wpt_name.startswith(self.text)
-        elif self.type == SymRuleType.BEGIN_WITH:
-            return wpt_name.startswith(self.text)
+        elif self.type == SymRuleType.END_WITH:
+            return wpt_name.endswith(self.text)
         elif self.type == SymRuleType.EQUAL:
             return wpt_name == self.text
         elif self.type == SymRuleType.REGEX:
@@ -137,17 +139,30 @@ class SymRule:
             return False
 
     @classmethod
-    def getIcon(cls, name):
-        name = name.lower()
-        icon = cls.__icons.get(name)
+    def getIcon(cls, sym):
+        sym = sym.lower()
+        icon = cls.__icons.get(sym)
         if icon is None:
-            path = os.path.join("./icon", name + ".png")
-            if not os.path.exists(path) and name != cls.DEF_SYMBOL:
-                return cls.getIcon(cls.DEF_SYMBOL)
+            path =  cls.__getIconPath(sym)
+            if path is None:
+                if sym.lower() == cls.DEF_SYMBOL.lower():
+                    return None
+                else:
+                    return cls.getIcon(cls.DEF_SYMBOL)
             icon = Image.open(path)
             icon = icon.resize((cls.ICON_SIZE, cls.ICON_SIZE))
-            cls.__icons[name] = icon
+            cls.__icons[sym] = icon
         return icon
+
+    #get icon path for the sym. case-insensitive, ignore extention
+    @classmethod
+    def __getIconPath(cls, sym):
+        sym = sym.lower()
+        for f in os.listdir(cls.ICON_DIR):
+            name, ext = path.splitext(f)
+            if sym == name.lower():
+                return path.join(cls.ICON_DIR, f)
+        return None
 
 
 if __name__ == '__main__':
