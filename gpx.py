@@ -208,6 +208,9 @@ class Track:
     def __iter__(self):
         return iter(self.__trkseg)
 
+    def __len__(self):
+        return len(self.__trkseg)
+
     def addTrackPoint(self, pt):
         self.__trkseg.append(pt)
 
