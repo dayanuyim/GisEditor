@@ -725,7 +725,8 @@ class WptBoard(tk.Toplevel):
             self.__right_btn.pack(side='right', anchor='e', expand=0, fill='y')
         
         #image
-        self.__img_label = tk.Label(self, anchor='n', bg='black')
+        self.__img_sz = (img_w, img_h) = (600, 450)
+        self.__img_label = tk.Label(self, anchor='n', width=img_w, height=img_h, bg='black')
         self.__img_label.pack(side='top', anchor='nw', expand=1, fill='both', padx=0, pady=0)
 
         #set wpt
@@ -802,7 +803,7 @@ class WptBoard(tk.Toplevel):
         self.__icon_label.config(image=icon)
     
     def setCurrWpt(self, wpt):
-        size = (width, height) = 600, 450
+        size = self.__img_sz
 
         self.__curr_wpt = wpt
 

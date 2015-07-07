@@ -28,6 +28,23 @@ class PicDocument(WayPoint):
         self.ele = self.exifToAltitude(self.__exif['GPSAltitudeRef'], self.__exif['GPSAltitude'])
         self.time = self.exifToDateTime(self.__exif['DateTimeOriginal'])
 
+        orientation = self.__exif['Orientation']
+        if orientation is not None:
+            self.__img = self.rotateImage(self.__img, int(orientation))
+
+
+    def rotateImage(self, img, orientation):
+        if orientation == 1:
+            return img
+        elif orientation == 3:
+            return img.transpose(Image.ROTATE_180)
+        elif orientation == 6:
+            return img.transpose(Image.ROTATE_270)
+        elif orientation == 8:
+            return img.transpose(Image.ROTATE_90)
+        else:
+            return img
+
     def exifToDateTime(self, time_str):
         time = datetime.strptime(time_str, "%Y:%m:%d %H:%M:%S")
         if self.__tz is not None:
