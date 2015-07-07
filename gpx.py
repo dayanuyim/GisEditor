@@ -92,24 +92,33 @@ class GpsDocument:
 
             #child element
             elem = wpt_elem.find("./gpx:ele", self.ns)
-            if elem is not None: wpt.ele = float(elem.text)
+            if elem is not None and elem.text is not None:
+                wpt.ele = float(elem.text)
 
             elem = wpt_elem.find("./gpx:time", self.ns)
-            if elem is not None: wpt.time = datetime.strptime(elem.text, "%Y-%m-%dT%H:%M:%SZ")
+            if elem is not None and elem.text is not None:
+                wpt.time = datetime.strptime(elem.text, "%Y-%m-%dT%H:%M:%SZ")
+            else:
+                wpt.time = self.toUTC(datetime.now())
 
             elem = wpt_elem.find("./gpx:name", self.ns)
-            if elem is not None: wpt.name = elem.text
+            if elem is not None and elem.text is not None:
+                wpt.name = elem.text
 
             elem = wpt_elem.find("./gpx:cmt", self.ns)
-            if elem is not None: wpt.cmt = elem.text
+            if elem is not None and elem.text is not None:
+                wpt.cmt = elem.text
 
             elem = wpt_elem.find("./gpx:desc", self.ns)
-            if elem is not None: wpt.desc = elem.text
+            if elem is not None and elem.text is not None:
+                wpt.desc = elem.text
 
             elem = wpt_elem.find("./gpx:sym", self.ns)
-            if elem is not None: wpt.sym = elem.text
+            if elem is not None and elem.text is not None:
+                wpt.sym = elem.text
 
             self.addWpt(wpt)
+            
 
     def loadTrk(self, xml_root):
         trk_elems = xml_root.findall("./gpx:trk", self.ns)
@@ -169,13 +178,25 @@ class GpsDocument:
             self.__minlon = pt.lon
 
     def merge(self, rhs):
-        self.__minlat = min(self.__minlat, rhs.__minlat)
-        self.__maxlat = max(self.__maxlat, rhs.__maxlat)
-        self.__minlon = min(self.__minlon, rhs.__minlon)
-        self.__maxlon = max(self.__maxlon, rhs.__maxlon)
+        self.__minlat = self.safe_min(self.minlat, rhs.minlat)
+        self.__maxlat = self.safe_max(self.maxlat, rhs.maxlat)
+        self.__minlon = self.safe_min(self.minlon, rhs.minlon)
+        self.__maxlon = self.safe_max(self.maxlon, rhs.maxlon)
 
         self.__wpts.extend(rhs.__wpts)
         self.__trks.extend(rhs.__trks)
+
+    @staticmethod
+    def safe_min(v1, v2):
+        if v1 is None: return v2
+        if v2 is None: return v1
+        return min(v1, v2)
+
+    @staticmethod
+    def safe_max(v1, v2):
+        if v1 is None: return v2
+        if v2 is None: return v1
+        return max(v1, v2)
 
     def save(self, path):
         gpx = self.genRootElement()
@@ -196,6 +217,11 @@ class GpsDocument:
         gpx.set('xsi:schemaLocation', "http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd")
         return gpx
 
+    def toUTC(self, time):
+        if self.__tz:
+            return time - self.__tz
+        return time
+
     def subMetadataElement(self, parent):
         metadata = ET.SubElement(parent, 'metadata')
         link = ET.SubElement(metadata, 'link')
@@ -204,17 +230,14 @@ class GpsDocument:
         text.text = "Garmin International";
 
         time = ET.SubElement(metadata, 'time')
-        if self.__tz is not None:
-            utc = datetime.now() - self.__tz
-        else:
-            utc = datetime.now()
-        time.text = utc.strftime("%Y-%m-%dT%H:%M:%SZ");
+        time.text = self.toUTC(datetime.now()).strftime("%Y-%m-%dT%H:%M:%SZ");
 
-        bounds = ET.SubElement(metadata, 'bounds')
-        bounds.set("maxlat", str(self.maxlat))
-        bounds.set("maxlon", str(self.maxlon))
-        bounds.set("minlat", str(self.minlat))
-        bounds.set("minlon", str(self.minlon))
+        if self.maxlat and self.maxlon and self.minlat and self.minlon:
+            bounds = ET.SubElement(metadata, 'bounds')
+            bounds.set("maxlat", str(self.maxlat))
+            bounds.set("maxlon", str(self.maxlon))
+            bounds.set("minlat", str(self.minlat))
+            bounds.set("minlon", str(self.minlon))
 
     def subWptElement(self, parent):
         for w in self.__wpts:

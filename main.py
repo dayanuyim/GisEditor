@@ -9,7 +9,7 @@ import shutil
 from os import path
 from PIL import Image, ImageTk, ImageDraw, ImageFont
 from math import floor, ceil
-from tkinter import messagebox
+from tkinter import messagebox, filedialog
 from datetime import datetime
 
 #my modules
@@ -151,11 +151,11 @@ class DispBoard(tk.Frame):
         super().__init__(master)
 
         self.map_ctrl = MapController()
-        self.focused_wpt = None
 
         #board
         self.bg_color='#D0D0D0'
         self.config(bg=self.bg_color)
+        self.focused_wpt = None
 
         #info
         self.info_label = tk.Label(self, font='24', anchor='w', bg=self.bg_color)
@@ -170,9 +170,14 @@ class DispBoard(tk.Frame):
         self.disp_label.bind('<MouseWheel>', self.onMouseWheel)
         self.disp_label.bind('<Motion>', self.onMotion)
         self.disp_label.bind("<Button-1>", self.onClickDown)
+        self.disp_label.bind("<Button-3>", self.onRightClickDown)
         self.disp_label.bind("<Button1-Motion>", self.onClickMotion)
         self.disp_label.bind("<Button1-ButtonRelease>", self.onClickUp)
         self.disp_label.bind("<Configure>", self.onResize)
+
+        #right-click menu
+        self.__rclick_menu = tk.Menu(self.disp_label, tearoff=0)
+        self.__rclick_menu.add_command(label='Save to gpx...', command=self.onGpxSave)
 
     def addGpx(self, gpx):
         self.map_ctrl.addGpxLayer(gpx)
@@ -245,6 +250,23 @@ class DispBoard(tk.Frame):
         wpt = c.getWptAt(geo.px, geo.py)
         if wpt is not None:
             self.doDispWpt(wpt)
+
+    def onRightClickDown(self, event):
+        self.__rclick_menu.post(event.x_root, event.y_root)
+
+    def onGpxSave(self):
+        fpath = filedialog.asksaveasfilename(defaultextension=".gpx", filetypes=(("GPS Excahnge Format", ".gpx"), ("All Files", "*.*")) )
+        if fpath is None or fpath == "":
+            return
+
+        doc = GpsDocument()
+        for gpx in self.map_ctrl.gpx_layers:
+            doc.merge(gpx)
+        for wpt in self.map_ctrl.pic_layers:
+            doc.addWpt(wpt)
+
+        doc.save(fpath)
+
 
     def doDispWpt(self, wpt):
         wpt_list = self.map_ctrl.getAllWpts()
@@ -386,7 +408,7 @@ class MapController:
     def getAllWpts(self):
         wpts = []
         for gpx in self.gpx_layers:
-            for wpt in gpx.wpts:
+            for wpt in gpx.way_points:
                 wpts.append(wpt)
         for pic in self.pic_layers:
                 wpts.append(pic)
