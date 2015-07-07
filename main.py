@@ -156,6 +156,7 @@ class DispBoard(tk.Frame):
         self.bg_color='#D0D0D0'
         self.config(bg=self.bg_color)
         self.focused_wpt = None
+        self.img = None         #buffer disp image for highlight wpt
 
         #info
         self.info_label = tk.Label(self, font='24', anchor='w', bg=self.bg_color)
@@ -178,6 +179,8 @@ class DispBoard(tk.Frame):
         #right-click menu
         self.__rclick_menu = tk.Menu(self.disp_label, tearoff=0)
         self.__rclick_menu.add_command(label='Save to gpx...', command=self.onGpxSave)
+        self.__rclick_menu.add_command(label='Numbering wpt in time order', command=self.onNumberWpt)
+        self.__rclick_menu.add_command(label='Unnumbering wpt', command=self.onUnnumberWpt)
 
     def addGpx(self, gpx):
         self.map_ctrl.addGpxLayer(gpx)
@@ -232,7 +235,7 @@ class DispBoard(tk.Frame):
         self.map_ctrl.shiftGeoPixel(-event.x, -event.y)
 
         self.setMapInfo()
-        self.resetMap(label.winfo_width(), label.winfo_height())
+        self.resetMap()
 
     def onClickDown(self, event):
         self.__mouse_down_pos = (event.x, event.y)
@@ -267,11 +270,30 @@ class DispBoard(tk.Frame):
 
         doc.save(fpath)
 
+    def onNumberWpt(self):
+        wpt_list = self.map_ctrl.getAllWpts()
+        wpt_list = sorted(wpt_list, key=lambda wpt: wpt.time)
+        sn = 0
+        for wpt in wpt_list:
+            sn += 1
+            wpt.name = "%02d %s" % (sn, wpt.name)
+
+        self.resetMap()
+
+    def onUnnumberWpt(self):
+        wpt_list = self.map_ctrl.getAllWpts()
+        for wpt in wpt_list:
+            idx = wpt.name.find(' ')
+            if idx >= 0 and wpt.name[:idx].isdigit():
+                wpt.name = wpt.name[idx+1:]
+
+        self.resetMap()
 
     def doDispWpt(self, wpt):
         wpt_list = self.map_ctrl.getAllWpts()
         wpt_board = WptBoard(self, wpt, wpt_list)
-        wpt_board.transient(self)
+        if wpt_board.is_changed:
+            self.resetMap()
 
     def onClickMotion(self, event):
         if self.__mouse_down_pos is not None:
@@ -281,7 +303,7 @@ class DispBoard(tk.Frame):
             (last_x, last_y) = self.__mouse_down_pos
             self.map_ctrl.shiftGeoPixel(last_x - event.x, last_y - event.y)
             self.setMapInfo()
-            self.resetMap(label.winfo_width(), label.winfo_height())
+            self.resetMap()
 
             self.__mouse_down_pos = (event.x, event.y)
 
@@ -303,7 +325,7 @@ class DispBoard(tk.Frame):
         self.focused_wpt = wpt
 
         #reset
-        self.__setMap(self.img)
+        self.setMap(self.img)
 
     def drawWayPoint(self, wpt, color):
         c = self.map_ctrl
@@ -323,7 +345,7 @@ class DispBoard(tk.Frame):
     def onResize(self, event):
         label = event.widget
         self.setMapInfo()
-        self.resetMap(label.winfo_width(), label.winfo_height())
+        self.resetMap()
 
     def setMapInfo(self, lat=None, lon=None, txt=None):
         c = self.map_ctrl
@@ -334,11 +356,14 @@ class DispBoard(tk.Frame):
         else:
             self.info_label.config(text="[%s] level: %s" % (c.tile_map.getMapName(), c.level))
 
-    def resetMap(self, w, h):
-        self.img = self.map_ctrl.getTileImage(w, h);
-        self.__setMap(self.img)
+    def resetMap(self, w=None, h=None):
+        if w is None: w = self.disp_label.winfo_width()
+        if h is None: h = self.disp_label.winfo_height()
+        img = self.map_ctrl.getTileImage(w, h);
+        self.setMap(img)
 
-    def __setMap(self, img):
+    def setMap(self, img):
+        self.img = img  #buffer the image
         photo = ImageTk.PhotoImage(img)
         self.disp_label.config(image=photo)
         self.disp_label.image = photo #keep a ref
@@ -435,7 +460,7 @@ class MapController:
         #crop by width/height
         img = self.__getCropMap(img_attr)
         self.__drawTM2Coord(img, img_attr)
-
+        self.__drawWpt(img, img_attr)
         return img
 
 
@@ -443,8 +468,8 @@ class MapController:
     def __genDispMap(self, img_attr):
         print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen disp map...")
         (img, attr) = self.__genBaseMap(img_attr)
-        self.__drawGPX(img, attr)
-        self.__drawPic(img, attr)
+        self.__drawTrk(img, attr)
+        #self.__drawWpt(img, attr)
         print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen disp map...done")
 
         return (img, attr)
@@ -503,7 +528,7 @@ class MapController:
 
         return  (disp_img, disp_attr)
 
-    def __drawGPX(self, img, img_attr):
+    def __drawTrk(self, img, img_attr):
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw gpx...")
         if len(self.gpx_layers) == 0:
             return
@@ -522,12 +547,27 @@ class MapController:
                         xy.append(py - img_attr.up_py)
                     draw.line(xy, fill=trk.color, width=2)
 
-            #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw", len(gpx.way_points), "wpt...")
-            #draw way points
-            for wpt in gpx.way_points:
-                self.drawWayPoint(img, img_attr, wpt, "gray", draw=draw)
-
         #recycle draw object
+        del draw
+
+    def isTrackInImage(self, trk, img_attr):
+        #if some track point is in disp
+        for pt in trk:
+            (px, py) = pt.getPixel(img_attr.level)
+            if img_attr.containsPoint(px, py):
+                return True
+        return False
+
+    #draw pic as waypoint
+    def __drawWpt(self, img, img_attr):
+        wpts = self.getAllWpts()  #gpx's wpt + pic's wpt
+        if len(wpts) == 0:
+            return
+
+        draw = ImageDraw.Draw(img)
+        for wpt in wpts:
+            (px, py) = wpt.getPixel(img_attr.level)
+            self.drawWayPoint(img, img_attr, wpt, "gray", draw=draw)
         del draw
 
     def drawWayPoint(self, img, img_attr, wpt, color, draw=None):
@@ -569,22 +609,6 @@ class MapController:
         if draw is None:
             del _draw
 
-    def isTrackInImage(self, trk, img_attr):
-        #if some track point is in disp
-        for pt in trk:
-            (px, py) = pt.getPixel(img_attr.level)
-            if img_attr.containsPoint(px, py):
-                return True
-        return False
-
-    #draw pic as waypoint
-    def __drawPic(self, img, img_attr):
-        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw pic...")
-        draw = ImageDraw.Draw(img)
-        for pic_wpt in self.pic_layers:
-            (px, py) = pic_wpt.getPixel(img_attr.level)
-            self.drawWayPoint(img, img_attr, pic_wpt, "gray", draw=draw)
-        del draw
 
     def __getCropMap(self, img_attr):
         disp = self.disp_attr
@@ -681,13 +705,13 @@ class WptBoard(tk.Toplevel):
         else:
             print('Warning: wpt is not in wpt_list')
             self.__wpt_list = None
+            
+        self.is_changed = False
 
+        #board
         self.geometry('+100+100')
-        self.bind('<Escape>', lambda e: e.widget.destroy())
-        self.focus_set()
-        #def onDispWptClose():
-            #disp.destroy()
-        #disp.protocol('WM_DELETE_WINDOW', onDispWptClose)
+        self.bind('<Escape>', lambda e: self.onClosed())
+        self.protocol('WM_DELETE_WINDOW', self.onClosed)
 
         #info
         self.info_frame = self.getInfoFrame()
@@ -707,17 +731,24 @@ class WptBoard(tk.Toplevel):
         #set wpt
         self.setCurrWpt(wpt)
 
+        #show as dialog
+        self.transient()
+        self.focus_set()
+        self.grab_set()
+        self.wait_window(self)
+
+    def onClosed(self):
+        self.master.focus_set()
+        self.destroy()
+
     def onWptChanged(self, inc):
         if self.__wpt_list is None:
             messagebox.showinfo('', 'no wpt list')
             return
 
         idx = self.__wpt_list.index(self.__curr_wpt) + inc
-        if idx < 0 or idx >= len(self.__wpt_list):
-            messagebox.showinfo('', 'get wpt out of range')
-            return
-
-        self.setCurrWpt(self.__wpt_list[idx])
+        if idx >= 0 and idx < len(self.__wpt_list):
+            self.setCurrWpt(self.__wpt_list[idx])
 
     def getInfoFrame(self):
         font = 'Arialuni 12'
@@ -733,6 +764,7 @@ class WptBoard(tk.Toplevel):
         self.__var_name = tk.StringVar()
         self.__var_name.trace('w', self.onWptNameChanged)
         name_entry = tk.Entry(frame, textvariable=self.__var_name, font=font)
+        name_entry.bind('<Return>', lambda e: self.onWptChanged(1))
         name_entry.grid(row=0, column=1, sticky='w')
 
         #wpt positoin
@@ -755,12 +787,11 @@ class WptBoard(tk.Toplevel):
     def onWptNameChanged(self, *args):
         #print('change to', self.__var_name.get())
         name = self.__var_name.get()
-        sym = getSymbol(name)
-
-        self.__curr_wpt.name = name
-        self.__curr_wpt.sym = sym
-
-        self.showWptIcon(self.__curr_wpt.sym)
+        if self.__curr_wpt.name != name:
+            self.__curr_wpt.name = name
+            self.__curr_wpt.sym = getSymbol(name)
+            self.showWptIcon(self.__curr_wpt.sym)
+            self.is_changed = True
     
     def getWptSymByNameRule(self, name):
         pass
@@ -785,6 +816,7 @@ class WptBoard(tk.Toplevel):
         self.__img_label.image = img #keep a ref
 
         #info
+        self.showWptIcon(wpt.sym)
         self.__var_name.set(wpt.name)   #this have side effect to set symbol icon
         self.__var_pos.set(self.getWptPosText(wpt))
         self.__var_ele.set(self.getWptEleText(wpt))
