@@ -170,6 +170,7 @@ class GpsDocument:
         gpx = self.genRootElement()
         self.subMetadataElement(gpx)
         self.subWptElement(gpx)
+        self.subTrkElement(gpx)
 
         #write
         doc = ET.ElementTree(element=gpx)
@@ -237,6 +238,38 @@ class GpsDocument:
             disp_mode = ET.SubElement(wpt_ext, "gpxx:DisplayMode")
             disp_mode.text = "SymbolAndName";
 
+    def subTrkElement(self, parent):
+        for t in gpx.trks:
+            trk = ET.SubElement(parent, 'trk')
+
+            #name
+            name = ET.SubElement(trk, 'name')
+            name.text = t.name
+
+            #color
+            extensions = ET.SubElement(trk, "extensions");
+            trk_ext = ET.SubElement(extensions, "gpxx:TrackExtension")
+            trk_ext.set('xmlns:gpxx', self.ns['gpxx'])
+            disp_color = ET.SubElement(trk_ext, "gpxx:DisplayColor")
+            disp_color.text = t.color;
+
+            #trk seg
+            self.subTrkSegElement(trk, t)
+
+    def subTrkSegElement(self, parent, t):
+        trkseg = ET.SubElement(parent, 'trkseg')
+        for pt in t:
+            trkpt = ET.SubElement(trkseg, "trkpt");
+            trkpt.set("lat", str(pt.lat))
+            trkpt.set("lon", str(pt.lon))
+
+            ele = ET.SubElement(trkpt, "ele");
+            ele.text = str(pt.ele)
+
+            time = ET.SubElement(trkpt, "time");
+            time.text = pt.time.strftime("%Y-%m-%dT%H:%M:%SZ");
+                
+            
 
 class WayPoint:
     @property
