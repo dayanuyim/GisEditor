@@ -20,16 +20,16 @@ class GpsDocument:
     def minlat(self): return self.__minlat
 
     @property
-    def way_points(self): return self.wpts
+    def way_points(self): return self.__wpts
 
     @property
-    def tracks(self): return self.trks
+    def tracks(self): return self.__trks
 
     def __init__(self, tz=None):
         self.__tz = tz
 
-        self.wpts = []
-        self.trks = []
+        self.__wpts = []
+        self.__trks = []
         self.__maxlon = None
         self.__minlon = None
         self.__maxlat = None
@@ -63,10 +63,10 @@ class GpsDocument:
         self.loadWpt(xml_root)
         self.loadTrk(xml_root)
 
-        #for wpt in self.wpts:
+        #for wpt in self.__wpts:
             #print(wpt.time.strftime("%c"), wpt.name, wpt.lon, wpt.lat, wpt.ele)
 
-        #for trk in self.trks:
+        #for trk in self.__trks:
             #print(trk.name, trk.color)
             #for pt in trk:
                 #print("  ", pt.time.strftime("%c"), pt.lon, pt.lat, pt.ele)
@@ -109,10 +109,7 @@ class GpsDocument:
             elem = wpt_elem.find("./gpx:sym", self.ns)
             if elem is not None: wpt.sym = elem.text
 
-            self.wpts.append(wpt)
-
-            #update bounds (metadata may not have)
-            self.__updateBounds(wpt)
+            self.addWpt(wpt)
 
     def loadTrk(self, xml_root):
         trk_elems = xml_root.findall("./gpx:trk", self.ns)
@@ -134,7 +131,7 @@ class GpsDocument:
                 for elem in elems:
                     self.loadTrkSeg(elem, trk)
 
-            self.trks.append(trk)
+            self.__trks.append(trk)
 
     def loadTrkSeg(self, trkseg_elem, trk):
         trkpt_elems = trkseg_elem.findall("./gpx:trkpt", self.ns)
@@ -150,10 +147,15 @@ class GpsDocument:
             elem = trkpt_elem.find("./gpx:time", self.ns)
             pt.time = None if elem is None else datetime.strptime(elem.text, "%Y-%m-%dT%H:%M:%SZ")
 
-            trk.addTrackPoint(pt)
+            self.addTrkPt(trk, pt)
 
-            #update bounds (metadata may not have)
-            self.__updateBounds(pt)
+    def addWpt(self, wpt):
+        self.__wpts.append(wpt)
+        self.__updateBounds(wpt) #maintain bounds (gpx file may not have metadata)
+
+    def addTrkPt(self, trk, pt):
+        trk.addTrackPoint(pt)
+        self.__updateBounds(pt) #maintain bounds (gpx file may not have metadata)
 
     def __updateBounds(self, pt):
         if self.__maxlat is None or pt.lat >= self.__maxlat:
@@ -165,6 +167,15 @@ class GpsDocument:
             self.__maxlon = pt.lon
         if self.__minlon is None or pt.lon <= self.__minlon:
             self.__minlon = pt.lon
+
+    def merge(self, rhs):
+        self.__minlat = min(self.__minlat, rhs.__minlat)
+        self.__maxlat = max(self.__maxlat, rhs.__maxlat)
+        self.__minlon = min(self.__minlon, rhs.__minlon)
+        self.__maxlon = max(self.__maxlon, rhs.__maxlon)
+
+        self.__wpts.extend(rhs.__wpts)
+        self.__trks.extend(rhs.__trks)
 
     def save(self, path):
         gpx = self.genRootElement()
@@ -206,7 +217,7 @@ class GpsDocument:
         bounds.set("minlon", str(self.minlon))
 
     def subWptElement(self, parent):
-        for w in self.wpts:
+        for w in self.__wpts:
             wpt = ET.SubElement(parent, 'wpt')
             wpt.set("lat", str(w.lat))
             wpt.set("lon", str(w.lon))
@@ -239,7 +250,7 @@ class GpsDocument:
             disp_mode.text = "SymbolAndName";
 
     def subTrkElement(self, parent):
-        for t in gpx.trks:
+        for t in self.__trks:
             trk = ET.SubElement(parent, 'trk')
 
             #name
@@ -268,7 +279,18 @@ class GpsDocument:
 
             time = ET.SubElement(trkpt, "time");
             time.text = pt.time.strftime("%Y-%m-%dT%H:%M:%SZ");
-                
+
+    def sortWpt(self, name=None, time=None):
+        if name is not None:
+            self.__wpts = sorted(self.__wpts, key=lambda wpt: wpt.name)
+        elif time is not None:
+            self.__wpts = sorted(self.__wpts, key=lambda wpt: wpt.time)
+
+    def sortTrk(self, name=None, time=None):
+        if name is not None:
+            self.__trks = sorted(self.__trks, key=lambda trk: trk.name)
+        elif time is not None:
+            self.__trks = sorted(self.__trks, key=lambda trk: trk.time)
             
 
 class WayPoint:
@@ -291,6 +313,10 @@ class WayPoint:
         return (self.__geo.px, self.__geo.py)
 
 class Track:
+    @property
+    def time(self):
+        return self.__trkseg[0].time if len(self.__trkseg) > 0 else datetime.min
+
     def __init__(self):
         self.__trkseg = []
         self.name = None
@@ -324,5 +350,7 @@ if __name__ == '__main__':
     #gpx = GpsDocument("bak/2015_0101-04.gpx")
     gpx = GpsDocument()
     gpx.load('bak/test.gpx')
+    gpx.sortTrk(time=True)
+    gpx.sortWpt(time=True)
     gpx.save('out.gpx')
 
