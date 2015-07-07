@@ -743,9 +743,10 @@ class WptBoard(tk.Toplevel):
         self.info_frame.pack(side='bottom', anchor='sw', expand=0, fill='x')
 
         #image
-        self.__img_sz = (img_w, img_h) = (600, 450)
-        self.__img_label = tk.Label(self, anchor='n', width=img_w, height=img_h, bg='black')
-        self.__img_label.pack(side='top', anchor='nw', expand=1, fill='both', padx=0, pady=0)
+        if self.hasPicWpt():
+            self.__img_sz = (img_w, img_h) = (600, 450)
+            self.__img_label = tk.Label(self, anchor='n', width=img_w, height=img_h, bg='black')
+            self.__img_label.pack(side='top', anchor='nw', expand=1, fill='both', padx=0, pady=0)
 
         #set wpt
         if wpt is not None:
@@ -758,6 +759,12 @@ class WptBoard(tk.Toplevel):
         self.focus_set()
         self.grab_set()
         self.wait_window(self)
+
+    def hasPicWpt(self):
+        for wpt in self.__wpt_list:
+            if isinstance(wpt, PicDocument):
+                return True
+        return False
 
     def onClosed(self):
         self.master.focus_set()
@@ -830,11 +837,12 @@ class WptBoard(tk.Toplevel):
         self.title(wpt.name)
 
         #set imgae
-        size = self.__img_sz
-        img = getAspectResize(wpt.img, size) if isinstance(wpt, PicDocument) else getTextImag("(No Pic)", size)
-        img = ImageTk.PhotoImage(img)
-        self.__img_label.config(image=img)
-        self.__img_label.image = img #keep a ref
+        if self.hasPicWpt():
+            size = self.__img_sz
+            img = getAspectResize(wpt.img, size) if isinstance(wpt, PicDocument) else getTextImag("(No Pic)", size)
+            img = ImageTk.PhotoImage(img)
+            self.__img_label.config(image=img)
+            self.__img_label.image = img #keep a ref
 
         #info
         self.showWptIcon(wpt.sym)
