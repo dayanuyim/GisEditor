@@ -178,9 +178,13 @@ class DispBoard(tk.Frame):
 
         #right-click menu
         self.__rclick_menu = tk.Menu(self.disp_label, tearoff=0)
-        self.__rclick_menu.add_command(label='Save to gpx...', command=self.onGpxSave)
-        self.__rclick_menu.add_command(label='Numbering wpt in time order', command=self.onNumberWpt)
-        self.__rclick_menu.add_command(label='Unnumbering wpt', command=self.onUnnumberWpt)
+        self.__rclick_menu.add_command(label='Save to gpx...', underline=0, command=self.onGpxSave)
+        self.__rclick_menu.add_separator()
+        self.__rclick_menu.add_command(label='Edit waypoints...', underline=5, command=self.onEditWpt)
+        self.__rclick_menu.add_command(label='Numbering wpt in time order', underline=0, command=self.onNumberWpt)
+        self.__rclick_menu.add_command(label='Unnumbering wpt', underline=0, command=self.onUnnumberWpt)
+        self.__rclick_menu.add_separator()
+        self.__rclick_menu.add_command(label='Edit tracks...', underline=5, command=self.onEditTrk)
 
     def addGpx(self, gpx):
         self.map_ctrl.addGpxLayer(gpx)
@@ -252,11 +256,12 @@ class DispBoard(tk.Frame):
         #show wpt frame
         wpt = c.getWptAt(geo.px, geo.py)
         if wpt is not None:
-            self.doDispWpt(wpt)
+            self.onEditWpt(wpt)
 
     def onRightClickDown(self, event):
         self.__rclick_menu.post(event.x_root, event.y_root)
 
+    #{{ Right click actions
     def onGpxSave(self):
         fpath = filedialog.asksaveasfilename(defaultextension=".gpx", filetypes=(("GPS Excahnge Format", ".gpx"), ("All Files", "*.*")) )
         if fpath is None or fpath == "":
@@ -289,11 +294,19 @@ class DispBoard(tk.Frame):
 
         self.resetMap()
 
-    def doDispWpt(self, wpt):
+    def onEditTrk(self, trk=None):
+        trk_list = self.map_ctrl.getAllTrks()
+        trk_board = TrkBoard(self, trk_list, trk)
+        if trk_board.is_changed:
+            self.resetMap()
+
+    def onEditWpt(self, wpt=None):
         wpt_list = self.map_ctrl.getAllWpts()
-        wpt_board = WptBoard(self, wpt, wpt_list)
+        wpt_board = WptBoard(self, wpt_list, wpt)
         if wpt_board.is_changed:
             self.resetMap()
+    #}} 
+
 
     def onClickMotion(self, event):
         if self.__mouse_down_pos is not None:
@@ -438,6 +451,13 @@ class MapController:
         for pic in self.pic_layers:
                 wpts.append(pic)
         return wpts
+
+    def getAllTrks(self):
+        trks = []
+        for gpx in self.gpx_layers:
+            for trk in gpx.tracks:
+                trks.append(trk)
+        return trks
 
     def getWptAt(self, px, py):
         r = int(SymRule.ICON_SIZE/2)
@@ -697,15 +717,14 @@ class ImageAttr:
             return self
 
 class WptBoard(tk.Toplevel):
-    def __init__(self, master, wpt, wpt_list=None):
+    def __init__(self, master, wpt_list, wpt=None):
         super().__init__(master)
 
-        if wpt_list is None or wpt in wpt_list:
-            self.__wpt_list = wpt_list
-        else:
-            print('Warning: wpt is not in wpt_list')
-            self.__wpt_list = None
-            
+        if wpt is not None and wpt not in wpt_list:
+            raise ValueError('wpt is not in wpt_list')
+
+        self.__curr_wpt = None
+        self.__wpt_list = wpt_list
         self.is_changed = False
 
         #board
@@ -713,24 +732,26 @@ class WptBoard(tk.Toplevel):
         self.bind('<Escape>', lambda e: self.onClosed())
         self.protocol('WM_DELETE_WINDOW', self.onClosed)
 
+        #change buttons
+        self.__left_btn = tk.Button(self, text="<<", command=lambda:self.onWptSelected(-1), disabledforeground='lightgray')
+        self.__left_btn.pack(side='left', anchor='w', expand=0, fill='y')
+        self.__right_btn = tk.Button(self, text=">>", command=lambda:self.onWptSelected(1), disabledforeground='lightgray')
+        self.__right_btn.pack(side='right', anchor='e', expand=0, fill='y')
+
         #info
         self.info_frame = self.getInfoFrame()
         self.info_frame.pack(side='bottom', anchor='sw', expand=0, fill='x')
 
-        #change buttons
-        if wpt_list is not None:
-            self.__left_btn = tk.Button(self, text="<<", command=lambda:self.onWptChanged(-1), disabledforeground='lightgray')
-            self.__left_btn.pack(side='left', anchor='w', expand=0, fill='y')
-            self.__right_btn = tk.Button(self, text=">>", command=lambda:self.onWptChanged(1), disabledforeground='lightgray')
-            self.__right_btn.pack(side='right', anchor='e', expand=0, fill='y')
-        
         #image
         self.__img_sz = (img_w, img_h) = (600, 450)
         self.__img_label = tk.Label(self, anchor='n', width=img_w, height=img_h, bg='black')
         self.__img_label.pack(side='top', anchor='nw', expand=1, fill='both', padx=0, pady=0)
 
         #set wpt
-        self.setCurrWpt(wpt)
+        if wpt is not None:
+            self.setCurrWpt(wpt)
+        elif len(wpt_list) > 0:
+            self.setCurrWpt(wpt_list[0])
 
         #show as dialog
         self.transient()
@@ -742,7 +763,7 @@ class WptBoard(tk.Toplevel):
         self.master.focus_set()
         self.destroy()
 
-    def onWptChanged(self, inc):
+    def onWptSelected(self, inc):
         if self.__wpt_list is None:
             messagebox.showinfo('', 'no wpt list')
             return
@@ -765,7 +786,7 @@ class WptBoard(tk.Toplevel):
         self.__var_name = tk.StringVar()
         self.__var_name.trace('w', self.onWptNameChanged)
         name_entry = tk.Entry(frame, textvariable=self.__var_name, font=font)
-        name_entry.bind('<Return>', lambda e: self.onWptChanged(1))
+        name_entry.bind('<Return>', lambda e: self.onWptSelected(1))
         name_entry.grid(row=0, column=1, sticky='w')
 
         #wpt positoin
@@ -803,14 +824,13 @@ class WptBoard(tk.Toplevel):
         self.__icon_label.config(image=icon)
     
     def setCurrWpt(self, wpt):
-        size = self.__img_sz
-
         self.__curr_wpt = wpt
 
         #title
         self.title(wpt.name)
 
         #set imgae
+        size = self.__img_sz
         img = getAspectResize(wpt.img, size) if isinstance(wpt, PicDocument) else getTextImag("(No Pic)", size)
         img = ImageTk.PhotoImage(img)
         self.__img_label.config(image=img)
@@ -847,7 +867,97 @@ class WptBoard(tk.Toplevel):
             return  time.strftime("%Y-%m-%d %H:%M:%S")
         return "N/A"
 
+class TrkBoard(tk.Toplevel):
+    def __init__(self, master, trk_list, trk=None):
+        super().__init__(master)
+
+        if trk is not None and trk not in trk_list:
+            raise ValueError('trk is not in trk_list')
+
+        self.__curr_trk = None
+        self.__trk_list = trk_list
+        self.is_changed = False
+
+        #board
+        self.geometry('+100+100')
+        self.bind('<Escape>', lambda e: self.onClosed())
+        self.protocol('WM_DELETE_WINDOW', self.onClosed)
+
+        #change buttons
+        self.__left_btn = tk.Button(self, text="<<", command=lambda:self.onSelected(-1), disabledforeground='lightgray')
+        self.__left_btn.pack(side='left', anchor='w', expand=0, fill='y')
+        self.__right_btn = tk.Button(self, text=">>", command=lambda:self.onSelected(1), disabledforeground='lightgray')
+        self.__right_btn.pack(side='right', anchor='e', expand=0, fill='y')
+
+        #info
+        self.info_frame = self.getInfoFrame()
+        self.info_frame.pack(side='top', anchor='nw', expand=0, fill='x')
+
+        #set trk
+        if trk is not None:
+            self.setCurrTrk(trk)
+        elif len(trk_list) > 0:
+            self.setCurrTrk(trk_list[0])
+
+        #show as dialog
+        self.transient()
+        self.focus_set()
+        self.grab_set()
+        self.wait_window(self)
+
+    def onClosed(self):
+        self.master.focus_set()
+        self.destroy()
+
+    def onSelected(self, inc):
+        idx = self.__trk_list.index(self.__curr_trk) + inc
+        if idx >= 0 and idx < len(self.__trk_list):
+            self.setCurrTrk(self.__trk_list[idx])
+
+    def onNameChanged(self, *args):
+        #print('change to', self.__var_name.get())
+        name = self.__var_name.get()
+        if self.__curr_trk.name != name:
+            self.__curr_trk.name = name
+            self.is_changed = True
+
+    def getInfoFrame(self):
+        font = 'Arialuni 12'
+        bold_font = 'Arialuni 12 bold'
+
+        frame = tk.Frame(self)#, bg='blue')
+
+        #trk name
+        tk.Label(frame, text="Track", font=bold_font).grid(row=0, column=0, sticky='e')
+        self.__var_name = tk.StringVar()
+        self.__var_name.trace('w', self.onNameChanged)
+        name_entry = tk.Entry(frame, textvariable=self.__var_name, font=font)
+        name_entry.bind('<Return>', lambda e: self.onSelected(1))
+        name_entry.grid(row=0, column=1, sticky='w')
+
+        #trk color
+        tk.Label(frame, text="Color", font=bold_font).grid(row=1, column=0, sticky='e')
+        self.__var_color = tk.StringVar()
+        tk.Entry(frame, font=font, textvariable=self.__var_color).grid(row=1, column=1, sticky='w')
+
+        return frame
         
+    def setCurrTrk(self, trk):
+        self.__curr_trk = trk
+
+        #title
+        self.title(trk.name)
+
+        #info
+        self.__var_name.set(trk.name)
+        self.__var_color.set(trk.color)
+
+        #button state
+        idx = self.__trk_list.index(trk)
+        sz = len(self.__trk_list)
+        self.__left_btn.config(state=('disabled' if idx == 0 else 'normal'))
+        self.__right_btn.config(state=('disabled' if idx == sz-1 else 'normal'))
+
 def getAspectResize(img, size):
     dst_w, dst_h = size
     src_w, src_h = img.size
