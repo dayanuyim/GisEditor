@@ -6,7 +6,7 @@ from PIL import Image, ExifTags
 from tile import GeoPoint
 from gpx import WayPoint
 from datetime import datetime
-from sym import SymRule
+import conf
 
 class PicDocument(WayPoint):
     @property
@@ -27,10 +27,12 @@ class PicDocument(WayPoint):
             self.name = self.__exif['ImageDescription'].encode('latin-1').decode('utf-8') #PIL use latin-1 by default
         self.ele = self.exifToAltitude(self.__exif['GPSAltitudeRef'], self.__exif['GPSAltitude'])
         self.time = self.exifToDateTime(self.__exif['DateTimeOriginal'])
+        self.sym = conf.getSymbol(self.name)
 
         orientation = self.__exif['Orientation']
         if orientation is not None:
             self.__img = self.rotateImage(self.__img, int(orientation))
+
 
 
     def rotateImage(self, img, orientation):

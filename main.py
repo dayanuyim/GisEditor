@@ -14,25 +14,11 @@ from datetime import datetime
 
 #my modules
 import tile
+import conf
 from tile import  TileSystem, TileMap, GeoPoint
 from coord import  CoordinateSystem
 from gpx import GpsDocument, WayPoint
 from pic import PicDocument
-from sym import SymRule, SymbolRules
-from datetime import timedelta
-
-def __readConfig(conf_path):
-    conf = {}
-    with open(conf_path) as conf_file:
-        for line in conf_file:
-            k, v = line.rstrip().split('=', 1)
-            conf[k] = v
-    return conf
-
-IMG_FONT = ImageFont.truetype("ARIALUNI.TTF", 18) #global use font (Note: the operation is time wasting)
-Config = __readConfig('./giseditor.conf')
-Sym_rules = SymbolRules('./sym_rule.conf')
-TZ = timedelta(hours=8)
 
 class SettingBoard(tk.LabelFrame):
     def __init__(self, master):
@@ -177,11 +163,17 @@ class DispBoard(tk.Frame):
         self.disp_label.bind("<Configure>", self.onResize)
 
         #right-click menu
+
         self.__rclick_menu = tk.Menu(self.disp_label, tearoff=0)
         self.__rclick_menu.add_command(label='Save to gpx...', underline=0, command=self.onGpxSave)
         self.__rclick_menu.add_separator()
         self.__rclick_menu.add_command(label='Edit waypoints...', underline=5, command=self.onEditWpt)
-        self.__rclick_menu.add_command(label='Numbering wpt in time order', underline=0, command=self.onNumberWpt)
+
+        num_wpt_menu = tk.Menu(self.__rclick_menu, tearoff=0)
+        num_wpt_menu.add_command(label='By time order', command=lambda:self.onNumberWpt(time=1))
+        num_wpt_menu.add_command(label='By name order', command=lambda:self.onNumberWpt(name=1))
+        self.__rclick_menu.add_cascade(label='Numbering wpt...', menu=num_wpt_menu)
+
         self.__rclick_menu.add_command(label='Unnumbering wpt', underline=0, command=self.onUnnumberWpt)
         self.__rclick_menu.add_separator()
         self.__rclick_menu.add_command(label='Edit tracks...', underline=5, command=self.onEditTrk)
@@ -275,9 +267,13 @@ class DispBoard(tk.Frame):
 
         doc.save(fpath)
 
-    def onNumberWpt(self):
+    def onNumberWpt(self, name=None, time=None):
         wpt_list = self.map_ctrl.getAllWpts()
-        wpt_list = sorted(wpt_list, key=lambda wpt: wpt.time)
+        if name is not None:
+            wpt_list = sorted(wpt_list, key=lambda wpt: wpt.name)
+        elif time is not None:
+            wpt_list = sorted(wpt_list, key=lambda wpt: wpt.time)
+
         sn = 0
         for wpt in wpt_list:
             sn += 1
@@ -414,7 +410,7 @@ class MapController:
 
     def __init__(self):
         #def settings
-        self.__tile_map = tile.getTM25Kv3TileMap(cache_dir=Config['cache_dir'])
+        self.__tile_map = tile.getTM25Kv3TileMap(cache_dir=conf.CACHE_DIR)
         self.__geo = GeoPoint(lon=121.334754, lat=24.987969)  #default location
         self.__geo.level = 14
 
@@ -423,7 +419,7 @@ class MapController:
         self.disp_attr = None
         self.extra_p = 256
         self.pt_size = 3
-        self.__font = IMG_FONT
+        self.__font = conf.IMG_FONT
 
         #layer
         self.gpx_layers = []
@@ -438,9 +434,6 @@ class MapController:
         self.gpx_layers.append(gpx)
 
     def addPicLayer(self, pic):
-        #set sym according rules
-        pic.sym = getSymbol(pic.name)
-        #add
         self.pic_layers.append(pic)
 
     def getAllWpts(self):
@@ -460,7 +453,7 @@ class MapController:
         return trks
 
     def getWptAt(self, px, py):
-        r = int(SymRule.ICON_SIZE/2)
+        r = int(conf.ICON_SIZE/2)
         for wpt in self.getAllWpts():
             wpx, wpy = wpt.getPixel(self.level)
             if abs(px-wpx) < r and abs(py-wpy) < r:
@@ -599,14 +592,14 @@ class MapController:
 
         px -= img_attr.left_px
         py -= img_attr.up_py
-        adj = int(SymRule.ICON_SIZE/2)
+        adj = int(conf.ICON_SIZE/2)
 
         #get draw
         _draw = draw if draw is not None else ImageDraw.Draw(img)
 
         #paste icon
         if wpt.sym is not None:
-            icon = SymRule.getIcon(wpt.sym)
+            icon = conf.getIcon(wpt.sym)
             if icon is not None:
                 if icon.mode == 'RGBA':
                     img.paste(icon, (px-adj, py-adj), icon)
@@ -826,7 +819,7 @@ class WptBoard(tk.Toplevel):
         pass
 
     def showWptIcon(self, sym):
-        icon = ImageTk.PhotoImage(SymRule.getIcon(sym))
+        icon = ImageTk.PhotoImage(conf.getIcon(sym))
         self.__icon_label.image = icon
         self.__icon_label.config(image=icon)
     
@@ -871,7 +864,7 @@ class WptBoard(tk.Toplevel):
 
     def getWptTimeText(self, wpt):
         if wpt is not None and wpt.time is not None:
-            time = wpt.time + TZ
+            time = wpt.time + conf.TZ
             return  time.strftime("%Y-%m-%d %H:%M:%S")
         return "N/A"
 
@@ -983,7 +976,7 @@ def getTextImag(text, size):
     w, h = size
     img = Image.new("RGBA", size)
     draw = ImageDraw.Draw(img)
-    draw.text( (int(w/2-20), int(h/2)), text, fill='lightgray', font=IMG_FONT)
+    draw.text( (int(w/2-20), int(h/2)), text, fill='lightgray', font=conf.IMG_FONT)
     del draw
 
     return img
@@ -1001,7 +994,7 @@ def isGpsFile(path):
 def getGpsDocument(path):
     (fname, ext) = os.path.splitext(path)
     ext = ext.lower()
-    gpx = GpsDocument(TZ)
+    gpx = GpsDocument(conf.TZ)
     if ext == '.gpx':
         gpx.load(filename=path)
     else:
@@ -1014,7 +1007,7 @@ def toGpxString(src_path):
     if ext == '':
         raise ValueError("cannot identify input format")
 
-    exe_file = Config['gpsbabel_dir'] + "\gpsbabel.exe"
+    exe_file = conf.GPSBABEL_DIR + "\gpsbabel.exe"
 
     cmd = '"%s" -i %s -f %s -o gpx,gpxver=1.1 -F -' % (exe_file, ext[1:], src_path)
     output = subprocess.check_output(cmd, shell=True)
@@ -1044,11 +1037,6 @@ def __readFiles(paths, gps_path, pic_path):
         elif isGpsFile(path):
             gps_path.append(path)
 
-def getSymbol(name):
-    rule = Sym_rules.getMatchRule(name)
-    sym = rule.symbol if rule is not None else SymRule.DEF_SYMBOL
-    return sym
-
 
 if __name__ == '__main__':
 
@@ -1074,7 +1062,7 @@ if __name__ == '__main__':
     for path in gps_path:
         disp_board.addGpx(getGpsDocument(path))
     for path in pic_path:
-        disp_board.addPic(PicDocument(path, TZ))
+        disp_board.addPic(PicDocument(path, conf.TZ))
 
     disp_board.initDisp()
     root.mainloop()

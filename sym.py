@@ -5,6 +5,7 @@ import os
 import codecs
 from PIL import Image
 from os import path
+import conf
 
 class SymRuleType:
     UNKNOWN = 0
@@ -108,18 +109,11 @@ class SymbolRules:
         return None
 
 class SymRule:
-    #{{ static
-    __icons = {}
-    ICON_DIR = 'icon'
-    ICON_SIZE = 24
-    DEF_SYMBOL = "Waypoint"
-    #}}
-
     def __init__(self):
         self.enabled = True
         self.type = SymRuleType.CONTAIN
         self.text = ""
-        self.symbol = self.DEF_SYMBOL
+        self.symbol = conf.DEF_SYMBOL
 
     def isMatch(self, wpt_name):
         if not self.enabled:
@@ -137,32 +131,6 @@ class SymRule:
             return re.match(self.text, wpt_name)
         else:
             return False
-
-    @classmethod
-    def getIcon(cls, sym):
-        sym = sym.lower()
-        icon = cls.__icons.get(sym)
-        if icon is None:
-            path =  cls.__getIconPath(sym)
-            if path is None:
-                if sym.lower() == cls.DEF_SYMBOL.lower():
-                    return None
-                else:
-                    return cls.getIcon(cls.DEF_SYMBOL)
-            icon = Image.open(path)
-            icon = icon.resize((cls.ICON_SIZE, cls.ICON_SIZE))
-            cls.__icons[sym] = icon
-        return icon
-
-    #get icon path for the sym. case-insensitive, ignore extention
-    @classmethod
-    def __getIconPath(cls, sym):
-        sym = sym.lower()
-        for f in os.listdir(cls.ICON_DIR):
-            name, ext = path.splitext(f)
-            if sym == name.lower():
-                return path.join(cls.ICON_DIR, f)
-        return None
 
 
 if __name__ == '__main__':
