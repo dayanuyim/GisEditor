@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 
 import os
 import subprocess
@@ -141,7 +141,7 @@ class DispBoard(tk.Frame):
         #board
         self.bg_color='#D0D0D0'
         self.config(bg=self.bg_color)
-        self.focused_wpt = None
+        self.__focused_wpt = None
         self.img = None         #buffer disp image for highlight wpt
 
         #info
@@ -163,20 +163,24 @@ class DispBoard(tk.Frame):
         self.disp_label.bind("<Configure>", self.onResize)
 
         #right-click menu
-
         self.__rclick_menu = tk.Menu(self.disp_label, tearoff=0)
         self.__rclick_menu.add_command(label='Save to gpx...', underline=0, command=self.onGpxSave)
         self.__rclick_menu.add_separator()
         self.__rclick_menu.add_command(label='Edit waypoints...', underline=5, command=self.onEditWpt)
+        self.__rclick_menu.add_command(label='Add wpt')
 
         num_wpt_menu = tk.Menu(self.__rclick_menu, tearoff=0)
         num_wpt_menu.add_command(label='By time order', command=lambda:self.onNumberWpt(time=1))
         num_wpt_menu.add_command(label='By name order', command=lambda:self.onNumberWpt(name=1))
         self.__rclick_menu.add_cascade(label='Numbering wpt...', menu=num_wpt_menu)
 
-        self.__rclick_menu.add_command(label='Unnumbering wpt', underline=0, command=self.onUnnumberWpt)
+        self.__rclick_menu.add_command(label='UnNumbering wpt', underline=0, command=self.onUnnumberWpt)
         self.__rclick_menu.add_separator()
         self.__rclick_menu.add_command(label='Edit tracks...', underline=5, command=self.onEditTrk)
+
+        #wpt menu
+        self.__wpt_menu = tk.Menu(self.disp_label, tearoff=0)
+        self.__wpt_menu.add_command(label='Delete Wpt', underline=0, command=self.onDeleteWpt)
 
     def addGpx(self, gpx):
         self.map_ctrl.addGpxLayer(gpx)
@@ -251,7 +255,10 @@ class DispBoard(tk.Frame):
             self.onEditWpt(wpt)
 
     def onRightClickDown(self, event):
-        self.__rclick_menu.post(event.x_root, event.y_root)
+        if self.__focused_wpt is not None:
+            self.__wpt_menu.post(event.x_root, event.y_root)
+        else:
+            self.__rclick_menu.post(event.x_root, event.y_root)
 
     #{{ Right click actions
     def onGpxSave(self):
@@ -301,6 +308,7 @@ class DispBoard(tk.Frame):
         wpt_board = WptBoard(self, wpt_list, wpt)
         if wpt_board.is_changed:
             self.resetMap()
+        self.__focused_wpt = None
     #}} 
 
 
@@ -323,18 +331,33 @@ class DispBoard(tk.Frame):
         py=c.py + event.y
 
         wpt = c.getWptAt(px, py)
-        #restore the last wpt
-        if self.focused_wpt is not None:
-            if wpt is None or wpt != self.focused_wpt:
-                self.drawWayPoint(self.focused_wpt, "gray")
-        #highlight the current wpt
-        if wpt is not None:
-            if self.focused_wpt is None or wpt != self.focused_wpt:
-                self.drawWayPoint(wpt, "red")
-        self.focused_wpt = wpt
+        if wpt != self.__focused_wpt:
+            self.unHightlightWpt(self.__focused_wpt)
+            self.hightlightWpt(wpt)
+        self.__focused_wpt = wpt
 
         #reset
-        self.setMap(self.img)
+        self.refresh()
+
+    def hightlightWpt(self, wpt):
+        if wpt is not None:
+            #print('to hl wpt', wpt.name)
+            self.drawWayPoint(wpt, "red")
+
+    def unHightlightWpt(self, wpt):
+        if wpt is not None:
+            #print('to un hl wpt', wpt.name)
+            self.drawWayPoint(wpt, "gray")
+
+    def onDeleteWpt(self):
+        wpt = self.__focused_wpt
+        self.__focused_wpt = None
+        self.deleteWpt(wpt)
+        
+    def deleteWpt(self, wpt):
+        if wpt is not None:
+            self.map_ctrl.deleteWpt(wpt)
+            self.resetMap()
 
     def drawWayPoint(self, wpt, color):
         c = self.map_ctrl
@@ -343,7 +366,6 @@ class DispBoard(tk.Frame):
         img_attr = ImageAttr(c.level, c.px, c.py, c.px + w, c.py + h)
         #draw
         c.drawWayPoint(self.img, img_attr, wpt, color)
-
 
     def onClickUp(self, event):
         self.__mouse_down_pos = None
@@ -369,9 +391,12 @@ class DispBoard(tk.Frame):
         if w is None: w = self.disp_label.winfo_width()
         if h is None: h = self.disp_label.winfo_height()
         img = self.map_ctrl.getTileImage(w, h);
-        self.setMap(img)
+        self.__setMap(img)
 
-    def setMap(self, img):
+    def refresh(self):
+        self.__setMap(self.img)
+
+    def __setMap(self, img):
         self.img = img  #buffer the image
         photo = ImageTk.PhotoImage(img)
         self.disp_label.config(image=photo)
@@ -458,8 +483,14 @@ class MapController:
             wpx, wpy = wpt.getPixel(self.level)
             if abs(px-wpx) < r and abs(py-wpy) < r:
                 return wpt
-
         return None
+
+    def deleteWpt(self, wpt):
+        for gpx in self.gpx_layers:
+            if wpt in gpx.way_points:
+                gpx.way_points.remove(wpt)
+        if wpt in self.pic_layers:
+                self.pic_layers.remove(wpt)
 
     def getTileImage(self, width, height):
 
@@ -722,8 +753,9 @@ class WptBoard(tk.Toplevel):
 
         #board
         self.geometry('+100+100')
-        self.bind('<Escape>', lambda e: self.onClosed())
-        self.protocol('WM_DELETE_WINDOW', self.onClosed)
+        self.protocol('WM_DELETE_WINDOW', lambda: self.onClosed(None))
+        self.bind('<Escape>', self.onClosed)
+        self.bind('<Delete>', self.onDeleted)
 
         #change buttons
         self.__left_btn = tk.Button(self, text="<<", command=lambda:self.onWptSelected(-1), disabledforeground='lightgray')
@@ -759,9 +791,33 @@ class WptBoard(tk.Toplevel):
                 return True
         return False
 
-    def onClosed(self):
+    def onClosed(self, e=None):
+        self.master.unHightlightWpt(self.__curr_wpt)
+        self.master.refresh()
         self.master.focus_set()
         self.destroy()
+
+    def __getNextWpt(self):
+        sz = len(self.__wpt_list)
+        if sz == 1:
+            return None
+        idx = self.__wpt_list.index(self.__curr_wpt)
+        idx += 1 if idx != sz-1 else -1
+        return self.__wpt_list[idx]
+        
+    def onDeleted(self, e):
+        wpts = self.__wpt_list
+        wpt = self.__curr_wpt
+
+        self.master.deleteWpt(wpt)
+
+        next_wpt = self.__getNextWpt()
+        wpts.remove(wpt)
+        if next_wpt == None:
+            self.__curr_wpt = None
+            self.onClosed()
+        else:
+            self.setCurrWpt(next_wpt)
 
     def onWptSelected(self, inc):
         if self.__wpt_list is None:
@@ -815,15 +871,18 @@ class WptBoard(tk.Toplevel):
             self.showWptIcon(self.__curr_wpt.sym)
             self.is_changed = True
     
-    def getWptSymByNameRule(self, name):
-        pass
-
     def showWptIcon(self, sym):
         icon = ImageTk.PhotoImage(conf.getIcon(sym))
         self.__icon_label.image = icon
         self.__icon_label.config(image=icon)
     
     def setCurrWpt(self, wpt):
+        if self.__curr_wpt != wpt:
+            if self.__curr_wpt in self.__wpt_list:  #if not deleted
+                self.master.unHightlightWpt(self.__curr_wpt)
+            self.master.hightlightWpt(wpt)
+            self.master.refresh()
+
         self.__curr_wpt = wpt
 
         #title
@@ -881,8 +940,8 @@ class TrkBoard(tk.Toplevel):
 
         #board
         self.geometry('+100+100')
-        self.bind('<Escape>', lambda e: self.onClosed())
-        self.protocol('WM_DELETE_WINDOW', self.onClosed)
+        self.bind('<Escape>', self.onClosed)
+        self.protocol('WM_DELETE_WINDOW', lambda: self.onClosed(None))
 
         #change buttons
         self.__left_btn = tk.Button(self, text="<<", command=lambda:self.onSelected(-1), disabledforeground='lightgray')
@@ -906,7 +965,7 @@ class TrkBoard(tk.Toplevel):
         self.grab_set()
         self.wait_window(self)
 
-    def onClosed(self):
+    def onClosed(self, e=None):
         self.master.focus_set()
         self.destroy()
 
