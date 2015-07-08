@@ -150,9 +150,9 @@ class DispBoard(tk.Frame):
         self.info_label.pack(expand=0, fill='x', anchor='n')
 
         #display area
-        disp_w = 800
-        disp_h = 600
-        self.disp_label = tk.Label(self, width=disp_w, height=disp_h, bg='#808080')
+        self.__init_w= 800
+        self.__init_h = 600
+        self.disp_label = tk.Label(self, width=self.__init_w, height=self.__init_h, bg='#808080')
         self.disp_label.pack(expand=1, fill='both', anchor='n')
         self.disp_label.bind('<MouseWheel>', self.onMouseWheel)
         self.disp_label.bind('<Motion>', self.onMotion)
@@ -189,33 +189,21 @@ class DispBoard(tk.Frame):
         self.map_ctrl.addPicLayer(pic)
 
     def initDisp(self):
-        #set preferred lat/lon
-        latlon = self.__getPrefLatLon()
-        if latlon is not None:
-            self.map_ctrl.lat = latlon[0]
-            self.map_ctrl.lon = latlon[1]
+        print('initDisp', self.winfo_width(), self.winfo_height())
+        pt = self.__getPrefGeoPt()
+        disp_w = self.__init_w
+        disp_h = self.__init_h
+        self.resetMap(pt, disp_w, disp_h)
 
-        #show map
-        disp_w = 800
-        disp_h = 600
-        self.map_ctrl.shiftGeoPixel(-disp_w/2, -disp_h/2)
-        self.resetMap(disp_w, disp_h)
-
-    def __getPrefLatLon(self):
+    def __getPrefGeoPt(self):
         #prefer track point
-        for gpx in self.map_ctrl.gpx_layers:
-            for trk in gpx.tracks:
-                for pt in trk:
-                    return (pt.lat, pt.lon)
+        for trk in self.map_ctrl.getAllTrks():
+            for pt in trk:
+                return pt
 
-        #way point
-        for gpx in self.map_ctrl.gpx_layers:
-            for wpt in gpx.way_points:
-                return (wpt.lat, wpt.lon)
-
-        #pic
-        for pic in self.map_ctrl.pic_layers:
-            return (pic.lat, pic.lon)
+        #wpt
+        for wpt in self.map_ctrl.getAllWpts():
+            return wpt
 
         return None
         
@@ -332,19 +320,19 @@ class DispBoard(tk.Frame):
 
         wpt = c.getWptAt(px, py)
         if wpt != self.__focused_wpt:
-            self.unHightlightWpt(self.__focused_wpt)
-            self.hightlightWpt(wpt)
+            self.unhighlightWpt(self.__focused_wpt)
+            self.highlightWpt(wpt)
         self.__focused_wpt = wpt
 
         #reset
         self.refresh()
 
-    def hightlightWpt(self, wpt):
+    def highlightWpt(self, wpt):
         if wpt is not None:
             #print('to hl wpt', wpt.name)
             self.drawWayPoint(wpt, "red")
 
-    def unHightlightWpt(self, wpt):
+    def unhighlightWpt(self, wpt):
         if wpt is not None:
             #print('to un hl wpt', wpt.name)
             self.drawWayPoint(wpt, "gray")
@@ -387,9 +375,15 @@ class DispBoard(tk.Frame):
         else:
             self.info_label.config(text="[%s] level: %s" % (c.tile_map.getMapName(), c.level))
 
-    def resetMap(self, w=None, h=None):
+    def resetMap(self, pt = None, w=None, h=None):
         if w is None: w = self.disp_label.winfo_width()
         if h is None: h = self.disp_label.winfo_height()
+
+        if pt is not None:
+            self.map_ctrl.lat = pt.lat
+            self.map_ctrl.lon = pt.lon
+            self.map_ctrl.shiftGeoPixel(-w/2, -h/2)
+
         img = self.map_ctrl.getTileImage(w, h);
         self.__setMap(img)
 
@@ -792,7 +786,8 @@ class WptBoard(tk.Toplevel):
         return False
 
     def onClosed(self, e=None):
-        self.master.unHightlightWpt(self.__curr_wpt)
+        if self.__curr_wpt in self.__wpt_list:
+            self.master.unhighlightWpt(self.__curr_wpt)
         self.master.refresh()
         self.master.focus_set()
         self.destroy()
@@ -814,7 +809,6 @@ class WptBoard(tk.Toplevel):
         next_wpt = self.__getNextWpt()
         wpts.remove(wpt)
         if next_wpt == None:
-            self.__curr_wpt = None
             self.onClosed()
         else:
             self.setCurrWpt(next_wpt)
@@ -840,10 +834,14 @@ class WptBoard(tk.Toplevel):
 
         #wpt name
         self.__var_name = tk.StringVar()
-        self.__var_name.trace('w', self.onWptNameChanged)
+        self.__var_name.trace('w', self.onNameChanged)
         name_entry = tk.Entry(frame, textvariable=self.__var_name, font=font)
         name_entry.bind('<Return>', lambda e: self.onWptSelected(1))
         name_entry.grid(row=0, column=1, sticky='w')
+
+        self.__var_focus = tk.BooleanVar()
+        self.__var_focus.trace('w', self.onFocusChanged)
+        tk.Checkbutton(frame, text='Focus', variable=self.__var_focus).grid(row=0, column=3, sticky='e')
 
         #wpt positoin
         tk.Label(frame, text="TWD67/TM2", font=bold_font).grid(row=1, column=0, sticky='e')
@@ -862,7 +860,7 @@ class WptBoard(tk.Toplevel):
 
         return frame
 
-    def onWptNameChanged(self, *args):
+    def onNameChanged(self, *args):
         #print('change to', self.__var_name.get())
         name = self.__var_name.get()
         if self.__curr_wpt.name != name:
@@ -870,18 +868,29 @@ class WptBoard(tk.Toplevel):
             self.__curr_wpt.sym = getSymbol(name)
             self.showWptIcon(self.__curr_wpt.sym)
             self.is_changed = True
+
+    def onFocusChanged(self, *args):
+        is_focus = self.__var_focus.get()
+        if is_focus:
+            self.highlightWpt(None, self.__curr_wpt, is_focus)
     
     def showWptIcon(self, sym):
         icon = ImageTk.PhotoImage(conf.getIcon(sym))
         self.__icon_label.image = icon
         self.__icon_label.config(image=icon)
+
+    def highlightWpt(self, un_wpt, wpt, is_focus=False):
+        if is_focus:
+            self.master.resetMap(wpt)
+        else:
+            if un_wpt in self.__wpt_list:  #if not deleted
+                self.master.unhighlightWpt(un_wpt)
+        self.master.highlightWpt(wpt)
+        self.master.refresh()
     
     def setCurrWpt(self, wpt):
         if self.__curr_wpt != wpt:
-            if self.__curr_wpt in self.__wpt_list:  #if not deleted
-                self.master.unHightlightWpt(self.__curr_wpt)
-            self.master.hightlightWpt(wpt)
-            self.master.refresh()
+            self.highlightWpt(self.__curr_wpt, wpt, self.__var_focus.get())
 
         self.__curr_wpt = wpt
 
