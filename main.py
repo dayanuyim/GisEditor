@@ -829,37 +829,45 @@ class WptBoard(tk.Toplevel):
 
         frame = tk.Frame(self)#, bg='blue')
 
+        row = 0
+        #set sym rule
+        tk.Button(frame, text="Rule...", font=font, relief='groove', overrelief='ridge', command=self.onEditSymRule).grid(row=row, column=0, sticky='w')
         #wpt icon
         self.__icon_label = tk.Label(frame)
-        self.__icon_label.grid(row=0, column=0, sticky='e')
-
+        self.__icon_label.grid(row=row, column=1, sticky='e')
         #wpt name
         self.__var_name = tk.StringVar()
         self.__var_name.trace('w', self.onNameChanged)
         name_entry = tk.Entry(frame, textvariable=self.__var_name, font=font)
         name_entry.bind('<Return>', lambda e: self.onWptSelected(1))
-        name_entry.grid(row=0, column=1, sticky='w')
+        name_entry.grid(row=row, column=2, sticky='w')
 
+        row += 1
+        #focus
         self.__var_focus = tk.BooleanVar()
         self.__var_focus.trace('w', self.onFocusChanged)
-        tk.Checkbutton(frame, text='Focus', variable=self.__var_focus).grid(row=0, column=3, sticky='e')
-
+        tk.Checkbutton(frame, text='Focus', variable=self.__var_focus).grid(row=row, column=0, sticky='w')
         #wpt positoin
-        tk.Label(frame, text="TWD67/TM2", font=bold_font).grid(row=1, column=0, sticky='e')
+        tk.Label(frame, text="TWD67/TM2", font=bold_font).grid(row=row, column=1, sticky='e')
         self.__var_pos = tk.StringVar()
-        tk.Label(frame, font=font, textvariable=self.__var_pos).grid(row=1, column=1, sticky='w')
+        tk.Label(frame, font=font, textvariable=self.__var_pos).grid(row=row, column=2, sticky='w')
 
+        row +=1
         #ele
-        tk.Label(frame, text="Elevation", font=bold_font).grid(row=2, column=0, sticky='e')
+        tk.Label(frame, text="Elevation", font=bold_font).grid(row=row, column=1, sticky='e')
         self.__var_ele = tk.StringVar()
-        tk.Label(frame, font=font, textvariable=self.__var_ele).grid(row=2, column=1, sticky='w')
+        tk.Label(frame, font=font, textvariable=self.__var_ele).grid(row=row, column=2, sticky='w')
 
+        row +=1
         #time
-        tk.Label(frame, text="Time", font=bold_font).grid(row=3, column=0, sticky='e')
+        tk.Label(frame, text="Time", font=bold_font).grid(row=row, column=1, sticky='e')
         self.__var_time = tk.StringVar()
-        tk.Label(frame, textvariable=self.__var_time, font=font).grid(row=3, column=1, sticky='w')
+        tk.Label(frame, textvariable=self.__var_time, font=font).grid(row=row, column=2, sticky='w')
 
         return frame
+
+    def onEditSymRule(self):
+        messagebox.showinfo('', 'edit sym rule')
 
     def onNameChanged(self, *args):
         #print('change to', self.__var_name.get())
