@@ -6,6 +6,7 @@ import sys
 import tkinter as tk
 import urllib.request
 import shutil
+import tempfile
 from os import path
 from PIL import Image, ImageTk, ImageDraw, ImageFont
 from math import floor, ceil
@@ -189,7 +190,7 @@ class DispBoard(tk.Frame):
         self.map_ctrl.addPicLayer(pic)
 
     def initDisp(self):
-        print('initDisp', self.winfo_width(), self.winfo_height())
+        #print('initDisp', self.winfo_width(), self.winfo_height())
         pt = self.__getPrefGeoPt()
         disp_w = self.__init_w
         disp_h = self.__init_h
@@ -1076,9 +1077,13 @@ def toGpxString(src_path):
         raise ValueError("cannot identify input format")
 
     exe_file = conf.GPSBABEL_DIR + "\gpsbabel.exe"
+    tmp_path = os.path.join(tempfile.gettempdir(),  "giseditor_gps.tmp")
 
-    cmd = '"%s" -i %s -f %s -o gpx,gpxver=1.1 -F -' % (exe_file, ext[1:], src_path)
+    shutil.copyfile(src_path, tmp_path)  #to work around the problem of gpx read non-ascii filename
+    cmd = '"%s" -i %s -f "%s" -o gpx,gpxver=1.1 -F -' % (exe_file, ext[1:], tmp_path)
     output = subprocess.check_output(cmd, shell=True)
+    os.remove(tmp_path)
+
     return output.decode("utf-8")
 
 def isPicFile(path):
