@@ -167,8 +167,11 @@ class DispBoard(tk.Frame):
         self.__rclick_menu = tk.Menu(self.disp_label, tearoff=0)
         self.__rclick_menu.add_command(label='Save to gpx...', underline=0, command=self.onGpxSave)
         self.__rclick_menu.add_separator()
-        self.__rclick_menu.add_command(label='Edit waypoints...', underline=5, command=self.onEditWpt)
         self.__rclick_menu.add_command(label='Add wpt')
+        edit_wpt_menu = tk.Menu(self.__rclick_menu, tearoff=0)
+        edit_wpt_menu.add_command(label='Edit 1-by-1', underline=5, command=lambda:self.onEditWpt(mode='single'))
+        edit_wpt_menu.add_command(label='Edit in list', underline=5, command=lambda:self.onEditWpt(mode='list'))
+        self.__rclick_menu.add_cascade(label='Edit waypoints...', menu=edit_wpt_menu)
 
         num_wpt_menu = tk.Menu(self.__rclick_menu, tearoff=0)
         num_wpt_menu.add_command(label='By time order', command=lambda:self.onNumberWpt(time=1))
@@ -241,7 +244,7 @@ class DispBoard(tk.Frame):
         #show wpt frame
         wpt = c.getWptAt(geo.px, geo.py)
         if wpt is not None:
-            self.onEditWpt(wpt)
+            self.onEditWpt(mode='single', wpt=wpt)
 
     def onRightClickDown(self, event):
         if self.__focused_wpt is not None:
@@ -289,14 +292,15 @@ class DispBoard(tk.Frame):
     def onEditTrk(self, trk=None):
         trk_list = self.map_ctrl.getAllTrks()
         trk_board = TrkBoard(self, trk_list, trk)
-        if trk_board.is_changed:
-            self.resetMap()
 
-    def onEditWpt(self, wpt=None):
+    def onEditWpt(self, mode, wpt=None):
         wpt_list = self.map_ctrl.getAllWpts()
-        wpt_board = WptBoard(self, wpt_list, wpt)
-        if wpt_board.is_changed:
-            self.resetMap()
+        if mode == 'single':
+            wpt_board = WptSingleBoard(self, wpt_list, wpt)
+        elif mode == 'list':
+            wpt_board = WptListBoard(self, wpt_list, wpt)
+        else:
+            raise ValueError("WptBoade only supports mode: 'single' and 'list'")
         self.__focused_wpt = None
     #}} 
 
@@ -325,18 +329,17 @@ class DispBoard(tk.Frame):
             self.highlightWpt(wpt)
         self.__focused_wpt = wpt
 
-        #reset
-        self.refresh()
-
     def highlightWpt(self, wpt):
         if wpt is not None:
             #print('to hl wpt', wpt.name)
             self.drawWayPoint(wpt, "red")
+            self.refresh()
 
     def unhighlightWpt(self, wpt):
         if wpt is not None:
             #print('to un hl wpt', wpt.name)
             self.drawWayPoint(wpt, "gray")
+            self.refresh()
 
     def onDeleteWpt(self):
         wpt = self.__focused_wpt
@@ -739,194 +742,100 @@ class WptBoard(tk.Toplevel):
     def __init__(self, master, wpt_list, wpt=None):
         super().__init__(master)
 
+        if wpt_list is None or len(wpt_list) == 0:
+            raise ValueError('wpt_list is null or empty')
         if wpt is not None and wpt not in wpt_list:
             raise ValueError('wpt is not in wpt_list')
 
-        self.__curr_wpt = None
-        self.__wpt_list = wpt_list
-        self.is_changed = False
+        self._curr_wpt = None  #only set the variable by setCurrWpt()
+        self._wpt_list = wpt_list
+
+        #conf
+        self._font = 'Arialuni 12'
+        self._bold_font = 'Arialuni 12 bold'
+        self._title_name = "Name"
+        self._title_pos = "TWD67/TM2"
+        self._title_ele = "Elevation"
+        self._title_time = "Time"
+        self._title_focus = "Focus"
 
         #board
-        self.geometry('+100+100')
+        self.geometry('+0+0')
         self.protocol('WM_DELETE_WINDOW', lambda: self.onClosed(None))
         self.bind('<Escape>', self.onClosed)
         self.bind('<Delete>', self.onDeleted)
 
-        #change buttons
-        self.__left_btn = tk.Button(self, text="<<", command=lambda:self.onWptSelected(-1), disabledforeground='lightgray')
-        self.__left_btn.pack(side='left', anchor='w', expand=0, fill='y')
-        self.__right_btn = tk.Button(self, text=">>", command=lambda:self.onWptSelected(1), disabledforeground='lightgray')
-        self.__right_btn.pack(side='right', anchor='e', expand=0, fill='y')
+        #focus
+        self._var_focus = tk.BooleanVar()
+        self._var_focus.trace('w', self.onFocusChanged)
 
-        #info
-        self.info_frame = self.getInfoFrame()
-        self.info_frame.pack(side='bottom', anchor='sw', expand=0, fill='x')
-
-        #image
-        if self.hasPicWpt():
-            self.__img_sz = (img_w, img_h) = (600, 450)
-            self.__img_label = tk.Label(self, anchor='n', width=img_w, height=img_h, bg='black')
-            self.__img_label.pack(side='top', anchor='nw', expand=1, fill='both', padx=0, pady=0)
-
-        #set wpt
-        if wpt is not None:
-            self.setCurrWpt(wpt)
-        elif len(wpt_list) > 0:
-            self.setCurrWpt(wpt_list[0])
+        #wpt name
+        self._var_name = tk.StringVar()
+        self._var_name.trace('w', self.onNameChanged)
 
         #show as dialog
         self.transient()
         self.focus_set()
         self.grab_set()
-        self.wait_window(self)
 
-    def hasPicWpt(self):
-        for wpt in self.__wpt_list:
+    def _hasPicWpt(self):
+        for wpt in self._wpt_list:
             if isinstance(wpt, PicDocument):
                 return True
         return False
 
+    def _getNextWpt(self):
+        sz = len(self._wpt_list)
+        if sz == 1:
+            return None
+        idx = self._wpt_list.index(self._curr_wpt)
+        idx += 1 if idx != sz-1 else -1
+        return self._wpt_list[idx]
+        
     def onClosed(self, e=None):
-        if self.__curr_wpt in self.__wpt_list:
-            self.master.unhighlightWpt(self.__curr_wpt)
-        self.master.refresh()
+        if self._curr_wpt in self._wpt_list:
+            self.master.unhighlightWpt(self._curr_wpt)
         self.master.focus_set()
         self.destroy()
 
-    def __getNextWpt(self):
-        sz = len(self.__wpt_list)
-        if sz == 1:
-            return None
-        idx = self.__wpt_list.index(self.__curr_wpt)
-        idx += 1 if idx != sz-1 else -1
-        return self.__wpt_list[idx]
-        
     def onDeleted(self, e):
-        wpts = self.__wpt_list
-        wpt = self.__curr_wpt
+        self.master.deleteWpt(self._curr_wpt)
 
-        self.master.deleteWpt(wpt)
-
-        next_wpt = self.__getNextWpt()
-        wpts.remove(wpt)
+        next_wpt = self._getNextWpt()
+        self._wpt_list.remove(self._curr_wpt)
         if next_wpt == None:
             self.onClosed()
         else:
             self.setCurrWpt(next_wpt)
 
-    def onWptSelected(self, inc):
-        if self.__wpt_list is None:
-            messagebox.showinfo('', 'no wpt list')
-            return
+    def onNameChanged(self, *args):
+        #print('change to', self._var_name.get())
+        name = self._var_name.get()
+        if self._curr_wpt.name != name:
+            self._curr_wpt.name = name
+            self._curr_wpt.sym = conf.getSymbol(name)
+            self.showWptIcon(self._curr_wpt.sym)
+            #update master
+            self.master.resetMap()
+            self.master.highlightWpt(wpt)
 
-        idx = self.__wpt_list.index(self.__curr_wpt) + inc
-        if idx >= 0 and idx < len(self.__wpt_list):
-            self.setCurrWpt(self.__wpt_list[idx])
-
-    def getInfoFrame(self):
-        font = 'Arialuni 12'
-        bold_font = 'Arialuni 12 bold'
-
-        frame = tk.Frame(self)#, bg='blue')
-
-        row = 0
-        #set sym rule
-        tk.Button(frame, text="Rule...", font=font, relief='groove', overrelief='ridge', command=self.onEditSymRule).grid(row=row, column=0, sticky='w')
-        #wpt icon
-        self.__icon_label = tk.Label(frame)
-        self.__icon_label.grid(row=row, column=1, sticky='e')
-        #wpt name
-        self.__var_name = tk.StringVar()
-        self.__var_name.trace('w', self.onNameChanged)
-        name_entry = tk.Entry(frame, textvariable=self.__var_name, font=font)
-        name_entry.bind('<Return>', lambda e: self.onWptSelected(1))
-        name_entry.grid(row=row, column=2, sticky='w')
-
-        row += 1
-        #focus
-        self.__var_focus = tk.BooleanVar()
-        self.__var_focus.trace('w', self.onFocusChanged)
-        tk.Checkbutton(frame, text='Focus', variable=self.__var_focus).grid(row=row, column=0, sticky='w')
-        #wpt positoin
-        tk.Label(frame, text="TWD67/TM2", font=bold_font).grid(row=row, column=1, sticky='e')
-        self.__var_pos = tk.StringVar()
-        tk.Label(frame, font=font, textvariable=self.__var_pos).grid(row=row, column=2, sticky='w')
-
-        row +=1
-        #ele
-        tk.Label(frame, text="Elevation", font=bold_font).grid(row=row, column=1, sticky='e')
-        self.__var_ele = tk.StringVar()
-        tk.Label(frame, font=font, textvariable=self.__var_ele).grid(row=row, column=2, sticky='w')
-
-        row +=1
-        #time
-        tk.Label(frame, text="Time", font=bold_font).grid(row=row, column=1, sticky='e')
-        self.__var_time = tk.StringVar()
-        tk.Label(frame, textvariable=self.__var_time, font=font).grid(row=row, column=2, sticky='w')
-
-        return frame
+    def onFocusChanged(self, *args):
+        is_focus = self._var_focus.get()
+        if is_focus:
+            self.highlightWpt(None, self._curr_wpt, is_focus)
 
     def onEditSymRule(self):
         messagebox.showinfo('', 'edit sym rule')
-
-    def onNameChanged(self, *args):
-        #print('change to', self.__var_name.get())
-        name = self.__var_name.get()
-        if self.__curr_wpt.name != name:
-            self.__curr_wpt.name = name
-            self.__curr_wpt.sym = getSymbol(name)
-            self.showWptIcon(self.__curr_wpt.sym)
-            self.is_changed = True
-
-    def onFocusChanged(self, *args):
-        is_focus = self.__var_focus.get()
-        if is_focus:
-            self.highlightWpt(None, self.__curr_wpt, is_focus)
     
-    def showWptIcon(self, sym):
-        icon = ImageTk.PhotoImage(conf.getIcon(sym))
-        self.__icon_label.image = icon
-        self.__icon_label.config(image=icon)
-
     def highlightWpt(self, un_wpt, wpt, is_focus=False):
+        #unhighlight the last wpt
+        if not is_focus and un_wpt in self._wpt_list:  #if not deleted
+            self.master.unhighlightWpt(un_wpt)
+        #focus
         if is_focus:
             self.master.resetMap(wpt)
-        else:
-            if un_wpt in self.__wpt_list:  #if not deleted
-                self.master.unhighlightWpt(un_wpt)
+        #highlight the current wpt
         self.master.highlightWpt(wpt)
-        self.master.refresh()
-    
-    def setCurrWpt(self, wpt):
-        if self.__curr_wpt != wpt:
-            self.highlightWpt(self.__curr_wpt, wpt, self.__var_focus.get())
-
-        self.__curr_wpt = wpt
-
-        #title
-        self.title(wpt.name)
-
-        #set imgae
-        if self.hasPicWpt():
-            size = self.__img_sz
-            img = getAspectResize(wpt.img, size) if isinstance(wpt, PicDocument) else getTextImag("(No Pic)", size)
-            img = ImageTk.PhotoImage(img)
-            self.__img_label.config(image=img)
-            self.__img_label.image = img #keep a ref
-
-        #info
-        self.showWptIcon(wpt.sym)
-        self.__var_name.set(wpt.name)   #this have side effect to set symbol icon
-        self.__var_pos.set(self.getWptPosText(wpt))
-        self.__var_ele.set(self.getWptEleText(wpt))
-        self.__var_time.set(self.getWptTimeText(wpt))
-
-        #button state
-        if self.__wpt_list is not None:
-            idx = self.__wpt_list.index(wpt)
-            sz = len(self.__wpt_list)
-            self.__left_btn.config(state=('disabled' if idx == 0 else 'normal'))
-            self.__right_btn.config(state=('disabled' if idx == sz-1 else 'normal'))
 
     def getWptPosText(self, wpt):
         x_tm2_97, y_tm2_97 = CoordinateSystem.TWD97_LatLonToTWD97_TM2(wpt.lat, wpt.lon)
@@ -945,6 +854,125 @@ class WptBoard(tk.Toplevel):
             return  time.strftime("%Y-%m-%d %H:%M:%S")
         return "N/A"
 
+    def showWptIcon(self, sym):
+        pass
+
+    def setCurrWpt(self, wpt):
+        pass
+
+class WptSingleBoard(WptBoard):
+    def __init__(self, master, wpt_list, wpt=None):
+        super().__init__(master, wpt_list, wpt)
+
+        #change buttons
+        self.__left_btn = tk.Button(self, text="<<", command=lambda:self.onWptSelected(-1), disabledforeground='lightgray')
+        self.__left_btn.pack(side='left', anchor='w', expand=0, fill='y')
+        self.__right_btn = tk.Button(self, text=">>", command=lambda:self.onWptSelected(1), disabledforeground='lightgray')
+        self.__right_btn.pack(side='right', anchor='e', expand=0, fill='y')
+
+        #info
+        self.info_frame = self.getInfoFrame()
+        self.info_frame.pack(side='bottom', anchor='sw', expand=0, fill='x')
+
+        #image
+        if self._hasPicWpt():
+            self.__img_sz = (img_w, img_h) = (600, 450)
+            self.__img_label = tk.Label(self, anchor='n', width=img_w, height=img_h, bg='black')
+            self.__img_label.pack(side='top', anchor='nw', expand=1, fill='both', padx=0, pady=0)
+
+        #set wpt
+        if wpt is None:
+            wpt = wpt_list[0]
+        self.setCurrWpt(wpt)
+
+        #wait
+        self.wait_window(self)
+
+    def onWptSelected(self, inc):
+        idx = self._wpt_list.index(self._curr_wpt) + inc
+        if idx >= 0 and idx < len(self._wpt_list):
+            self.setCurrWpt(self._wpt_list[idx])
+
+    def getInfoFrame(self):
+        font = self._font
+        bold_font = self._bold_font
+
+        frame = tk.Frame(self)#, bg='blue')
+
+        row = 0
+        #set sym rule
+        tk.Button(frame, text="Rule...", font=font, relief='groove', overrelief='ridge', command=self.onEditSymRule).grid(row=row, column=0, sticky='w')
+        #wpt icon
+        self.__icon_label = tk.Label(frame)
+        self.__icon_label.grid(row=row, column=1, sticky='e')
+        #wpt name
+        name_entry = tk.Entry(frame, textvariable=self._var_name, font=font)
+        name_entry.bind('<Return>', lambda e: self.onWptSelected(1))
+        name_entry.grid(row=row, column=2, sticky='w')
+
+        row += 1
+        #focus
+        tk.Checkbutton(frame, text=self._title_focus, variable=self._var_focus).grid(row=row, column=0, sticky='w')
+        #wpt positoin
+        tk.Label(frame, text=self._title_pos, font=bold_font).grid(row=row, column=1, sticky='e')
+        self._var_pos = tk.StringVar()
+        tk.Label(frame, font=font, textvariable=self._var_pos).grid(row=row, column=2, sticky='w')
+
+        row +=1
+        #ele
+        tk.Label(frame, text=self._title_ele, font=bold_font).grid(row=row, column=1, sticky='e')
+        self._var_ele = tk.StringVar()
+        tk.Label(frame, font=font, textvariable=self._var_ele).grid(row=row, column=2, sticky='w')
+
+        row +=1
+        #time
+        tk.Label(frame, text=self._title_time, font=bold_font).grid(row=row, column=1, sticky='e')
+        self._var_time = tk.StringVar()
+        tk.Label(frame, textvariable=self._var_time, font=font).grid(row=row, column=2, sticky='w')
+
+        return frame
+
+    def showWptIcon(self, sym):
+        icon = ImageTk.PhotoImage(conf.getIcon(sym))
+        self.__icon_label.image = icon
+        self.__icon_label.config(image=icon)
+
+    def setCurrWpt(self, wpt):
+        if self._curr_wpt != wpt:
+            self.highlightWpt(self._curr_wpt, wpt, self._var_focus.get())
+
+        self._curr_wpt = wpt
+
+        #title
+        self.title(wpt.name)
+
+        #set imgae
+        if self._hasPicWpt():
+            size = self.__img_sz
+            img = getAspectResize(wpt.img, size) if isinstance(wpt, PicDocument) else getTextImag("(No Pic)", size)
+            img = ImageTk.PhotoImage(img)
+            self.__img_label.config(image=img)
+            self.__img_label.image = img #keep a ref
+
+        #info
+        self.showWptIcon(wpt.sym)
+        self._var_name.set(wpt.name)   #this have side effect to set symbol icon
+        self._var_pos.set(self.getWptPosText(wpt))
+        self._var_ele.set(self.getWptEleText(wpt))
+        self._var_time.set(self.getWptTimeText(wpt))
+
+        #button state
+        if self._wpt_list is not None:
+            idx = self._wpt_list.index(wpt)
+            sz = len(self._wpt_list)
+            self.__left_btn.config(state=('disabled' if idx == 0 else 'normal'))
+            self.__right_btn.config(state=('disabled' if idx == sz-1 else 'normal'))
+
+class WptListBoard(WptBoard):
+    def __init__(self, master, wpt_list, wpt=None):
+        super().__init__(master)
+
+
 class TrkBoard(tk.Toplevel):
     def __init__(self, master, trk_list, trk=None):
         super().__init__(master)
@@ -954,7 +982,6 @@ class TrkBoard(tk.Toplevel):
 
         self.__curr_trk = None
         self.__trk_list = trk_list
-        self.is_changed = False
 
         #board
         self.geometry('+100+100')
@@ -993,11 +1020,10 @@ class TrkBoard(tk.Toplevel):
             self.setCurrTrk(self.__trk_list[idx])
 
     def onNameChanged(self, *args):
-        #print('change to', self.__var_name.get())
-        name = self.__var_name.get()
+        #print('change to', self._var_name.get())
+        name = self._var_name.get()
         if self.__curr_trk.name != name:
             self.__curr_trk.name = name
-            self.is_changed = True
 
     def getInfoFrame(self):
         font = 'Arialuni 12'
@@ -1007,16 +1033,16 @@ class TrkBoard(tk.Toplevel):
 
         #trk name
         tk.Label(frame, text="Track", font=bold_font).grid(row=0, column=0, sticky='e')
-        self.__var_name = tk.StringVar()
-        self.__var_name.trace('w', self.onNameChanged)
-        name_entry = tk.Entry(frame, textvariable=self.__var_name, font=font)
+        self._var_name = tk.StringVar()
+        self._var_name.trace('w', self.onNameChanged)
+        name_entry = tk.Entry(frame, textvariable=self._var_name, font=font)
         name_entry.bind('<Return>', lambda e: self.onSelected(1))
         name_entry.grid(row=0, column=1, sticky='w')
 
         #trk color
         tk.Label(frame, text="Color", font=bold_font).grid(row=1, column=0, sticky='e')
-        self.__var_color = tk.StringVar()
-        tk.Entry(frame, font=font, textvariable=self.__var_color).grid(row=1, column=1, sticky='w')
+        self._var_color = tk.StringVar()
+        tk.Entry(frame, font=font, textvariable=self._var_color).grid(row=1, column=1, sticky='w')
 
         return frame
         
@@ -1027,8 +1053,8 @@ class TrkBoard(tk.Toplevel):
         self.title(trk.name)
 
         #info
-        self.__var_name.set(trk.name)
-        self.__var_color.set(trk.color)
+        self._var_name.set(trk.name)
+        self._var_color.set(trk.color)
 
         #button state
         idx = self.__trk_list.index(trk)
