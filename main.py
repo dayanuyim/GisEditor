@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import tkinter as tk
+import Pmw as pmw
 import urllib.request
 import shutil
 import tempfile
@@ -177,8 +178,8 @@ class DispBoard(tk.Frame):
         num_wpt_menu.add_command(label='By time order', command=lambda:self.onNumberWpt(time=1))
         num_wpt_menu.add_command(label='By name order', command=lambda:self.onNumberWpt(name=1))
         self.__rclick_menu.add_cascade(label='Numbering wpt...', menu=num_wpt_menu)
-
         self.__rclick_menu.add_command(label='UnNumbering wpt', underline=0, command=self.onUnnumberWpt)
+        self.__rclick_menu.add_command(label='Toggle wpt name', underline=0, command=self.onToggleWptNmae)
         self.__rclick_menu.add_separator()
         self.__rclick_menu.add_command(label='Edit tracks...', underline=5, command=self.onEditTrk)
 
@@ -286,7 +287,10 @@ class DispBoard(tk.Frame):
             idx = wpt.name.find(' ')
             if idx >= 0 and wpt.name[:idx].isdigit():
                 wpt.name = wpt.name[idx+1:]
+        self.resetMap()
 
+    def onToggleWptNmae(self):
+        self.map_ctrl.hide_txt = not self.map_ctrl.hide_txt
         self.resetMap()
 
     def onEditTrk(self, trk=None):
@@ -443,6 +447,7 @@ class MapController:
         self.extra_p = 256
         self.pt_size = 3
         self.__font = conf.IMG_FONT
+        self.hide_txt = False
 
         #layer
         self.gpx_layers = []
@@ -641,12 +646,13 @@ class MapController:
         #_draw.ellipse((px-n, py-n, px+n, py+n), fill=color, outline='white')
 
         #draw text
-        txt = wpt.name
-        font = self.__font
-        px, py = px +adj, py -adj  #adjust position for aligning icon
-        _draw.text((px+1, py+1), txt, fill="white", font=font)
-        _draw.text((px-1, py-1), txt, fill="white", font=font)
-        _draw.text((px, py), txt, fill=color, font=font)
+        if not self.hide_txt:
+            txt = wpt.name
+            font = self.__font
+            px, py = px +adj, py -adj  #adjust position for aligning icon
+            _draw.text((px+1, py+1), txt, fill="white", font=font)
+            _draw.text((px-1, py-1), txt, fill="white", font=font)
+            _draw.text((px, py), txt, fill=color, font=font)
 
         if draw is None:
             del _draw
@@ -837,10 +843,14 @@ class WptBoard(tk.Toplevel):
         #highlight the current wpt
         self.master.highlightWpt(wpt)
 
-    def getWptPosText(self, wpt):
+    def _getWptPos(self, wpt):
         x_tm2_97, y_tm2_97 = CoordinateSystem.TWD97_LatLonToTWD97_TM2(wpt.lat, wpt.lon)
         x_tm2_67, y_tm2_67 = CoordinateSystem.TWD97_TM2ToTWD67_TM2(x_tm2_97, y_tm2_97)
-        text = "(%.3f, %.3f)" % (x_tm2_67/1000, y_tm2_67/1000)
+        return (x_tm2_67, y_tm2_67)
+
+    def getWptPosText(self, wpt, fmt='(%.3f, %.3f)'):
+        x, y = self._getWptPos(wpt)
+        text = fmt % (x/1000, y/1000)
         return text
 
     def getWptEleText(self, wpt):
@@ -970,7 +980,58 @@ class WptSingleBoard(WptBoard):
 
 class WptListBoard(WptBoard):
     def __init__(self, master, wpt_list, wpt=None):
-        super().__init__(master)
+        super().__init__(master, wpt_list, wpt)
+
+        self.init()
+                
+        #set wpt
+        if wpt is not None:
+            self.setCurrWpt(wpt)
+
+        #wait
+        self.wait_window(self)
+
+    def init(self):
+        self.sf = pmw.ScrolledFrame(self, usehullsize = 1, hull_width = 300, hull_height = 600)
+        self.sf.pack(fill = 'both', expand = 1)
+
+        frame = self.sf.interior()
+        font = self._font
+        bfont = self._bold_font
+
+        row = 0
+        tk.Label(frame, text=self._title_name, font=bfont).grid(row=row, column=1)
+        tk.Label(frame, text=self._title_pos,  font=bfont).grid(row=row, column=2)
+        tk.Label(frame, text=self._title_ele,  font=bfont).grid(row=row, column=3)
+        tk.Label(frame, text=self._title_time, font=bfont).grid(row=row, column=4)
+
+        for w in self._wpt_list:
+            row += 1
+
+            #icon
+            icon = ImageTk.PhotoImage(conf.getIcon(w.sym))
+            icon_label = tk.Label(frame, image=icon)
+            icon_label.image=icon
+            icon_label.grid(row=row, column=0, sticky='e')
+
+            #info
+            tk.Label(frame, text=w.name, font=font, bg='lightgray')\
+                .grid(row=row, column=1, sticky='w')
+            tk.Label(frame, text=self.getWptPosText(w, fmt='%.3f\n%.3f'), font=font)\
+                .grid(row=row, column=2, sticky='e')
+            tk.Label(frame, text=self.getWptEleText(w), font=font, bg='lightgray')\
+                .grid(row=row, column=3, sticky='e')
+            tk.Label(frame, text=self.getWptTimeText(w), font=font)\
+                .grid(row=row, column=4, sticky='w')
+
+    #override
+    def showWptIcon(self, sym):
+        pass
+
+    #override
+    def setCurrWpt(self, wpt):
+        self._curr_wpt = wpt
+
 
 
 class TrkBoard(tk.Toplevel):

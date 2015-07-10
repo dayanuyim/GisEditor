@@ -6,12 +6,7 @@ from PIL import ImageFont, Image
 from sym import SymbolRules
 from datetime import timedelta
 
-IMG_FONT = ImageFont.truetype("ARIALUNI.TTF", 18) #global use font (Note: the operation is time wasting)
-TZ = timedelta(hours=8)
-ICON_DIR = './icon'
-ICON_SIZE = 24
-DEF_SYMBOL = "Waypoint"
-
+#constance
 def __readConfig(conf_path):
     conf = {}
     with open(conf_path) as conf_file:
@@ -20,10 +15,16 @@ def __readConfig(conf_path):
             conf[k] = v
     return conf
 __config = __readConfig('./giseditor.conf')
-
 CACHE_DIR = __config['cache_dir']
 GPSBABEL_DIR = __config['gpsbabel_dir']
 
+IMG_FONT = ImageFont.truetype("ARIALUNI.TTF", 18) #global use font (Note: the operation is time wasting)
+TZ = timedelta(hours=8)
+ICON_DIR = './icon'
+ICON_SIZE = 24
+DEF_SYMBOL = "Waypoint"
+
+#global variables
 Sym_rules = SymbolRules('./sym_rule.conf')
 
 def getSymbol(name):

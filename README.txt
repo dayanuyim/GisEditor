@@ -1,7 +1,8 @@
 1. install python 3
     - checking 'pip' is also installed
-2. install pillow library
-    - cmd line: pip install pillow
+2. install python libraries
+    - pip install pillow
+    - pip install pmw
 3. install gpsbabel
 4. set config
     - map chache dir
