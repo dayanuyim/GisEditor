@@ -15,7 +15,9 @@ class PicDocument(WayPoint):
         self.__path = path
         self.__img = Image.open(path)
         self.__exif = self.getExif(self.__img)
-        #for k, v in self.__exif.items(): #print(k, v)
+        #for k, v in self.__exif.items():
+        #    if isinstance(v, str):
+        #        v = v.encode('latin-1').decode('utf-8') #PIL use latin-1 by default
 
         super().__init__(
             lat = self.exifToDegree(self.__exif['GPSLatitudeRef'], self.__exif['GPSLatitude']),
