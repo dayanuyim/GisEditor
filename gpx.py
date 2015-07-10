@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-# -*- coding: utf8 -*-
 
 """ handle gpx file """
 
 import os
-from xml.etree import ElementTree
+from xml.etree import ElementTree as ET
 from datetime import datetime
 from tile import TileSystem, GeoPoint
 from PIL import Image
@@ -20,48 +19,53 @@ class GpsDocument:
     def minlat(self): return self.__minlat
 
     @property
-    def way_points(self): return self.wpts
+    def way_points(self): return self.__wpts
 
     @property
-    def tracks(self): return self.trks
+    def tracks(self): return self.__trks
 
-    def __init__(self, filename=None, filestring=None):
-        self.wpts = []
-        self.trks = []
+    def __init__(self, tz=None):
+        self.__tz = tz
+
+        self.__wpts = []
+        self.__trks = []
         self.__maxlon = None
         self.__minlon = None
         self.__maxlat = None
         self.__minlat = None
 
+        #set ns
+        self.ns = {}
+        self.ns['gpx'] = "http://www.topografix.com/GPX/1/1"
+        self.ns['xsi'] = "http://www.w3.org/2001/XMLSchema-instance"
+        self.ns['gpxx'] = "http://www.garmin.com/xmlschemas/GpxExtensions/v3"
+
+    def load(self, filename=None, filestring=None):
         #get root element
         xml_root = None
         if filename is not None:
-            xml_root = ElementTree.parse(filename).getroot()
+            xml_root = ET.parse(filename).getroot()
         elif filestring is not None:
-            xml_root = ElementTree.fromstring(filestring)
+            xml_root = ET.fromstring(filestring)
         else:
             raise ValueError("Gpx filename and filestring both None")
 
-        #set ns
-        self.ns = {}
+        #override 'gpx ns
         if xml_root.tag[0] == '{':
             ns, name = xml_root.tag[1:].split("}")
-            self.ns["gpx"] = ns
+            self.ns["gpx"] = ns 
             if name != "gpx":
                 print("Warning: the root element's namespace is not 'gpx'")
-
-        self.ns['xsi'] = "http://www.w3.org/2001/XMLSchema-instance"
-        self.ns['gpxx'] = "http://www.garmin.com/xmlschemas/GpxExtensions/v3"
 
         #load data
         self.loadMetadata(xml_root)
         self.loadWpt(xml_root)
         self.loadTrk(xml_root)
 
-        #for wpt in self.wpts:
+        #for wpt in self.__wpts:
             #print(wpt.time.strftime("%c"), wpt.name, wpt.lon, wpt.lat, wpt.ele)
 
-        #for trk in self.trks:
+        #for trk in self.__trks:
             #print(trk.name, trk.color)
             #for pt in trk:
                 #print("  ", pt.time.strftime("%c"), pt.lon, pt.lat, pt.ele)
@@ -87,27 +91,33 @@ class GpsDocument:
 
             #child element
             elem = wpt_elem.find("./gpx:ele", self.ns)
-            if elem is not None: wpt.ele = float(elem.text)
+            if elem is not None and elem.text is not None:
+                wpt.ele = float(elem.text)
 
             elem = wpt_elem.find("./gpx:time", self.ns)
-            if elem is not None: wpt.time = datetime.strptime(elem.text, "%Y-%m-%dT%H:%M:%SZ")
+            if elem is not None and elem.text is not None:
+                wpt.time = datetime.strptime(elem.text, "%Y-%m-%dT%H:%M:%SZ")
+            else:
+                wpt.time = self.toUTC(datetime.now())
 
             elem = wpt_elem.find("./gpx:name", self.ns)
-            if elem is not None: wpt.name = elem.text
+            if elem is not None and elem.text is not None:
+                wpt.name = elem.text
 
             elem = wpt_elem.find("./gpx:cmt", self.ns)
-            if elem is not None: wpt.cmt = elem.text
+            if elem is not None and elem.text is not None:
+                wpt.cmt = elem.text
 
             elem = wpt_elem.find("./gpx:desc", self.ns)
-            if elem is not None: wpt.desc = elem.text
+            if elem is not None and elem.text is not None:
+                wpt.desc = elem.text
 
             elem = wpt_elem.find("./gpx:sym", self.ns)
-            if elem is not None: wpt.sym = elem.text
+            if elem is not None and elem.text is not None:
+                wpt.sym = elem.text
 
-            self.wpts.append(wpt)
-
-            #update bounds (metadata may not have)
-            self.__updateBounds(wpt)
+            self.addWpt(wpt)
+            
 
     def loadTrk(self, xml_root):
         trk_elems = xml_root.findall("./gpx:trk", self.ns)
@@ -129,7 +139,7 @@ class GpsDocument:
                 for elem in elems:
                     self.loadTrkSeg(elem, trk)
 
-            self.trks.append(trk)
+            self.__trks.append(trk)
 
     def loadTrkSeg(self, trkseg_elem, trk):
         trkpt_elems = trkseg_elem.findall("./gpx:trkpt", self.ns)
@@ -145,10 +155,15 @@ class GpsDocument:
             elem = trkpt_elem.find("./gpx:time", self.ns)
             pt.time = None if elem is None else datetime.strptime(elem.text, "%Y-%m-%dT%H:%M:%SZ")
 
-            trk.addTrackPoint(pt)
+            self.addTrkPt(trk, pt)
 
-            #update bounds (metadata may not have)
-            self.__updateBounds(pt)
+    def addWpt(self, wpt):
+        self.__wpts.append(wpt)
+        self.__updateBounds(wpt) #maintain bounds (gpx file may not have metadata)
+
+    def addTrkPt(self, trk, pt):
+        trk.addTrackPoint(pt)
+        self.__updateBounds(pt) #maintain bounds (gpx file may not have metadata)
 
     def __updateBounds(self, pt):
         if self.__maxlat is None or pt.lat >= self.__maxlat:
@@ -161,12 +176,146 @@ class GpsDocument:
         if self.__minlon is None or pt.lon <= self.__minlon:
             self.__minlon = pt.lon
 
-class WayPoint:
-    #{{ static
-    __wpt_icons = {}
-    ICON_SIZE = 24
-    #}}
+    def merge(self, rhs):
+        self.__minlat = self.safe_min(self.minlat, rhs.minlat)
+        self.__maxlat = self.safe_max(self.maxlat, rhs.maxlat)
+        self.__minlon = self.safe_min(self.minlon, rhs.minlon)
+        self.__maxlon = self.safe_max(self.maxlon, rhs.maxlon)
 
+        self.__wpts.extend(rhs.__wpts)
+        self.__trks.extend(rhs.__trks)
+
+    @staticmethod
+    def safe_min(v1, v2):
+        if v1 is None: return v2
+        if v2 is None: return v1
+        return min(v1, v2)
+
+    @staticmethod
+    def safe_max(v1, v2):
+        if v1 is None: return v2
+        if v2 is None: return v1
+        return max(v1, v2)
+
+    def save(self, path):
+        gpx = self.genRootElement()
+        self.subMetadataElement(gpx)
+        self.subWptElement(gpx)
+        self.subTrkElement(gpx)
+
+        #write
+        doc = ET.ElementTree(element=gpx)
+        doc.write(path, encoding="UTF-8", xml_declaration=True)#, default_namespace=self.ns['gpx'])
+
+    def genRootElement(self):
+        gpx = ET.Element('gpx')
+        gpx.set("xmlns", self.ns['gpx'])
+        gpx.set("creator", "TT GpsToolset");
+        gpx.set("version", "1.1");
+        gpx.set("xmlns:xsi", self.ns['xsi'])
+        gpx.set('xsi:schemaLocation', "http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd")
+        return gpx
+
+    def toUTC(self, time):
+        if self.__tz:
+            return time - self.__tz
+        return time
+
+    def subMetadataElement(self, parent):
+        metadata = ET.SubElement(parent, 'metadata')
+        link = ET.SubElement(metadata, 'link')
+        link.set("href", "http://www.garmin.com");
+        text = ET.SubElement(link, "text");
+        text.text = "Garmin International";
+
+        time = ET.SubElement(metadata, 'time')
+        time.text = self.toUTC(datetime.now()).strftime("%Y-%m-%dT%H:%M:%SZ");
+
+        if self.maxlat and self.maxlon and self.minlat and self.minlon:
+            bounds = ET.SubElement(metadata, 'bounds')
+            bounds.set("maxlat", str(self.maxlat))
+            bounds.set("maxlon", str(self.maxlon))
+            bounds.set("minlat", str(self.minlat))
+            bounds.set("minlon", str(self.minlon))
+
+    def subWptElement(self, parent):
+        for w in self.__wpts:
+            wpt = ET.SubElement(parent, 'wpt')
+            wpt.set("lat", str(w.lat))
+            wpt.set("lon", str(w.lon))
+
+            ele = ET.SubElement(wpt, "ele");
+            ele.text = str(w.ele);
+
+            time = ET.SubElement(wpt, "time");
+            time.text = w.time.strftime("%Y-%m-%dT%H:%M:%SZ");
+
+            name = ET.SubElement(wpt, "name");
+            name.text = w.name;
+
+            if len(w.cmt) > 0:
+                cmt = ET.SubElement(wpt, "cmt");
+                cmt.text = w.cmt;
+
+            if len(w.desc) > 0:
+                desc = ET.SubElement(wpt, "desc");
+                desc.text = w.desc;
+
+            sym = ET.SubElement(wpt, "sym");
+            sym.text = w.sym;
+
+            #extension =====
+            extensions = ET.SubElement(wpt, "extensions");
+            wpt_ext = ET.SubElement(extensions, "gpxx:WaypointExtension")
+            wpt_ext.set('xmlns:gpxx', self.ns['gpxx'])
+            disp_mode = ET.SubElement(wpt_ext, "gpxx:DisplayMode")
+            disp_mode.text = "SymbolAndName";
+
+    def subTrkElement(self, parent):
+        for t in self.__trks:
+            trk = ET.SubElement(parent, 'trk')
+
+            #name
+            name = ET.SubElement(trk, 'name')
+            name.text = t.name
+
+            #color
+            extensions = ET.SubElement(trk, "extensions");
+            trk_ext = ET.SubElement(extensions, "gpxx:TrackExtension")
+            trk_ext.set('xmlns:gpxx', self.ns['gpxx'])
+            disp_color = ET.SubElement(trk_ext, "gpxx:DisplayColor")
+            disp_color.text = t.color;
+
+            #trk seg
+            self.subTrkSegElement(trk, t)
+
+    def subTrkSegElement(self, parent, t):
+        trkseg = ET.SubElement(parent, 'trkseg')
+        for pt in t:
+            trkpt = ET.SubElement(trkseg, "trkpt");
+            trkpt.set("lat", str(pt.lat))
+            trkpt.set("lon", str(pt.lon))
+
+            ele = ET.SubElement(trkpt, "ele");
+            ele.text = str(pt.ele)
+
+            time = ET.SubElement(trkpt, "time");
+            time.text = pt.time.strftime("%Y-%m-%dT%H:%M:%SZ");
+
+    def sortWpt(self, name=None, time=None):
+        if name is not None:
+            self.__wpts = sorted(self.__wpts, key=lambda wpt: wpt.name)
+        elif time is not None:
+            self.__wpts = sorted(self.__wpts, key=lambda wpt: wpt.time)
+
+    def sortTrk(self, name=None, time=None):
+        if name is not None:
+            self.__trks = sorted(self.__trks, key=lambda trk: trk.name)
+        elif time is not None:
+            self.__trks = sorted(self.__trks, key=lambda trk: trk.time)
+            
+
+class WayPoint:
     @property
     def lat(self): return self.__geo.lat
     @property
@@ -185,21 +334,11 @@ class WayPoint:
         self.__geo.level = level
         return (self.__geo.px, self.__geo.py)
 
-    @classmethod
-    def getIcon(cls, name):
-        name = name.lower()
-        icon = cls.__wpt_icons.get(name)
-        if icon is None:
-            path = os.path.join("icon", name + ".png")
-            if not os.path.exists(path) and name != "default":
-                return cls.getIcon("default")
-            icon = Image.open(path)
-            icon = icon.resize((cls.ICON_SIZE, cls.ICON_SIZE))
-            cls.__wpt_icons[name] = icon
-        return icon
-
-
 class Track:
+    @property
+    def time(self):
+        return self.__trkseg[0].time if len(self.__trkseg) > 0 else datetime.min
+
     def __init__(self):
         self.__trkseg = []
         self.name = None
@@ -207,6 +346,9 @@ class Track:
 
     def __iter__(self):
         return iter(self.__trkseg)
+
+    def __len__(self):
+        return len(self.__trkseg)
 
     def addTrackPoint(self, pt):
         self.__trkseg.append(pt)
@@ -227,4 +369,10 @@ class TrackPoint:
         return (self.__geo.px, self.__geo.py)
 
 if __name__ == '__main__':
-    gpx = GpsDocument("bak/2015_0101-04.gpx")
+    #gpx = GpsDocument("bak/2015_0101-04.gpx")
+    gpx = GpsDocument()
+    gpx.load('bak/test.gpx')
+    gpx.sortTrk(time=True)
+    gpx.sortWpt(time=True)
+    gpx.save('out.gpx')
+

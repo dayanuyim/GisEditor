@@ -6,12 +6,14 @@ from PIL import Image, ExifTags
 from tile import GeoPoint
 from gpx import WayPoint
 from datetime import datetime
+import conf
 
 class PicDocument(WayPoint):
     @property
     def img(self): return self.__img
 
-    def __init__(self, path=None):
+    def __init__(self, path, tz=None):
+        self.__tz = tz
         self.__path = path
         self.__img = Image.open(path)
         self.__exif = self.getExif(self.__img)
@@ -22,14 +24,36 @@ class PicDocument(WayPoint):
         super().__init__(
             lat = self.exifToDegree(self.__exif['GPSLatitudeRef'], self.__exif['GPSLatitude']),
             lon = self.exifToDegree(self.__exif['GPSLongitudeRef'], self.__exif['GPSLongitude']))
-        self.ele = self.exifToAltitude(self.__exif['GPSAltitudeRef'], self.__exif['GPSAltitude'])
-        self.time = self.exifToDateTime(self.__exif['DateTimeOriginal'])
+
         if 'ImageDescription' in self.__exif.keys():
             self.name = self.__exif['ImageDescription'].encode('latin-1').decode('utf-8') #PIL use latin-1 by default
+        self.ele = self.exifToAltitude(self.__exif['GPSAltitudeRef'], self.__exif['GPSAltitude'])
+        self.time = self.exifToDateTime(self.__exif['DateTimeOriginal'])
+        self.sym = conf.getSymbol(self.name)
 
-    @staticmethod
-    def exifToDateTime(time_str):
-        return datetime.strptime(time_str, "%Y:%m:%d %H:%M:%S")
+        orientation = self.__exif['Orientation']
+        if orientation is not None:
+            self.__img = self.rotateImage(self.__img, int(orientation))
+
+
+
+    def rotateImage(self, img, orientation):
+        if orientation == 1:
+            return img
+        elif orientation == 3:
+            return img.transpose(Image.ROTATE_180)
+        elif orientation == 6:
+            return img.transpose(Image.ROTATE_270)
+        elif orientation == 8:
+            return img.transpose(Image.ROTATE_90)
+        else:
+            return img
+
+    def exifToDateTime(self, time_str):
+        time = datetime.strptime(time_str, "%Y:%m:%d %H:%M:%S")
+        if self.__tz is not None:
+            time -= self.__tz  #to utc
+        return time
 
     @staticmethod
     def exifToDegree(ref, degree):
