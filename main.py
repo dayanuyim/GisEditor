@@ -10,7 +10,7 @@ import shutil
 import tempfile
 from os import path
 from PIL import Image, ImageTk, ImageDraw, ImageFont
-from math import floor, ceil
+from math import floor, ceil, sqrt
 from tkinter import messagebox, filedialog
 from datetime import datetime
 
@@ -144,7 +144,7 @@ class DispBoard(tk.Frame):
         self.bg_color='#D0D0D0'
         self.config(bg=self.bg_color)
         self.__focused_wpt = None
-        self.img = None         #buffer disp image for highlight wpt
+        self.__img = None         #buffer disp image for restore map
 
         #info
         self.info_label = tk.Label(self, font='24', anchor='w', bg=self.bg_color)
@@ -327,23 +327,29 @@ class DispBoard(tk.Frame):
         px=c.px + event.x
         py=c.py + event.y
 
-        wpt = c.getWptAt(px, py)
-        if wpt != self.__focused_wpt:
-            self.unhighlightWpt(self.__focused_wpt)
-            self.highlightWpt(wpt)
-        self.__focused_wpt = wpt
+        curr_wpt = c.getWptAt(px, py)
+        prev_wpt = self.__focused_wpt
+        if prev_wpt and curr_wpt != prev_wpt:
+            if curr_wpt is None:  #highlight curr_wpt implies restore, so skip if curr_wpt is not None
+                self.restore()
+        if curr_wpt is not None:
+            self.highlightWpt(curr_wpt)
+
+        #rec
+        self.__focused_wpt = curr_wpt
 
     def highlightWpt(self, wpt):
-        if wpt is not None:
-            #print('to hl wpt', wpt.name)
-            self.drawWayPoint(wpt, "red")
-            self.refresh()
+        if wpt is None:
+            return
 
-    def unhighlightWpt(self, wpt):
-        if wpt is not None:
-            #print('to un hl wpt', wpt.name)
-            self.drawWayPoint(wpt, "gray")
-            self.refresh()
+        #draw wpt
+        c = self.map_ctrl
+        img = self.__img.copy()
+        img_attr = ImageAttr(c.level, c.px, c.py, c.px + img.size[0], c.py + img.size[1])
+        c.drawWayPoint(img, img_attr, wpt, 'red', 'white')
+
+        #set
+        self.__setMap(img)
 
     def onDeleteWpt(self):
         wpt = self.__focused_wpt
@@ -354,14 +360,6 @@ class DispBoard(tk.Frame):
         if wpt is not None:
             self.map_ctrl.deleteWpt(wpt)
             self.resetMap()
-
-    def drawWayPoint(self, wpt, color):
-        c = self.map_ctrl
-        #coin attr
-        (w, h) = self.img.size
-        img_attr = ImageAttr(c.level, c.px, c.py, c.px + w, c.py + h)
-        #draw
-        c.drawWayPoint(self.img, img_attr, wpt, color)
 
     def onClickUp(self, event):
         self.__mouse_down_pos = None
@@ -392,14 +390,13 @@ class DispBoard(tk.Frame):
             self.map_ctrl.lon = pt.lon
             self.map_ctrl.shiftGeoPixel(-w/2, -h/2)
 
-        img = self.map_ctrl.getTileImage(w, h);
-        self.__setMap(img)
+        self.__img = self.map_ctrl.getTileImage(w, h)  #buffer the image
+        self.__setMap(self.__img)
 
-    def refresh(self):
-        self.__setMap(self.img)
+    def restore(self):
+        self.__setMap(self.__img)
 
     def __setMap(self, img):
-        self.img = img  #buffer the image
         photo = ImageTk.PhotoImage(img)
         self.disp_label.config(image=photo)
         self.disp_label.image = photo #keep a ref
@@ -617,7 +614,7 @@ class MapController:
             self.drawWayPoint(img, img_attr, wpt, "gray", draw=draw)
         del draw
 
-    def drawWayPoint(self, img, img_attr, wpt, color, draw=None):
+    def drawWayPoint(self, img, img_attr, wpt, txt_color, bg_color=None, draw=None):
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw wpt'", wpt.name, "'")
         #check range
         (px, py) = wpt.getPixel(img_attr.level)
@@ -630,6 +627,11 @@ class MapController:
 
         #get draw
         _draw = draw if draw is not None else ImageDraw.Draw(img)
+
+        if bg_color is not None:
+            r = ceil(conf.ICON_SIZE/sqrt(2))
+            _draw.ellipse((px-r, py-r, px+r, py+r), fill=bg_color, outline='gray')
+
 
         #paste icon
         if wpt.sym is not None:
@@ -652,7 +654,7 @@ class MapController:
             px, py = px +adj, py -adj  #adjust position for aligning icon
             _draw.text((px+1, py+1), txt, fill="white", font=font)
             _draw.text((px-1, py-1), txt, fill="white", font=font)
-            _draw.text((px, py), txt, fill=color, font=font)
+            _draw.text((px, py), txt, fill=txt_color, font=font)
 
         if draw is None:
             del _draw
@@ -799,8 +801,7 @@ class WptBoard(tk.Toplevel):
         return self._wpt_list[idx]
         
     def onClosed(self, e=None):
-        if self._curr_wpt in self._wpt_list:
-            self.master.unhighlightWpt(self._curr_wpt)
+        self.master.restore() #unhighlight wpt, if any
         self.master.focus_set()
         self.destroy()
 
@@ -834,12 +835,14 @@ class WptBoard(tk.Toplevel):
         messagebox.showinfo('', 'edit sym rule')
     
     def highlightWpt(self, un_wpt, wpt, is_focus=False):
-        #unhighlight the last wpt
-        if not is_focus and un_wpt in self._wpt_list:  #if not deleted
-            self.master.unhighlightWpt(un_wpt)
+        #unhighlight the last wpt, the step is needed more!
+        #if not is_focus and un_wpt in self._wpt_list:  #if not deleted
+        #    self.master.restore()
+
         #focus
         if is_focus:
             self.master.resetMap(wpt)
+
         #highlight the current wpt
         self.master.highlightWpt(wpt)
 
