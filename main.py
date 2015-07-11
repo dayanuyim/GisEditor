@@ -801,7 +801,7 @@ class WptBoard(tk.Toplevel):
         return self._wpt_list[idx]
         
     def onClosed(self, e=None):
-        self.master.restore() #unhighlight wpt, if any
+        self.master.restore()
         self.master.focus_set()
         self.destroy()
 
@@ -834,17 +834,17 @@ class WptBoard(tk.Toplevel):
     def onEditSymRule(self):
         messagebox.showinfo('', 'edit sym rule')
     
-    def highlightWpt(self, un_wpt, wpt, is_focus=False):
-        #unhighlight the last wpt, the step is needed more!
-        #if not is_focus and un_wpt in self._wpt_list:  #if not deleted
-        #    self.master.restore()
-
+    def highlightWpt(self, wpt, is_focus=False):
         #focus
         if is_focus:
             self.master.resetMap(wpt)
 
         #highlight the current wpt
         self.master.highlightWpt(wpt)
+
+    def unhighlightWpt(self, wpt):
+        if wpt in self._wpt_list:  #if not deleted
+            self.master.restore()
 
     def _getWptPos(self, wpt):
         x_tm2_97, y_tm2_97 = CoordinateSystem.TWD97_LatLonToTWD97_TM2(wpt.lat, wpt.lon)
@@ -952,7 +952,8 @@ class WptSingleBoard(WptBoard):
 
     def setCurrWpt(self, wpt):
         if self._curr_wpt != wpt:
-            self.highlightWpt(self._curr_wpt, wpt, self._var_focus.get())
+            #self.unhighlightWpt(slef._curr_wpt) #can skip, due to followd by highlight
+            self.highlightWpt(wpt, self._var_focus.get())
 
         self._curr_wpt = wpt
 
@@ -985,6 +986,10 @@ class WptListBoard(WptBoard):
     def __init__(self, master, wpt_list, wpt=None):
         super().__init__(master, wpt_list, wpt)
 
+        self.__widgets = {}  #wpt: widgets 
+        self.__focused_wpt = None
+        self.__bg_color = self.cget('bg')
+        self.__bg_hl_color = 'lightblue'
         self.init()
                 
         #set wpt
@@ -998,6 +1003,7 @@ class WptListBoard(WptBoard):
         self.sf = pmw.ScrolledFrame(self, usehullsize = 1, hull_width = 300, hull_height = 600)
         self.sf.pack(fill = 'both', expand = 1)
 
+
         frame = self.sf.interior()
         font = self._font
         bfont = self._bold_font
@@ -1010,22 +1016,72 @@ class WptListBoard(WptBoard):
 
         for w in self._wpt_list:
             row += 1
+            on_motion = lambda e: self.onMotion(e)
 
             #icon
             icon = ImageTk.PhotoImage(conf.getIcon(w.sym))
-            icon_label = tk.Label(frame, image=icon)
+            icon_label = tk.Label(frame, image=icon, anchor='e')
             icon_label.image=icon
-            icon_label.grid(row=row, column=0, sticky='e')
+            icon_label.bind('<Motion>', on_motion)
+            icon_label.grid(row=row, column=0, sticky='news')
 
-            #info
-            tk.Label(frame, text=w.name, font=font, bg='lightgray')\
-                .grid(row=row, column=1, sticky='w')
-            tk.Label(frame, text=self.getWptPosText(w, fmt='%.3f\n%.3f'), font=font)\
-                .grid(row=row, column=2, sticky='e')
-            tk.Label(frame, text=self.getWptEleText(w), font=font, bg='lightgray')\
-                .grid(row=row, column=3, sticky='e')
-            tk.Label(frame, text=self.getWptTimeText(w), font=font)\
-                .grid(row=row, column=4, sticky='w')
+            name_label = tk.Label(frame, text=w.name, font=font, anchor='w')
+            name_label.bind('<Motion>', on_motion)
+            name_label.grid(row=row, column=1, sticky='news')
+
+            pos_txt = self.getWptPosText(w, fmt='%.3f\n%.3f')
+            pos_label = tk.Label(frame, text=pos_txt, font=font)
+            pos_label.bind('<Motion>', on_motion)
+            pos_label.grid(row=row, column=2, sticky='news')
+
+            ele_label = tk.Label(frame, text=self.getWptEleText(w), font=font)
+            ele_label.bind('<Motion>', on_motion)
+            ele_label.grid(row=row, column=3, sticky='news')
+
+            time_label = tk.Label(frame, text=self.getWptTimeText(w), font=font)
+            time_label.bind('<Motion>', on_motion)
+            time_label.grid(row=row, column=4, sticky='news')
+
+            #save
+            self.__widgets[w] = (
+                    icon_label,
+                    name_label,
+                    pos_label,
+                    ele_label,
+                    time_label
+            )
+
+    def getWptOfWidget(self, w):
+        for wpt, widgets in self.__widgets.items():
+            if w in widgets:
+                return wpt
+        return None
+
+    def onMotion(self, e):
+        prev_wpt = self.__focused_wpt
+        curr_wpt = self.getWptOfWidget(e.widget)
+
+        #highligt/unhighlight
+        if prev_wpt != curr_wpt:
+            if prev_wpt is not None:
+                self.unhighlightWpt(prev_wpt)
+            if curr_wpt is not None:
+                self.highlightWpt(curr_wpt)
+                
+        #rec
+        self.__focused_wpt = curr_wpt
+
+    #override
+    def highlightWpt(self, wpt, is_focus=False):
+        for w in self.__widgets[wpt]:
+            w.config(bg=self.__bg_hl_color)
+        super().highlightWpt(wpt)
+
+    #override
+    def unhighlightWpt(self, wpt):
+        for w in self.__widgets[wpt]:
+            w.config(bg=self.__bg_color)
+        #super().unhighlightWpt(wpt)  #can skip, deu to followed by highlight
 
     #override
     def showWptIcon(self, sym):
