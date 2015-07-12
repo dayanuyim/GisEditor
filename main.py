@@ -823,20 +823,17 @@ class WptBoard(tk.Toplevel):
             self._curr_wpt.sym = conf.getSymbol(name)
             self.showWptIcon(self._curr_wpt.sym)
             #update master
-            self.master.resetMap()
-            self.master.highlightWpt(wpt)
+            self.highlightWpt(self._curr_wpt)
 
     def onFocusChanged(self, *args):
-        is_focus = self._var_focus.get()
-        if is_focus:
-            self.highlightWpt(self._curr_wpt, is_focus)
+        self.highlightWpt(self._curr_wpt)
 
     def onEditSymRule(self):
         messagebox.showinfo('', 'edit sym rule')
     
-    def highlightWpt(self, wpt, is_focus=False):
+    def highlightWpt(self, wpt):
         #focus
-        if is_focus:
+        if self._var_focus.get():
             self.master.resetMap(wpt)
 
         #highlight the current wpt
@@ -953,7 +950,7 @@ class WptSingleBoard(WptBoard):
     def setCurrWpt(self, wpt):
         if self._curr_wpt != wpt:
             #self.unhighlightWpt(slef._curr_wpt) #can skip, due to followd by highlight
-            self.highlightWpt(wpt, self._var_focus.get())
+            self.highlightWpt(wpt)
 
         self._curr_wpt = wpt
 
