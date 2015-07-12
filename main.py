@@ -829,7 +829,7 @@ class WptBoard(tk.Toplevel):
     def onFocusChanged(self, *args):
         is_focus = self._var_focus.get()
         if is_focus:
-            self.highlightWpt(None, self._curr_wpt, is_focus)
+            self.highlightWpt(self._curr_wpt, is_focus)
 
     def onEditSymRule(self):
         messagebox.showinfo('', 'edit sym rule')
