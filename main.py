@@ -821,7 +821,7 @@ class WptBoard(tk.Toplevel):
         if self._curr_wpt.name != name:
             self._curr_wpt.name = name
             self._curr_wpt.sym = conf.getSymbol(name)
-            self.showWptIcon(self._curr_wpt.sym)
+            self.showWptIcon(self._curr_wpt)
             #update master
             self.highlightWpt(self._curr_wpt)
 
@@ -864,7 +864,7 @@ class WptBoard(tk.Toplevel):
             return  time.strftime("%Y-%m-%d %H:%M:%S")
         return "N/A"
 
-    def showWptIcon(self, sym):
+    def showWptIcon(self, wpt):
         pass
 
     def setCurrWpt(self, wpt):
@@ -942,10 +942,10 @@ class WptSingleBoard(WptBoard):
 
         return frame
 
-    def showWptIcon(self, sym):
-        icon = ImageTk.PhotoImage(conf.getIcon(sym))
+    def showWptIcon(self, wpt):
+        icon = ImageTk.PhotoImage(conf.getIcon(wpt.sym))
         self.__icon_label.image = icon
-        self.__icon_label.config(image=icon)
+        self.__icon_label.config(image=icon, text=wpt.sym, compound='right')
 
     def setCurrWpt(self, wpt):
         if self._curr_wpt != wpt:
@@ -966,7 +966,7 @@ class WptSingleBoard(WptBoard):
             self.__img_label.image = img #keep a ref
 
         #info
-        self.showWptIcon(wpt.sym)
+        self.showWptIcon(wpt)
         self._var_name.set(wpt.name)   #this have side effect to set symbol icon
         self._var_pos.set(self.getWptPosText(wpt))
         self._var_ele.set(self.getWptEleText(wpt))
@@ -1081,7 +1081,7 @@ class WptListBoard(WptBoard):
         #super().unhighlightWpt(wpt)  #can skip, deu to followed by highlight
 
     #override
-    def showWptIcon(self, sym):
+    def showWptIcon(self, wpt):
         pass
 
     #override
