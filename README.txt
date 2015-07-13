@@ -8,5 +8,6 @@
     - map chache dir
     - gpsbabel dir
 5. set file association
-    - create load.bat to invoke main.py
-    - associate gps file to load.bat
+    - create a loader (giseditor.bat) to invoke main.py
+    - associate gps file with the loader
+    - *use FileMenuTools or others to add right-click menu
