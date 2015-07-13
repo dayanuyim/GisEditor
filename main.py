@@ -787,10 +787,13 @@ class WptSingleBoard(WptBoard):
         self.info_frame.pack(side='bottom', anchor='sw', expand=0, fill='x')
 
         #image
+        self.__img_label = None
+        self.__img_sz = (img_w, img_h) = (600, 450)
         if self._hasPicWpt():
-            self.__img_sz = (img_w, img_h) = (600, 450)
             self.__img_label = tk.Label(self, anchor='n', width=img_w, height=img_h, bg='black')
             self.__img_label.pack(side='top', anchor='nw', expand=1, fill='both', padx=0, pady=0)
+
+        self.bind('<Configure>', self.onResize)
 
         #set wpt
         if wpt is None:
@@ -799,6 +802,14 @@ class WptSingleBoard(WptBoard):
 
         #wait
         self.wait_window(self)
+
+    def onResize(self, e):
+        if e.widget == self.__img_label:
+            img_w = self.__img_label.image.width()
+            img_h = self.__img_label.image.height()
+            if e.width < img_w or e.height < img_h or (e.width > img_w and e.height > img_h):
+                print('need to zomm image')
+                self.setWptImg(self._curr_wpt, (e.width, e.height))
 
     def onWptSelected(self, inc):
         idx = self._wpt_list.index(self._curr_wpt) + inc
@@ -849,6 +860,13 @@ class WptSingleBoard(WptBoard):
         self.__icon_label.image = icon
         self.__icon_label.config(image=icon, text=wpt.sym, compound='right')
 
+    def setWptImg(self, wpt, size):
+        if self.__img_label is not None:
+            img = getAspectResize(wpt.img, size) if isinstance(wpt, PicDocument) else getTextImag("(No Pic)", size)
+            img = ImageTk.PhotoImage(img)
+            self.__img_label.config(image=img)
+            self.__img_label.image = img #keep a ref
+
     def setCurrWpt(self, wpt):
         if self._curr_wpt != wpt:
             #self.unhighlightWpt(slef._curr_wpt) #can skip, due to followd by highlight
@@ -860,12 +878,7 @@ class WptSingleBoard(WptBoard):
         self.title(wpt.name)
 
         #set imgae
-        if self._hasPicWpt():
-            size = self.__img_sz
-            img = getAspectResize(wpt.img, size) if isinstance(wpt, PicDocument) else getTextImag("(No Pic)", size)
-            img = ImageTk.PhotoImage(img)
-            self.__img_label.config(image=img)
-            self.__img_label.image = img #keep a ref
+        self.setWptImg(wpt, self.__img_sz)
 
         #info
         self.showWptIcon(wpt)
