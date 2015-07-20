@@ -194,6 +194,7 @@ class DispBoard(tk.Frame):
     def onEditTrk(self, trk=None):
         trk_list = self.map_ctrl.getAllTrks()
         trk_board = TrkBoard(self, trk_list, trk)
+        self.__is_changed = self.__is_changed or trk_board.is_changed
 
     def onEditWpt(self, mode, wpt=None):
         wpt_list = self.map_ctrl.getAllWpts()
@@ -1013,6 +1014,9 @@ class WptListBoard(WptBoard):
 
 
 class TrkBoard(tk.Toplevel):
+    @property
+    def is_changed(self): return self._is_changed
+
     def __init__(self, master, trk_list, trk=None):
         super().__init__(master)
 
@@ -1066,6 +1070,13 @@ class TrkBoard(tk.Toplevel):
             self.__curr_trk.name = name
             self._is_changed = True
 
+    def onColorChanged(self, *args):
+        color = self._var_color.get()
+        if self.__curr_trk.color != color:
+            self.__curr_trk.color = color
+            self._is_changed = True
+            self.master.resetMap()
+
     def getInfoFrame(self):
         font = 'Arialuni 12'
         bold_font = 'Arialuni 12 bold'
@@ -1083,6 +1094,7 @@ class TrkBoard(tk.Toplevel):
         #trk color
         tk.Label(frame, text="Color", font=bold_font).grid(row=1, column=0, sticky='e')
         self._var_color = tk.StringVar()
+        self._var_color.trace('w', self.onColorChanged)
         tk.Entry(frame, font=font, textvariable=self._var_color).grid(row=1, column=1, sticky='w')
 
         return frame
