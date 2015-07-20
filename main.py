@@ -152,13 +152,17 @@ class DispBoard(tk.Frame):
         if fpath is None or fpath == "":
             return False
 
+        #gen gpx faile
         doc = GpsDocument()
         for gpx in self.map_ctrl.gpx_layers:
             doc.merge(gpx)
         for wpt in self.map_ctrl.pic_layers:
             doc.addWpt(wpt)
 
+        #save
         doc.save(fpath)
+        self.__is_changed = False
+
         return True
 
     def onNumberWpt(self, name=None, time=None):
