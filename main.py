@@ -711,6 +711,7 @@ class WptBoard(tk.Toplevel):
 
         next_wpt = self._getNextWpt()
         self._wpt_list.remove(self._curr_wpt)
+        self._is_changed = True
         if next_wpt == None:
             self.onClosed()
         else:
@@ -742,7 +743,9 @@ class WptBoard(tk.Toplevel):
         self.master.highlightWpt(wpt)
 
     def unhighlightWpt(self, wpt):
-        if wpt in self._wpt_list:  #if not deleted
+        if self.is_changed:
+            self.master.resetMap(wpt)
+        else:
             self.master.restore()
 
     def _getWptPos(self, wpt):
@@ -869,7 +872,7 @@ class WptSingleBoard(WptBoard):
 
     def setCurrWpt(self, wpt):
         if self._curr_wpt != wpt:
-            #self.unhighlightWpt(slef._curr_wpt) #can skip, due to followd by highlight
+            self.unhighlightWpt(self._curr_wpt)
             self.highlightWpt(wpt)
 
         self._curr_wpt = wpt
