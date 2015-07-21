@@ -870,9 +870,9 @@ class WptSingleBoard(WptBoard):
         #info
         self.showWptIcon(wpt)
         self._var_name.set(wpt.name)   #this have side effect to set symbol icon
-        self._var_pos.set(conf.getWptPosText(wpt))
-        self._var_ele.set(conf.getWptEleText(wpt))
-        self._var_time.set(conf.getWptTimeText(wpt))
+        self._var_pos.set(conf.getPtPosText(wpt))
+        self._var_ele.set(conf.getPtEleText(wpt))
+        self._var_time.set(conf.getPtTimeText(wpt))
 
         #button state
         if self._wpt_list is not None:
@@ -928,16 +928,16 @@ class WptListBoard(WptBoard):
             name_label.bind('<Motion>', on_motion)
             name_label.grid(row=row, column=1, sticky='news')
 
-            pos_txt = conf.getWptPosText(w, fmt='%.3f\n%.3f')
+            pos_txt = conf.getPtPosText(w, fmt='%.3f\n%.3f')
             pos_label = tk.Label(frame, text=pos_txt, font=font)
             pos_label.bind('<Motion>', on_motion)
             pos_label.grid(row=row, column=2, sticky='news')
 
-            ele_label = tk.Label(frame, text=conf.getWptEleText(w), font=font)
+            ele_label = tk.Label(frame, text=conf.getPtEleText(w), font=font)
             ele_label.bind('<Motion>', on_motion)
             ele_label.grid(row=row, column=3, sticky='news')
 
-            time_label = tk.Label(frame, text=conf.getWptTimeText(w), font=font)
+            time_label = tk.Label(frame, text=conf.getPtTimeText(w), font=font)
             time_label.bind('<Motion>', on_motion)
             time_label.grid(row=row, column=4, sticky='news')
 
@@ -1102,9 +1102,9 @@ class TrkBoard(tk.Toplevel):
         self.pt_list.delete(0, 'end')
         for pt in trk:
             txt = "%s: %s, %s" % (
-                        conf.getWptTimeText(pt),
-                        conf.getWptPosText(pt),
-                        conf.getWptEleText(pt))
+                        conf.getPtTimeText(pt),
+                        conf.getPtPosText(pt),
+                        conf.getPtEleText(pt))
             self.pt_list.insert('end', txt)
 
 
