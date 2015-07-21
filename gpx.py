@@ -349,25 +349,13 @@ class TrackPoint:
         self.__geo.level = level
         return (self.__geo.px, self.__geo.py)
 
-class WayPoint:
-    @property
-    def lat(self): return self.__geo.lat
-    @property
-    def lon(self): return self.__geo.lon
-
+class WayPoint(TrackPoint):
     def __init__(self, lat, lon):
-        self.__geo = GeoPoint(lat=lat, lon=lon)
-        self.ele = 0.0
-        self.time = None
+        super().__init__(lat, lon)
         self.name = ""
         self.desc = ""
         self.cmt = ""
         self.sym = ""
-
-    def getPixel(self, level):
-        self.__geo.level = level
-        return (self.__geo.px, self.__geo.py)
-
 
 if __name__ == '__main__':
     #gpx = GpsDocument("bak/2015_0101-04.gpx")
