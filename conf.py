@@ -5,6 +5,7 @@ from os import path
 from PIL import ImageFont, Image
 from sym import SymbolRules
 from datetime import timedelta
+from coord import CoordinateSystem
 
 #constance
 def __readConfig(conf_path):
@@ -56,4 +57,25 @@ def __getIconPath(sym):
         if sym == name.lower():
             return path.join(ICON_DIR, f)
     return None
+
+def _getWptPos(wpt):
+    x_tm2_97, y_tm2_97 = CoordinateSystem.TWD97_LatLonToTWD97_TM2(wpt.lat, wpt.lon)
+    x_tm2_67, y_tm2_67 = CoordinateSystem.TWD97_TM2ToTWD67_TM2(x_tm2_97, y_tm2_97)
+    return (x_tm2_67, y_tm2_67)
+
+def getWptPosText(wpt, fmt='(%.3f, %.3f)'):
+    x, y = _getWptPos(wpt)
+    text = fmt % (x/1000, y/1000)
+    return text
+
+def getWptEleText(wpt):
+    if wpt is not None and wpt.ele is not None:
+        return "%.1f m" % (wpt.ele) 
+    return "N/A"
+
+def getWptTimeText(wpt):
+    if wpt is not None and wpt.time is not None:
+        time = wpt.time + TZ
+        return  time.strftime("%Y-%m-%d %H:%M:%S")
+    return "N/A"
 

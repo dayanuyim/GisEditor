@@ -753,27 +753,6 @@ class WptBoard(tk.Toplevel):
         else:
             self.master.restore()
 
-    def _getWptPos(self, wpt):
-        x_tm2_97, y_tm2_97 = CoordinateSystem.TWD97_LatLonToTWD97_TM2(wpt.lat, wpt.lon)
-        x_tm2_67, y_tm2_67 = CoordinateSystem.TWD97_TM2ToTWD67_TM2(x_tm2_97, y_tm2_97)
-        return (x_tm2_67, y_tm2_67)
-
-    def getWptPosText(self, wpt, fmt='(%.3f, %.3f)'):
-        x, y = self._getWptPos(wpt)
-        text = fmt % (x/1000, y/1000)
-        return text
-
-    def getWptEleText(self, wpt):
-        if wpt is not None and wpt.ele is not None:
-            return "%.1f m" % (wpt.ele) 
-        return "N/A"
-
-    def getWptTimeText(self, wpt):
-        if wpt is not None and wpt.time is not None:
-            time = wpt.time + conf.TZ
-            return  time.strftime("%Y-%m-%d %H:%M:%S")
-        return "N/A"
-
     def showWptIcon(self, wpt):
         pass
 
@@ -891,9 +870,9 @@ class WptSingleBoard(WptBoard):
         #info
         self.showWptIcon(wpt)
         self._var_name.set(wpt.name)   #this have side effect to set symbol icon
-        self._var_pos.set(self.getWptPosText(wpt))
-        self._var_ele.set(self.getWptEleText(wpt))
-        self._var_time.set(self.getWptTimeText(wpt))
+        self._var_pos.set(conf.getWptPosText(wpt))
+        self._var_ele.set(conf.getWptEleText(wpt))
+        self._var_time.set(conf.getWptTimeText(wpt))
 
         #button state
         if self._wpt_list is not None:
@@ -949,16 +928,16 @@ class WptListBoard(WptBoard):
             name_label.bind('<Motion>', on_motion)
             name_label.grid(row=row, column=1, sticky='news')
 
-            pos_txt = self.getWptPosText(w, fmt='%.3f\n%.3f')
+            pos_txt = conf.getWptPosText(w, fmt='%.3f\n%.3f')
             pos_label = tk.Label(frame, text=pos_txt, font=font)
             pos_label.bind('<Motion>', on_motion)
             pos_label.grid(row=row, column=2, sticky='news')
 
-            ele_label = tk.Label(frame, text=self.getWptEleText(w), font=font)
+            ele_label = tk.Label(frame, text=conf.getWptEleText(w), font=font)
             ele_label.bind('<Motion>', on_motion)
             ele_label.grid(row=row, column=3, sticky='news')
 
-            time_label = tk.Label(frame, text=self.getWptTimeText(w), font=font)
+            time_label = tk.Label(frame, text=conf.getWptTimeText(w), font=font)
             time_label.bind('<Motion>', on_motion)
             time_label.grid(row=row, column=4, sticky='news')
 
@@ -1028,7 +1007,7 @@ class TrkBoard(tk.Toplevel):
         self._is_changed = False
 
         #board
-        self.geometry('+100+100')
+        self.geometry('+0+0')
         self.bind('<Escape>', self.onClosed)
         self.protocol('WM_DELETE_WINDOW', lambda: self.onClosed(None))
 
@@ -1041,6 +1020,10 @@ class TrkBoard(tk.Toplevel):
         #info
         self.info_frame = self.getInfoFrame()
         self.info_frame.pack(side='top', anchor='nw', expand=0, fill='x')
+
+        #pt list
+        self.pt_list = tk.Listbox(self, selectmode='extended', width=43, height=30)
+        self.pt_list.pack(side='bottom', anchor='sw', expand=1, fill='both')
 
         #set trk
         if trk is not None:
@@ -1114,6 +1097,16 @@ class TrkBoard(tk.Toplevel):
         sz = len(self.__trk_list)
         self.__left_btn.config(state=('disabled' if idx == 0 else 'normal'))
         self.__right_btn.config(state=('disabled' if idx == sz-1 else 'normal'))
+
+        #pt
+        self.pt_list.delete(0, 'end')
+        for pt in trk:
+            txt = "%s: %s, %s" % (
+                        conf.getWptTimeText(pt),
+                        conf.getWptPosText(pt),
+                        conf.getWptEleText(pt))
+            self.pt_list.insert('end', txt)
+
 
 def getAspectResize(img, size):
     dst_w, dst_h = size
@@ -1215,7 +1208,7 @@ if __name__ == '__main__':
     #create window
     root = tk.Tk()
     root.title("PicGisEditor")
-    root.geometry('800x600')
+    root.geometry('800x600+400+0')
 
     pad_ = 2
     disp_board = DispBoard(root)
