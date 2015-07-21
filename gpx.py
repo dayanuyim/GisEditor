@@ -322,17 +322,29 @@ class Track:
 
     def __init__(self):
         self.__trkseg = []
-        self.name = None
-        self.color = None
+        self.name = ''
+        self.color = 'DarkMagenta'
 
     def __iter__(self):
         return iter(self.__trkseg)
+
+    def __getitem__(self, idx):
+        return self.__trkseg[idx]
+
+    def __setitem__(self, idx, val):
+        self.__trkseg[idx] = value
+
+    def __delitem__(self, idx):
+        del self.__trkseg[idx]
 
     def __len__(self):
         return len(self.__trkseg)
 
     def addTrackPoint(self, pt):
         self.__trkseg.append(pt)
+
+    def remove(self, pt):
+        self.__trkseg.remove(pt)
 
 class TrackPoint:
     @property

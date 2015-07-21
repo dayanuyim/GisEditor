@@ -252,6 +252,18 @@ class DispBoard(tk.Frame):
         #set
         self.__setMap(img)
 
+    def highlightTrk(self, pts):
+        if pts is None or len(pts) == 0:
+            return
+
+        c = self.map_ctrl
+        img = self.__img.copy()
+        img_attr = ImageAttr(c.level, c.px, c.py, c.px + img.size[0], c.py + img.size[1])
+        c.drawTrkPoint(img, img_attr, pts, 'orange', 'black', width=8)
+
+        #set
+        self.__setMap(img)
+
     def onDeleteWpt(self):
         wpt = self.__focused_wpt
         self.__focused_wpt = None
@@ -485,15 +497,45 @@ class MapController:
             #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw gpx...")
             for trk in gpx.tracks:
                 if self.isTrackInImage(trk, img_attr):
-                    xy = []
-                    for pt in trk:
-                        (px, py) = pt.getPixel(img_attr.level)
-                        xy.append(px - img_attr.left_px)
-                        xy.append(py - img_attr.up_py)
-                    draw.line(xy, fill=trk.color, width=2)
+                    self.drawTrkPoint(img, img_attr, trk, trk.color, draw=draw)
 
         #recycle draw object
         del draw
+
+    def drawTrkPoint(self, img, img_attr, pts, color, bg_color=None, draw=None, width=2):
+        if pts is None or len(pts) == 0:
+            return
+
+        bg_width = width + 4
+        _draw = draw if draw is not None else ImageDraw.Draw(img)
+
+        if len(pts) == 1:
+            #print('draw trk point')
+            (px, py) = pts[0].getPixel(img_attr.level)
+            px -= img_attr.left_px
+            py -= img_attr.up_py
+
+            #r = int(bg_width/2)
+            #_draw.ellipse((px-r, py-r, px+r, py+r), fill=bg_color)
+
+            r = int(width/2)
+            _draw.ellipse((px-r, py-r, px+r, py+r), fill=color, outline=bg_color)
+        else:
+            #print('draw trk seg')
+            xy = []
+            for pt in pts:
+                (px, py) = pt.getPixel(img_attr.level)
+                xy.append(px - img_attr.left_px)
+                xy.append(py - img_attr.up_py)
+
+            if bg_color is not None:
+                _draw.line(xy, fill=bg_color, width=width+4)
+
+            _draw.line(xy, fill=color, width=width)
+
+        if draw is None:
+            del _draw
+
 
     def isTrackInImage(self, trk, img_attr):
         #if some track point is in disp
@@ -1002,9 +1044,12 @@ class TrkBoard(tk.Toplevel):
         if trk is not None and trk not in trk_list:
             raise ValueError('trk is not in trk_list')
 
-        self.__curr_trk = None
-        self.__trk_list = trk_list
+        self._curr_trk = None
+        self._trk_list = trk_list
         self._is_changed = False
+        self._sel_idx = None
+        self._var_focus = tk.BooleanVar()
+        self._var_focus.trace('w', self.onFocus)
 
         #board
         self.geometry('+0+0')
@@ -1021,9 +1066,19 @@ class TrkBoard(tk.Toplevel):
         self.info_frame = self.getInfoFrame()
         self.info_frame.pack(side='top', anchor='nw', expand=0, fill='x')
 
+        tk.Checkbutton(self, text='Focus Track point', anchor='e', variable=self._var_focus).pack(side='bottom', expand=0, fill='x')
+
         #pt list
-        self.pt_list = tk.Listbox(self, selectmode='extended', width=43, height=30)
-        self.pt_list.pack(side='bottom', anchor='sw', expand=1, fill='both')
+        self.pt_list = tk.Listbox(self)
+        pt_scroll = tk.Scrollbar(self, orient='vertical')
+        pt_scroll.config(command=self.pt_list.yview)
+        pt_scroll.pack(side='right', fill='y')
+        self.pt_list.config(selectmode='extended', yscrollcommand=pt_scroll.set, width=43, height=30)
+        self.pt_list.pack(side='left', anchor='nw', expand=1, fill='both')
+        self.pt_list.bind('<ButtonRelease-1>', self.onPtSelected)
+        self.pt_list.bind('<Down>', self.onPtSelected)
+        self.pt_list.bind('<Delete>', self.onPtDeleted)
+
 
         #set trk
         if trk is not None:
@@ -1031,34 +1086,13 @@ class TrkBoard(tk.Toplevel):
         elif len(trk_list) > 0:
             self.setCurrTrk(trk_list[0])
 
+        #self.poll() # start polling the list
+
         #show as dialog
         self.transient()
         self.focus_set()
         self.grab_set()
         self.wait_window(self)
-
-    def onClosed(self, e=None):
-        self.master.focus_set()
-        self.destroy()
-
-    def onSelected(self, inc):
-        idx = self.__trk_list.index(self.__curr_trk) + inc
-        if idx >= 0 and idx < len(self.__trk_list):
-            self.setCurrTrk(self.__trk_list[idx])
-
-    def onNameChanged(self, *args):
-        #print('change to', self._var_name.get())
-        name = self._var_name.get()
-        if self.__curr_trk.name != name:
-            self.__curr_trk.name = name
-            self._is_changed = True
-
-    def onColorChanged(self, *args):
-        color = self._var_color.get()
-        if self.__curr_trk.color != color:
-            self.__curr_trk.color = color
-            self._is_changed = True
-            self.master.resetMap()
 
     def getInfoFrame(self):
         font = 'Arialuni 12'
@@ -1080,10 +1114,69 @@ class TrkBoard(tk.Toplevel):
         self._var_color.trace('w', self.onColorChanged)
         tk.Entry(frame, font=font, textvariable=self._var_color).grid(row=1, column=1, sticky='w')
 
+        #tk.Checkbutton(frame, text='Focus Track point', variable=self._var_focus).grid(row=2, column=1, sticky='w')
+
         return frame
+
+    def onClosed(self, e=None):
+        self.master.focus_set()
+        self.destroy()
+
+    def onSelected(self, inc):
+        idx = self._trk_list.index(self._curr_trk) + inc
+        if idx >= 0 and idx < len(self._trk_list):
+            self.setCurrTrk(self._trk_list[idx])
+
+    def onNameChanged(self, *args):
+        #print('change to', self._var_name.get())
+        name = self._var_name.get()
+        if self._curr_trk.name != name:
+            self._curr_trk.name = name
+            self._is_changed = True
+
+    def onColorChanged(self, *args):
+        color = self._var_color.get()
+        if self._curr_trk.color != color:
+            self._curr_trk.color = color
+            self._is_changed = True
+            self.master.resetMap()
+
+    def onFocus(self, *args):
+        is_focus = self._var_focus.get()
+        if self._sel_idx is not None:
+            pts = [self._curr_trk[i] for i in self._sel_idx]
+            self.highlightTrk(pts)
+
+    def onPtSelected(self, e):
+        idx = self.pt_list.curselection()
+        if self._sel_idx != idx:
+            self._sel_idx = idx
+            pts = [e.widget.data[i] for i in idx]  #index of pts -> pts
+            self.highlightTrk(pts)
+
+    def onPtDeleted(self, e):
+        if self._sel_idx is not None:
+            idx = sorted(self._sel_idx, reverse=True)
+            self._sel_idx = None
+            self._is_changed = True
+
+            #Todo: may improve by deleting range.
+            for i in idx:
+                self.pt_list.delete(i)
+                del self._curr_trk[i]
+
+            #Todo: not work!
+            self.master.resetMap()
+
+    def highlightTrk(self, pts):
+        if self._var_focus.get():
+            self.master.resetMap(pts[0])
+        self.master.restore()
+        self.master.highlightTrk(pts)
+
         
     def setCurrTrk(self, trk):
-        self.__curr_trk = trk
+        self._curr_trk = trk
 
         #title
         self.title(trk.name)
@@ -1093,18 +1186,18 @@ class TrkBoard(tk.Toplevel):
         self._var_color.set(trk.color)
 
         #button state
-        idx = self.__trk_list.index(trk)
-        sz = len(self.__trk_list)
+        idx = self._trk_list.index(trk)
+        sz = len(self._trk_list)
         self.__left_btn.config(state=('disabled' if idx == 0 else 'normal'))
         self.__right_btn.config(state=('disabled' if idx == sz-1 else 'normal'))
 
         #pt
         self.pt_list.delete(0, 'end')
+        self.pt_list.data = trk
+        sn = 0
         for pt in trk:
-            txt = "%s: %s, %s" % (
-                        conf.getPtTimeText(pt),
-                        conf.getPtPosText(pt),
-                        conf.getPtEleText(pt))
+            sn += 1
+            txt = "#%04d  %s: %s, %s" % ( sn, conf.getPtTimeText(pt), conf.getPtPosText(pt), conf.getPtEleText(pt))
             self.pt_list.insert('end', txt)
 
 
