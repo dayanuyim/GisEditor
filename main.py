@@ -25,19 +25,22 @@ from pic import PicDocument
 
 class DispBoard(tk.Frame):
     @property
-    def is_changed(self): return self.__is_changed
+    def is_alter(self): return self.__alter_time is not None
+
+    @property
+    def alter_time(self): return self.__alter_time
 
     def __init__(self, master):
         super().__init__(master)
 
-        self.map_ctrl = MapController()
+        self.map_ctrl = MapController(self)
 
         #board
         self.bg_color='#D0D0D0'
         self.config(bg=self.bg_color)
         self.__focused_wpt = None
         self.__img = None         #buffer disp image for restore map
-        self.__is_changed = False
+        self.__alter_time = None
 
         #info
         self.info_label = tk.Label(self, font='24', anchor='w', bg=self.bg_color)
@@ -162,7 +165,7 @@ class DispBoard(tk.Frame):
 
         #save
         doc.save(fpath)
-        self.__is_changed = False
+        self.__alter_time = None
 
         return True
 
@@ -195,7 +198,8 @@ class DispBoard(tk.Frame):
     def onEditTrk(self, trk=None):
         trk_list = self.map_ctrl.getAllTrks()
         trk_board = TrkBoard(self, trk_list, trk)
-        self.__is_changed = self.__is_changed or trk_board.is_changed
+        trk_board.addAlteredHandler(self.resetAlterTime)
+        trk_board.show()
 
     def onEditWpt(self, mode, wpt=None):
         wpt_list = self.map_ctrl.getAllWpts()
@@ -206,8 +210,13 @@ class DispBoard(tk.Frame):
         else:
             raise ValueError("WptBoade only supports mode: 'single' and 'list'")
 
-        self.__is_changed = self.__is_changed or wpt_board.is_changed
+        wpt_board.addAlteredHandler(self.resetAlterTime)
+        wpt_board.show()
         self.__focused_wpt = None
+
+    def resetAlterTime(self):
+        self.__alter_time = datetime.now()
+
     #}} 
 
 
@@ -351,16 +360,17 @@ class MapController:
     @level.setter
     def level(self, v): self.__geo.level = v
 
-    def __init__(self):
+    def __init__(self, parent):
         #def settings
+        self.__parent = parent
         self.__tile_map = tile.getTM25Kv3TileMap(cache_dir=conf.CACHE_DIR)
         self.__geo = GeoPoint(lon=121.334754, lat=24.987969)  #default location
         self.__geo.level = 14
 
         #image
-        self.disp_img = None
-        self.disp_attr = None
-        self.extra_p = 256
+        self.__cache_basemap = None
+        self.__cache_attr = None
+        self.extra_p = 128
         self.pt_size = 3
         self.__font = conf.IMG_FONT
         self.hide_txt = False
@@ -411,43 +421,87 @@ class MapController:
         if wpt in self.pic_layers:
                 self.pic_layers.remove(wpt)
 
-    def getTileImage(self, width, height):
+    #old version for ref
+    def ___getTileImage(self, width, height):
 
         #The image attributes with which we want to create a image compatible.
         img_attr = ImageAttr(self.level, self.px, self.py, self.px + width, self.py + height)
 
         print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: begin")
         #gen new map if need
-        if self.disp_attr is None or not self.disp_attr.containsImgae(img_attr):
+        if self.__cache_attr is None or not self.__cache_attr.containsImgae(img_attr):
             print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  gen base map")
-            (self.disp_img, self.disp_attr) = self.__genBaseMap(img_attr)
+            (self.__cache_basemap, self.__cache_attr) = self.__genBaseMap(img_attr)
 
-        #crop by width/height
-        print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  crop map")
-        img = self.__getCropMap(img_attr)
         print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw trk")
         self.__drawTrk(img, img_attr)
         print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw wpt")
         self.__drawWpt(img, img_attr)
+
+        print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  crop map")
+        img = self.__getCropMap(img_attr)
         print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw coord")
         self.__drawTM2Coord(img, img_attr)
         print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: done")
         return img
 
-    def __genBaseMap(self, img_attr):
-        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen base map...")
+    def getTileImage(self, width, height):
+        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: begin")
+
+        #The image attributes with which we want to create a image compatible.
+        req_attr = ImageAttr(self.level, self.px, self.py, self.px + width, self.py + height)
+        img, attr = self.__genGpsMap(req_attr)
+
+        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  crop map")
+        img = self.__genCropMap(img, attr, req_attr)
+        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw coord")
+        self.__drawTM2Coord(img, req_attr)
+
+        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: done")
+        return img
+
+    def __isCacheValid(self, cache_img):
+        return self.__parent.alter_time is None or cache_img.time > self.__parent.alter_time
+
+    def __isCacheContains(self, img_attr):
+        return self.__cache_attr is not None and self.__cache_attr.containsImgae(img_attr)
+
+    def __genGpsMap(self, req_attr):
+        if self.__isCacheContains(req_attr) and self.__isCacheValid(self.__cache_gpsmap):
+            return (self.__cache_gpsmap, self.__cache_attr)
+
+        img, attr = self.__genBaseMap(req_attr)
+        img = img.copy()   #copy
+        img.time = datetime.now()
+
+        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw trk")
+        self.__drawTrk(img, attr)
+        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw wpt")
+        self.__drawWpt(img, attr)
+
+        self.__cache_gpsmap = img  #save copy as cache
+        return img, attr
+
+    def __genBaseMap(self, req_attr):
+        if self.__isCacheContains(req_attr):
+            return (self.__cache_basemap, self.__cache_attr)
+
+        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  gen base map")
         level_max = self.__tile_map.level_max
         level_min = self.__tile_map.level_min
-        level = max(self.__tile_map.level_min, min(img_attr.level, self.__tile_map.level_max))
+        level = max(self.__tile_map.level_min, min(req_attr.level, self.__tile_map.level_max))
 
-        if img_attr.level == level:
-            return self.__genTileMap(img_attr, self.extra_p)
+        if req_attr.level == level:
+            tile_map = self.__genTileMap(req_attr, self.extra_p)
         else:
-            zoom_attr = img_attr.zoomToLevel(level)
-            extra_p = self.extra_p * 2**(level - img_attr.level)
+            zoom_attr = req_attr.zoomToLevel(level)
+            extra_p = self.extra_p * 2**(level - req_attr.level)
 
             (img, attr) = self.__genTileMap(zoom_attr, extra_p)
-            return self.__zoomImage(img, attr, img_attr.level)
+            tile_map = self.__zoomImage(img, attr, req_attr.level)
+
+        self.__cache_basemap, self.__cache_attr = tile_map  #cache
+        return tile_map
 
     def __zoomImage(self, img, attr, level):
         s = level - attr.level
@@ -606,14 +660,12 @@ class MapController:
             del _draw
 
 
-    def __getCropMap(self, img_attr):
-        disp = self.disp_attr
-
-        left  = img_attr.left_px - disp.left_px
-        up    = img_attr.up_py - disp.up_py
-        right = img_attr.right_px - disp.left_px
-        low   = img_attr.low_py - disp.up_py
-        return self.disp_img.crop((left, up, right, low))
+    def __genCropMap(self, img, src_attr, dst_attr):
+        left  = dst_attr.left_px - src_attr.left_px
+        up    = dst_attr.up_py - src_attr.up_py
+        right = dst_attr.right_px - src_attr.left_px
+        low   = dst_attr.low_py - src_attr.up_py
+        return img.crop((left, up, right, low))
 
     def __drawTM2Coord(self, img, attr):
 
@@ -693,9 +745,6 @@ class ImageAttr:
             return self
 
 class WptBoard(tk.Toplevel):
-    @property
-    def is_changed(self): return self._is_changed
-
     def __init__(self, master, wpt_list, wpt=None):
         super().__init__(master)
 
@@ -715,7 +764,7 @@ class WptBoard(tk.Toplevel):
         self._title_ele = "Elevation"
         self._title_time = "Time"
         self._title_focus = "Focus"
-        self._is_changed = False
+        self._altered_handlers = []
 
         #board
         self.geometry('+0+0')
@@ -731,10 +780,11 @@ class WptBoard(tk.Toplevel):
         self._var_name = tk.StringVar()
         self._var_name.trace('w', self.onNameChanged)
 
-        #show as dialog
+    def show(self):
         self.transient()
         self.focus_set()
         self.grab_set()
+        self.wait_window(self)
 
     def _hasPicWpt(self):
         for wpt in self._wpt_list:
@@ -749,6 +799,16 @@ class WptBoard(tk.Toplevel):
         idx = self._wpt_list.index(self._curr_wpt)
         idx += 1 if idx != sz-1 else -1
         return self._wpt_list[idx]
+
+    def addAlteredHandler(self, h):
+        self._altered_handlers.append(h)
+
+    def removeAlteredHandler(self, h):
+        self._altered_handlers.remove(h)
+
+    def onAltered(self):
+        for handler in self._altered_handlers:
+            handler()
         
     def onClosed(self, e=None):
         #reset or restore map
@@ -761,7 +821,7 @@ class WptBoard(tk.Toplevel):
 
         next_wpt = self._getNextWpt()
         self._wpt_list.remove(self._curr_wpt)
-        self._is_changed = True
+        self.onAltered()
         if next_wpt == None:
             self.onClosed()
         else:
@@ -776,7 +836,7 @@ class WptBoard(tk.Toplevel):
             self.showWptIcon(self._curr_wpt)
             self.highlightWpt(self._curr_wpt)
             #update status
-            self._is_changed = True
+            self.onAltered()
 
     def onFocusChanged(self, *args):
         self.highlightWpt(self._curr_wpt)
@@ -1038,9 +1098,6 @@ class WptListBoard(WptBoard):
 
 
 class TrkBoard(tk.Toplevel):
-    @property
-    def is_changed(self): return self._is_changed
-
     def __init__(self, master, trk_list, trk=None):
         super().__init__(master)
 
@@ -1049,7 +1106,7 @@ class TrkBoard(tk.Toplevel):
 
         self._curr_trk = None
         self._trk_list = trk_list
-        self._is_changed = False
+        self._altered_handlers = []
         self._sel_idx = None
         self._var_focus = tk.BooleanVar()
         self._var_focus.trace('w', self.onFocus)
@@ -1091,7 +1148,7 @@ class TrkBoard(tk.Toplevel):
 
         #self.poll() # start polling the list
 
-        #show as dialog
+    def show(self):
         self.transient()
         self.focus_set()
         self.grab_set()
@@ -1121,6 +1178,16 @@ class TrkBoard(tk.Toplevel):
 
         return frame
 
+    def addAlteredHandler(self, h):
+        self._altered_handlers.append(h)
+
+    def removeAlteredHandler(self, h):
+        self._altered_handlers.remove(h)
+
+    def onAltered(self):
+        for handler in self._altered_handlers:
+            handler()
+
     def onClosed(self, e=None):
         self.master.focus_set()
         self.destroy()
@@ -1135,13 +1202,13 @@ class TrkBoard(tk.Toplevel):
         name = self._var_name.get()
         if self._curr_trk.name != name:
             self._curr_trk.name = name
-            self._is_changed = True
+            self.onAltered()
 
     def onColorChanged(self, *args):
         color = self._var_color.get()
         if self._curr_trk.color != color:
             self._curr_trk.color = color
-            self._is_changed = True
+            self.onAltered()
             self.master.resetMap()
 
     def onFocus(self, *args):
@@ -1161,13 +1228,13 @@ class TrkBoard(tk.Toplevel):
         if self._sel_idx is not None:
             idx = sorted(self._sel_idx, reverse=True)
             self._sel_idx = None
-            self._is_changed = True
 
             #Todo: may improve by deleting range.
             for i in idx:
                 self.pt_list.delete(i)
                 del self._curr_trk[i]
 
+            self.onAltered()
             self.master.resetMap()
 
     def highlightTrk(self, pts):
@@ -1287,7 +1354,7 @@ def __readFiles(paths, gps_path, pic_path):
 
 def isExit(disp_board):
 
-    if not disp_board.is_changed:
+    if not disp_board.is_alter:
         return True
 
     ans = messagebox.askquestion('Save before Exit', 'Do you want to save file?', type='yesnocancel')
