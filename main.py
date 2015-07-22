@@ -421,16 +421,16 @@ class MapController:
         if self.disp_attr is None or not self.disp_attr.containsImgae(img_attr):
             print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  gen base map")
             (self.disp_img, self.disp_attr) = self.__genBaseMap(img_attr)
-            print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw trk")
-            self.__drawTrk(self.disp_img, self.disp_attr)
 
         #crop by width/height
         print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  crop map")
         img = self.__getCropMap(img_attr)
-        print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw coord")
-        self.__drawTM2Coord(img, img_attr)
+        print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw trk")
+        self.__drawTrk(img, img_attr)
         print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw wpt")
         self.__drawWpt(img, img_attr)
+        print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw coord")
+        self.__drawTM2Coord(img, img_attr)
         print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: done")
         return img
 
@@ -1168,7 +1168,6 @@ class TrkBoard(tk.Toplevel):
                 self.pt_list.delete(i)
                 del self._curr_trk[i]
 
-            #Todo: not work!
             self.master.resetMap()
 
     def highlightTrk(self, pts):
