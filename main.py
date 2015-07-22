@@ -1286,12 +1286,18 @@ def __readFiles(paths, gps_path, pic_path):
             gps_path.append(path)
 
 def isExit(disp_board):
+
     if not disp_board.is_changed:
         return True
-    if not messagebox.askyesno('Save before Exit', 'Do you want to save file?'):
+
+    ans = messagebox.askquestion('Save before Exit', 'Do you want to save file?', type='yesnocancel')
+    if ans == 'yes' and disp_board.onGpxSave():
         return True
-    if disp_board.onGpxSave():
+    if ans == 'no':
         return True
+    elif ans == 'cancel':
+        return False
+
     return False
 
 def onExit(root, disp_board):
