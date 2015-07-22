@@ -275,6 +275,7 @@ class DispBoard(tk.Frame):
         
     def deleteWpt(self, wpt):
         if wpt is not None:
+            self.__alter_time = datetime.now()
             self.map_ctrl.deleteWpt(wpt)
             self.resetMap()
 
@@ -828,10 +829,10 @@ class WptBoard(tk.Toplevel):
 
     def onDeleted(self, e):
         self.master.deleteWpt(self._curr_wpt)
+        self.onAltered()
 
         next_wpt = self._getNextWpt()
         self._wpt_list.remove(self._curr_wpt)
-        self.onAltered()
         if next_wpt == None:
             self.onClosed()
         else:
