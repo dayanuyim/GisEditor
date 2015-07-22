@@ -45,9 +45,9 @@ class DispBoard(tk.Frame):
         self.info_label.pack(expand=0, fill='x', anchor='n')
 
         #display area
-        self.__init_w= 800
-        self.__init_h = 600
-        self.disp_label = tk.Label(self, width=self.__init_w, height=self.__init_h, bg='#808080')
+        self.__init_w= 800  #deprecated
+        self.__init_h = 600  #deprecated
+        self.disp_label = tk.Label(self, bg='#808080')
         self.disp_label.pack(expand=1, fill='both', anchor='n')
         self.disp_label.bind('<MouseWheel>', self.onMouseWheel)
         self.disp_label.bind('<Motion>', self.onMotion)
@@ -86,8 +86,9 @@ class DispBoard(tk.Frame):
     def addPic(self, pic):
         self.map_ctrl.addPicLayer(pic)
 
+    #deprecated
     def initDisp(self):
-        #print('initDisp', self.winfo_width(), self.winfo_height())
+        print('initDisp', self.winfo_width(), self.winfo_height())
         pt = self.__getPrefGeoPt()
         disp_w = self.__init_w
         disp_h = self.__init_h
@@ -280,10 +281,15 @@ class DispBoard(tk.Frame):
         #clear lat/lon
         #self.setMapInfo()
 
-    def onResize(self, event):
-        label = event.widget
-        self.setMapInfo()
-        self.resetMap()
+    def onResize(self, e):
+        disp = self.disp_label
+        if e.widget == disp:
+            if not hasattr(disp, 'image'):  #init
+                self.setMapInfo()
+                self.resetMap(self.__getPrefGeoPt())
+            elif e.width != disp.image.width() or e.height != disp.image.height():
+                self.setMapInfo()
+                self.resetMap()
 
     def setMapInfo(self, lat=None, lon=None, txt=None):
         c = self.map_ctrl
@@ -410,26 +416,23 @@ class MapController:
         #The image attributes with which we want to create a image compatible.
         img_attr = ImageAttr(self.level, self.px, self.py, self.px + width, self.py + height)
 
+        print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: begin")
         #gen new map if need
         if self.disp_attr is None or not self.disp_attr.containsImgae(img_attr):
-            (self.disp_img, self.disp_attr) = self.__genDispMap(img_attr)
+            print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  gen base map")
+            (self.disp_img, self.disp_attr) = self.__genBaseMap(img_attr)
+            print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw trk")
+            self.__drawTrk(self.disp_img, self.disp_attr)
 
         #crop by width/height
+        print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  crop map")
         img = self.__getCropMap(img_attr)
+        print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw coord")
         self.__drawTM2Coord(img, img_attr)
+        print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw wpt")
         self.__drawWpt(img, img_attr)
+        print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: done")
         return img
-
-
-    #gen disp_map by req_attr, disp_map may larger than req_attr specifying
-    def __genDispMap(self, img_attr):
-        print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen disp map...")
-        (img, attr) = self.__genBaseMap(img_attr)
-        self.__drawTrk(img, attr)
-        #self.__drawWpt(img, attr)
-        print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen disp map...done")
-
-        return (img, attr)
 
     def __genBaseMap(self, img_attr):
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen base map...")
@@ -1315,6 +1318,6 @@ if __name__ == '__main__':
     for path in pic_path:
         disp_board.addPic(PicDocument(path, conf.TZ))
 
-    disp_board.initDisp()
+    #disp_board.initDisp()
     root.mainloop()
 
