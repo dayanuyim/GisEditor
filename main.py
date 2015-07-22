@@ -199,19 +199,13 @@ class DispBoard(tk.Frame):
         trk_list = self.map_ctrl.getAllTrks()
         trk_board = TrkBoard(self, trk_list, trk)
         trk_board.addAlteredHandler(self.resetAlterTime)
-        trk_board.show()
+        #trk_board.show()
 
     def onEditWpt(self, mode, wpt=None):
         wpt_list = self.map_ctrl.getAllWpts()
-        if mode == 'single':
-            wpt_board = WptSingleBoard(self, wpt_list, wpt)
-        elif mode == 'list':
-            wpt_board = WptListBoard(self, wpt_list, wpt)
-        else:
-            raise ValueError("WptBoade only supports mode: 'single' and 'list'")
-
+        wpt_board = WptBoard.factory(mode, self, wpt_list, wpt)
         wpt_board.addAlteredHandler(self.resetAlterTime)
-        wpt_board.show()
+        #wpt_board.show()
         self.__focused_wpt = None
 
     def resetAlterTime(self):
@@ -745,6 +739,18 @@ class ImageAttr:
             return self
 
 class WptBoard(tk.Toplevel):
+    @staticmethod
+    def factory(mode, master, wpt_list, wpt=None):
+        if mode == 'single':
+            return WptSingleBoard(master, wpt_list, wpt)
+        elif mode == 'list':
+            return WptListBoard(master, wpt_list, wpt)
+        else:
+            raise ValueError("WptBoade only supports mode: 'single' and 'list'")
+
+    @property
+    def is_changed(self): return self._is_changed
+
     def __init__(self, master, wpt_list, wpt=None):
         super().__init__(master)
 
@@ -765,6 +771,7 @@ class WptBoard(tk.Toplevel):
         self._title_time = "Time"
         self._title_focus = "Focus"
         self._altered_handlers = []
+        self._is_changed = False
 
         #board
         self.geometry('+0+0')
@@ -780,11 +787,13 @@ class WptBoard(tk.Toplevel):
         self._var_name = tk.StringVar()
         self._var_name.trace('w', self.onNameChanged)
 
-    def show(self):
+        #set focus
         self.transient()
         self.focus_set()
         self.grab_set()
-        self.wait_window(self)
+
+    #def show(self):
+        #self.wait_window(self)
 
     def _hasPicWpt(self):
         for wpt in self._wpt_list:
@@ -807,6 +816,7 @@ class WptBoard(tk.Toplevel):
         self._altered_handlers.remove(h)
 
     def onAltered(self):
+        self._is_changed = True
         for handler in self._altered_handlers:
             handler()
         
@@ -853,10 +863,7 @@ class WptBoard(tk.Toplevel):
         self.master.highlightWpt(wpt)
 
     def unhighlightWpt(self, wpt):
-        if self.is_changed:
-            self.master.resetMap(wpt)
-        else:
-            self.master.restore()
+        self.master.resetMap() if self.is_changed else self.master.restore()
 
     def showWptIcon(self, wpt):
         pass
@@ -1098,6 +1105,9 @@ class WptListBoard(WptBoard):
 
 
 class TrkBoard(tk.Toplevel):
+    @property
+    def is_changed(self): return self._is_changed
+
     def __init__(self, master, trk_list, trk=None):
         super().__init__(master)
 
@@ -1107,6 +1117,7 @@ class TrkBoard(tk.Toplevel):
         self._curr_trk = None
         self._trk_list = trk_list
         self._altered_handlers = []
+        self._is_changed = False
         self._sel_idx = None
         self._var_focus = tk.BooleanVar()
         self._var_focus.trace('w', self.onFocus)
@@ -1146,13 +1157,13 @@ class TrkBoard(tk.Toplevel):
         elif len(trk_list) > 0:
             self.setCurrTrk(trk_list[0])
 
-        #self.poll() # start polling the list
-
-    def show(self):
+        #set focus
         self.transient()
         self.focus_set()
         self.grab_set()
-        self.wait_window(self)
+
+    #def show(self):
+        #self.wait_window(self)
 
     def getInfoFrame(self):
         font = 'Arialuni 12'
@@ -1185,6 +1196,7 @@ class TrkBoard(tk.Toplevel):
         self._altered_handlers.remove(h)
 
     def onAltered(self):
+        self._is_changed = True
         for handler in self._altered_handlers:
             handler()
 
