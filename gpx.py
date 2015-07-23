@@ -7,6 +7,7 @@ from xml.etree import ElementTree as ET
 from datetime import datetime
 from tile import TileSystem, GeoPoint
 from PIL import Image
+import xml.dom.minidom
 
 class GpsDocument:
     @property
@@ -203,14 +204,19 @@ class GpsDocument:
         self.subWptElement(gpx)
         self.subTrkElement(gpx)
 
+        #tree = ET.ElementTree(element=gpx)
+        #tree.write(path, encoding="UTF-8", xml_declaration=True)#, default_namespace=self.ns['gpx'])
+
         #write
-        doc = ET.ElementTree(element=gpx)
-        doc.write(path, encoding="UTF-8", xml_declaration=True)#, default_namespace=self.ns['gpx'])
+        txt = ET.tostring(gpx, method='xml', encoding="UTF-8")
+        txt = xml.dom.minidom.parseString(txt).toprettyxml(encoding="UTF-8") # prettify!!  #the encoding is for xml-declaration
+        with open(path, 'wb') as gpx_file:
+            gpx_file.write(txt)
 
     def genRootElement(self):
         gpx = ET.Element('gpx')
         gpx.set("xmlns", self.ns['gpx'])
-        gpx.set("creator", "TT GpsToolset");
+        gpx.set("creator", "GisEditor");
         gpx.set("version", "1.1");
         gpx.set("xmlns:xsi", self.ns['xsi'])
         gpx.set('xsi:schemaLocation', "http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd")

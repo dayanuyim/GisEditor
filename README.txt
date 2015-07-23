@@ -10,4 +10,5 @@
 5. set file association
     - create a loader (giseditor.bat) to invoke main.py
     - associate gps file with the loader
-    - *use FileMenuTools or others to add right-click menu
+6. set right-click menu
+    - use FileMenuTools* to add right-click menu
