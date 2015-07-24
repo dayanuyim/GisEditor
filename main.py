@@ -198,13 +198,14 @@ class DispBoard(tk.Frame):
     def onEditTrk(self, trk=None):
         trk_list = self.map_ctrl.getAllTrks()
         trk_board = TrkBoard(self, trk_list, trk)
-        trk_board.addAlteredHandler(self.resetAlterTime)
+        #trk_board.addAlteredHandler(self.resetAlterTime)
         #trk_board.show()
 
     def onEditWpt(self, mode, wpt=None):
         wpt_list = self.map_ctrl.getAllWpts()
         wpt_board = WptBoard.factory(mode, self, wpt_list, wpt)
-        wpt_board.addAlteredHandler(self.resetAlterTime)
+        #print('after wptboard')
+        #wpt_board.addAlteredHandler(self.resetAlterTime)
         #wpt_board.show()
         self.__focused_wpt = None
 
@@ -752,7 +753,7 @@ class WptBoard(tk.Toplevel):
     @property
     def is_changed(self): return self._is_changed
 
-    def __init__(self, master, wpt_list, wpt=None):
+    def __init__(self, master, wpt_list, wpt=None, alter_handler=None):
         super().__init__(master)
 
         if wpt_list is None or len(wpt_list) == 0:
@@ -773,6 +774,9 @@ class WptBoard(tk.Toplevel):
         self._title_focus = "Focus"
         self._altered_handlers = []
         self._is_changed = False
+
+        if alter_handler is not None:
+            addAlteredHandler(alter_handler)
 
         #board
         self.geometry('+0+0')
@@ -818,8 +822,9 @@ class WptBoard(tk.Toplevel):
 
     def onAltered(self):
         self._is_changed = True
-        for handler in self._altered_handlers:
-            handler()
+        self.master.resetAlterTime()   #hard code fist!!!
+        #for handler in self._altered_handlers:
+            #handler()
         
     def onClosed(self, e=None):
         #reset or restore map
@@ -851,6 +856,11 @@ class WptBoard(tk.Toplevel):
 
     def onFocusChanged(self, *args):
         self.highlightWpt(self._curr_wpt)
+
+    def askSym(self, pos=None):
+        sym_board = SymBoard(self, pos)
+        print('-->', sym_board.sym)
+        return sym_board.sym
 
     def onEditSymRule(self):
         messagebox.showinfo('', 'edit sym rule')
@@ -928,6 +938,8 @@ class WptSingleBoard(WptBoard):
         #wpt icon
         self.__icon_label = tk.Label(frame)
         self.__icon_label.grid(row=row, column=1, sticky='e')
+        self.__icon_label.bind('<Button-1>', self.onSymClick)
+
         #wpt name
         name_entry = tk.Entry(frame, textvariable=self._var_name, font=font)
         name_entry.bind('<Return>', lambda e: self.onWptSelected(1))
@@ -954,6 +966,20 @@ class WptSingleBoard(WptBoard):
         tk.Label(frame, textvariable=self._var_time, font=font).grid(row=row, column=2, sticky='w')
 
         return frame
+
+    def onSymClick(self, e):
+        sym = self.askSym((e.x_root, e.y_root))
+        if sym is None:
+            return
+        wpt = self._curr_wpt
+
+        if sym != wpt.sym:
+            wpt.sym = sym
+            self.showWptIcon(wpt)
+            #update map
+            self.onAltered()
+            self.master.resetMap()
+            self.highlightWpt(wpt)
 
     def showWptIcon(self, wpt):
         icon = ImageTk.PhotoImage(conf.getIcon(wpt.sym))
@@ -1198,8 +1224,9 @@ class TrkBoard(tk.Toplevel):
 
     def onAltered(self):
         self._is_changed = True
-        for handler in self._altered_handlers:
-            handler()
+        self.master.resetAlterTime()   #hard code fist!!!
+        #for handler in self._altered_handlers:
+        #    handler()
 
     def onClosed(self, e=None):
         self.master.focus_set()
@@ -1282,6 +1309,105 @@ class TrkBoard(tk.Toplevel):
             txt = "#%04d  %s: %s, %s" % ( sn, conf.getPtTimeText(pt), conf.getPtPosText(pt), conf.getPtEleText(pt))
             self.pt_list.insert('end', txt)
 
+class SymBoard(tk.Toplevel):
+    @property
+    def sym(self): return self.__sym
+
+    def __init__(self, master, pos=None):
+        super().__init__(master)
+
+        self.__col_sz = 20
+        self.__bg_color = self.cget('bg')
+        self.__ext_bg_color = 'lightgray'
+        self.__hl_bg_color = 'lightblue'
+        self.__sym = None
+        self.__last_widget = None
+        self.__widgets = {}
+
+        #board
+        pos = '+%d+%d' % (pos[0], pos[1]) if pos is not None else '+0+0'
+        self.geometry(pos)
+        self.bind('<Escape>', self.onClosed)
+        self.protocol('WM_DELETE_WINDOW', lambda: self.onClosed(None))
+
+        def_sym = conf.getDefSymList()
+        dir_sym = conf.getIconPath().keys()
+        self.__ext_sym = listdiff(dir_sym, def_sym)
+
+        sn = 0
+        for sym in def_sym:
+            self.showSym(sym, sn, self.__bg_color)
+            sn += 1
+
+        sn += self.__col_sz - sn%self.__col_sz
+        for sym in self.__ext_sym:
+            self.showSym(sym, sn, self.__ext_bg_color)
+            sn += 1
+
+        #set focus
+        self.transient()
+        self.focus_set()
+        self.grab_set()
+        self.wait_window(self)
+
+    def showSym(self, sym, sn, bg_color):
+        col_sz = self.__col_sz
+
+        name = sym.title()
+        icon = ImageTk.PhotoImage(conf.getIcon(sym))
+
+        disp = tk.Label(self)
+        disp.config(image=icon, text=name, compound='left', anchor='w', bg=bg_color)
+        disp.image=icon
+
+        disp.grid(row=int(sn/col_sz), column=sn%col_sz, sticky='we')
+        disp.bind('<Motion>', self.onMotion)
+        disp.bind('<Button-1>', self.onClick)
+
+        #save
+        self.__widgets[disp] = sym
+
+    def onClosed(self, e):
+        self.master.focus_set()
+        self.destroy()
+
+    def onMotion(self, e):
+        last_w = self.__last_widget
+        if last_w != e.widget:
+            #unhighlight last
+            if last_w is not None:
+                last_sym = self.__widgets.get(last_w)
+                bg_color = self.__ext_bg_color if last_sym in self.__ext_sym else self.__bg_color
+                last_w.config(bg=bg_color)
+            #highlight curr
+            e.widget.config(bg=self.__hl_bg_color)
+
+        self.__last_widget = e.widget
+
+    def onClick(self, e):
+        self.__sym = self.__widgets.get(self.__last_widget).title()
+        self.onClosed(None)
+
+last_widget = None
+def onMotion(e):
+    global last_widget
+    if last_widget != e.widget:
+        if last_widget is not None:
+            print('un hl')
+            last_widget.config(bg=bg_color)
+        e.widget.config(bg='lightblue')
+
+    last_widget = e.widget
+
+on_motion = lambda e: onMotion(e)
+
+
+def listdiff(list1, list2):
+    result = []
+    for e in list1:
+        if not e in list2:
+            result.append(e)
+    return result
 
 def getAspectResize(img, size):
     dst_w, dst_h = size

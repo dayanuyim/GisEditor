@@ -24,6 +24,7 @@ TZ = timedelta(hours=8)
 ICON_DIR = './icon'
 ICON_SIZE = 24
 DEF_SYMBOL = "Waypoint"
+DEF_SYMS_CONF = "./def_sym.conf"
 
 #global variables
 Sym_rules = SymbolRules('./sym_rule.conf')
@@ -33,30 +34,45 @@ def getSymbol(name):
     sym = rule.symbol if rule is not None else DEF_SYMBOL
     return sym
 
+__def_syms = []
+def getDefSymList():
+    if len(__def_syms) == 0:
+        with open(DEF_SYMS_CONF) as def_sym:
+            for line in def_sym:
+                if not line.startswith('#'):
+                    sym = line.rstrip().lower()
+                    __def_syms.append(sym)
+    return __def_syms
+
+__sym_paths = {}  #sym->icon_path
+def getIconPath():
+    if len(__sym_paths) == 0:
+        for f in os.listdir(ICON_DIR):
+            name, ext = path.splitext(f)
+            name = name.lower()
+            __sym_paths[name] = path.join(ICON_DIR, f)
+    return __sym_paths
+
 __icons = {}
 def getIcon(sym):
     sym = sym.lower()
     icon = __icons.get(sym)
-    if icon is None:
-        path =  __getIconPath(sym)
-        if path is None:
-            if sym.lower() == DEF_SYMBOL.lower():
-                return None
-            else:
-                return getIcon(DEF_SYMBOL)
-        icon = Image.open(path)
-        icon = icon.resize((ICON_SIZE, ICON_SIZE))
+    if icon is None:   #no key (the possibility of vlaue is None is rare, deu to we load DEF_SYMBOL anyway.
+        icon = __loadIcon(sym)
         __icons[sym] = icon
     return icon
 
-#get icon path for the sym. case-insensitive, ignore extention
-def __getIconPath(sym):
+def __loadIcon(sym):
     sym = sym.lower()
-    for f in os.listdir(ICON_DIR):
-        name, ext = path.splitext(f)
-        if sym == name.lower():
-            return path.join(ICON_DIR, f)
-    return None
+    path =  getIconPath().get(sym)
+    if path is None:
+        if sym == DEF_SYMBOL.lower():
+            return None
+        else:
+            return getIcon(DEF_SYMBOL)
+    icon = Image.open(path)
+    icon = icon.resize((ICON_SIZE, ICON_SIZE))
+    return icon
 
 def _getWptPos(wpt):
     x_tm2_97, y_tm2_97 = CoordinateSystem.TWD97_LatLonToTWD97_TM2(wpt.lat, wpt.lon)
