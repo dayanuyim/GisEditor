@@ -21,6 +21,7 @@ from tile import  TileSystem, TileMap, GeoPoint
 from coord import  CoordinateSystem
 from gpx import GpsDocument, WayPoint
 from pic import PicDocument
+from sym import SymRuleType
 
 
 class DispBoard(tk.Frame):
@@ -865,7 +866,7 @@ class WptBoard(tk.Toplevel):
         return sym_board.sym
 
     def onEditSymRule(self):
-        messagebox.showinfo('', 'edit sym rule')
+        SymRuleBoard(self)
     
     def highlightWpt(self, wpt):
         #focus
@@ -1356,6 +1357,10 @@ class SymBoard(tk.Toplevel):
         self.grab_set()
         self.wait_window(self)
 
+    def onClosed(self, e):
+        self.master.focus_set()
+        self.destroy()
+
     def showSym(self, sym, sn, bg_color):
         col_sz = self.__col_sz
 
@@ -1379,10 +1384,6 @@ class SymBoard(tk.Toplevel):
             if s == sym:
                 return w
         return None
-
-    def onClosed(self, e):
-        self.master.focus_set()
-        self.destroy()
 
     def onMotion(self, e):
         self.selectSymWidget(e.widget)
@@ -1409,19 +1410,153 @@ class SymBoard(tk.Toplevel):
         self.__sym = self.__w_syms[e.widget].title()
         self.onClosed(None)
 
-last_widget = None
-def onMotion(e):
-    global last_widget
-    if last_widget != e.widget:
-        if last_widget is not None:
-            print('un hl')
-            last_widget.config(bg=bg_color)
-        e.widget.config(bg='lightblue')
+class SymRuleBoard(tk.Toplevel):
+    def __init__(self, master, pos=None):
+        super().__init__(master)
 
-    last_widget = e.widget
+        self.__bg_color = self.cget('bg')
+        self.__hl_bg_color = 'lightblue'
+        self.__focused_rule = None
+        self.__widgets = {}
 
-on_motion = lambda e: onMotion(e)
+        #board
+        pos = '+%d+%d' % (pos[0], pos[1]) if pos is not None else '+0+0'
+        self.geometry(pos)
+        self.title('Symbol Rules')
+        self.bind('<Escape>', self.onClosed)
+        self.protocol('WM_DELETE_WINDOW', lambda: self.onClosed(None))
 
+        self.init()
+        self.initTypeMenu()
+
+        #set focus
+        self.transient()
+        self.focus_set()
+        self.grab_set()
+        self.wait_window(self)
+
+    def onClosed(self, e):
+        self.master.focus_set()
+        self.destroy()
+
+    def init(self):
+        self.sf = pmw.ScrolledFrame(self, usehullsize = 1, hull_width = 450, hull_height = 600)
+        self.sf.pack(fill = 'both', expand = 1)
+
+        frame = self.sf.interior()
+        font = 'Arialuni 12'
+        bfont = 'Arialuni 12 bold'
+
+        row = 0
+        #tk.Label(frame, text='Enabled', font=bfont).grid(row=row, column=0)
+        tk.Label(frame, text='Type',  font=bfont).grid(row=row, column=1)
+        tk.Label(frame, text='Text',  font=bfont).grid(row=row, column=2)
+        tk.Label(frame, text='Symbol', font=bfont).grid(row=row, column=3)
+
+        on_motion = lambda e: self.onMotion(e)
+        for rule in conf.Sym_rules:
+            row += 1
+
+            #config
+            en_label = tk.Label(frame, font=bfont, anchor='e')
+            self.setWidgetCommon(en_label, row, 0)
+
+            type_label = tk.Label(frame, font=font, anchor='w')
+            self.setWidgetCommon(type_label, row, 1)
+
+            text_label = tk.Label(frame, font=font)
+            self.setWidgetCommon(text_label, row, 2)
+
+            sym_label = tk.Label(frame, font=font, compound='left', anchor='w')
+            self.setWidgetCommon(sym_label, row, 3)
+
+            #save
+            self.__widgets[rule] = (
+                    en_label,
+                    type_label,
+                    text_label,
+                    sym_label
+            )
+
+            #set data
+            self.setRuleWidgets(rule)
+
+    def setRuleWidgets(self, rule):
+        en_w, type_w, txt_w, sym_w = self.__widgets[rule]
+
+        en_text = 'v' if rule.enabled else 'x'
+        en_color = 'green' if rule.enabled else 'red'
+        en_w.config(text=en_text, fg=en_color)
+
+        type_txt = SymRuleType.toStr(rule.type)
+        type_w.config(text=type_txt)
+
+        txt_w.config(text=rule.text)
+
+        icon = ImageTk.PhotoImage(conf.getIcon(rule.symbol))
+        sym_w.config(image=icon, text=rule.symbol)
+        sym_w.image=icon
+
+    def setWidgetCommon(self, w, row, col):
+        w.bind('<Motion>', self.onMotion)
+        w.bind('<Button-1>', self.onClick)
+        w.grid(row=row, column=col, sticky='news')
+
+    def getRuleOfWidget(self, widget):
+        for rule, widgets in self.__widgets.items():
+            if widget in widgets:
+                return rule
+        return None
+
+    def onMotion(self, e):
+        prev = self.__focused_rule
+        curr = self.getRuleOfWidget(e.widget)
+
+        #highligt/unhighlight
+        if prev != curr:
+            self.setRuleBgColor(prev, self.__bg_color)
+            self.setRuleBgColor(curr, self.__hl_bg_color)
+                
+        #rec
+        self.__focused_rule = curr
+
+    def setRuleBgColor(self, rule, color):
+        if rule is not None:
+            for w in self.__widgets[rule]:
+                w.config(bg=color)
+
+    def onClick(self, e):
+        rule = self.getRuleOfWidget(e.widget)
+        en_w, type_w, txt_w, sym_w = self.__widgets[rule]
+        pos = (e.x_root, e.y_root)
+
+        #edit
+        if e.widget == en_w:
+            rule.enabled = not rule.enabled
+            self.setRuleWidgets(rule)
+        elif e.widget == type_w:
+            self.type_menu.post(e.x_root, e.y_root)
+
+    def initTypeMenu(self):
+        menu = tk.Menu(self, tearoff=0)
+        #for t in SymRuleType.types():
+        #    txt = SymRuleType.toStr(t)
+        #    menu.add_command(label=txt, command=lambda:self.setRuleType(t))
+
+        menu.add_command(label='Contain', command=lambda: self.setRuleType(SymRuleType.CONTAIN))
+        menu.add_command(label='BeginWith', command=lambda: self.setRuleType(SymRuleType.BEGIN_WITH))
+        menu.add_command(label='EndWith', command=lambda: self.setRuleType(SymRuleType.END_WITH))
+        menu.add_command(label='Equal', command=lambda: self.setRuleType(SymRuleType.EQUAL))
+        menu.add_command(label='Regex', command=lambda: self.setRuleType(SymRuleType.REGEX))
+
+        self.type_menu = menu
+
+    def setRuleType(self, t):
+        #print('set type to ', str(t))
+        rule = self.__focused_rule
+        if rule.type != t:
+            rule.type = t
+            self.setRuleWidgets(rule)
 
 def listdiff(list1, list2):
     result = []

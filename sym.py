@@ -16,8 +16,12 @@ class SymRuleType:
     REGEX = 5
 
     @classmethod
+    def types(cls):
+        return [cls.CONTAIN, cls.BEGIN_WITH, cls.END_WITH, cls.EQUAL, cls.REGEX]
+
+    @classmethod
     def toType(cls, s):
-        for t in [cls.CONTAIN, cls.BEGIN_WITH, cls.END_WITH, cls.EQUAL, cls.REGEX]:
+        for t in cls.types():
             if s == cls.toStr(t):
                 return t
         return cls.UNKNOWN
@@ -48,6 +52,21 @@ class SymbolRules:
 
     def __len__(self):
         return len(self.__rules)
+
+    def __getitem__(self, idx):
+        return self.__rules[idx]
+
+    def __setitem__(self, idx, val):
+        self.__rules[idx] = value
+
+    def __delitem__(self, idx):
+        del self.__rules[idx]
+
+    def append(self, rule):
+        self.__rules.append(rule)
+
+    def remove(self, pt):
+        self.__rules.remove(rule)
 
     def load(self):
         path = self.__path
