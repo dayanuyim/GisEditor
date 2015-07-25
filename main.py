@@ -859,8 +859,8 @@ class WptBoard(tk.Toplevel):
     def onFocusChanged(self, *args):
         self.highlightWpt(self._curr_wpt)
 
-    def askSym(self, pos=None):
-        sym_board = SymBoard(self, pos)
+    def askSym(self, pos=None, init_sym=None):
+        sym_board = SymBoard(self, pos, init_sym)
         #print('-->', sym_board.sym)
         return sym_board.sym
 
@@ -970,12 +970,10 @@ class WptSingleBoard(WptBoard):
         return frame
 
     def onSymClick(self, e):
-        sym = self.askSym((e.x_root, e.y_root))
-        if sym is None:
-            return
         wpt = self._curr_wpt
+        sym = self.askSym(pos=(e.x_root, e.y_root), init_sym=wpt.sym)
 
-        if sym != wpt.sym:
+        if sym is not None and sym != wpt.sym:
             wpt.sym = sym
             self.showWptIcon(wpt)
             #update map
@@ -1315,7 +1313,7 @@ class SymBoard(tk.Toplevel):
     @property
     def sym(self): return self.__sym
 
-    def __init__(self, master, pos=None):
+    def __init__(self, master, pos=None, init_sym=None):
         super().__init__(master)
 
         self.__col_sz = 20
@@ -1323,7 +1321,7 @@ class SymBoard(tk.Toplevel):
         self.__ext_bg_color = 'lightgray'
         self.__hl_bg_color = 'lightblue'
         self.__sym = None
-        self.__last_widget = None
+        self.__curr_widget = None
         self.__w_syms = {}
 
         #board
@@ -1346,6 +1344,11 @@ class SymBoard(tk.Toplevel):
         for sym in ext_sym:
             self.showSym(sym, sn, self.__ext_bg_color)
             sn += 1
+
+        if init_sym is not None:
+            init_sym = init_sym.lower()
+            widget = self.getSymWidget(init_sym)
+            self.selectSymWidget(widget)
 
         #set focus
         self.transient()
@@ -1371,23 +1374,35 @@ class SymBoard(tk.Toplevel):
         #save
         self.__w_syms[disp] = sym
 
+    def getSymWidget(self, sym):
+        for w, s in self.__w_syms.items():
+            if s == sym:
+                return w
+        return None
+
     def onClosed(self, e):
         self.master.focus_set()
         self.destroy()
 
     def onMotion(self, e):
-        last_w = self.__last_widget
-        if last_w != e.widget:
-            #unhighlight last
-            if last_w is not None:
-                last_sym = self.__w_syms.get(last_w)
-                bg_color = self.__bg_color if last_sym in conf.getDefSymList() else self.__ext_bg_color
-                last_w.config(bg=bg_color)
-            #highlight curr
-            e.widget.config(bg=self.__hl_bg_color)
-            self.title(self.__w_syms[e.widget])
+        self.selectSymWidget(e.widget)
 
-        self.__last_widget = e.widget
+    def selectSymWidget(self, widget):
+        if self.__curr_widget != widget:
+            self.unhighlight(self.__curr_widget)
+            self.highlight(widget)
+        self.__curr_widget = widget
+
+    def unhighlight(self, widget):
+        if widget is not None:
+            sym = self.__w_syms.get(widget)
+            bg_color = self.__bg_color if sym in conf.getDefSymList() else self.__ext_bg_color
+            widget.config(bg=bg_color)
+
+    def highlight(self, widget):
+        if widget is not None:
+            widget.config(bg=self.__hl_bg_color)
+            self.title(self.__w_syms[widget])
 
     def onClick(self, e):
         #self.__sym = e.widget.cget('text')
