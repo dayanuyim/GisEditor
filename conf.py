@@ -58,11 +58,11 @@ def getIcon(sym):
     sym = sym.lower()
     icon = __icons.get(sym)
     if icon is None:   #no key (the possibility of vlaue is None is rare, deu to we load DEF_SYMBOL anyway.
-        icon = __loadIcon(sym)
+        icon = __loadIcon(sym, ICON_SIZE)
         __icons[sym] = icon
     return icon
 
-def __loadIcon(sym):
+def __loadIcon(sym, sz):
     sym = sym.lower()
     path =  getIconPath().get(sym)
     if path is None:
@@ -71,7 +71,7 @@ def __loadIcon(sym):
         else:
             return getIcon(DEF_SYMBOL)
     icon = Image.open(path)
-    icon = icon.resize((ICON_SIZE, ICON_SIZE))
+    icon = icon.resize((sz, sz))
     return icon
 
 def _getWptPos(wpt):

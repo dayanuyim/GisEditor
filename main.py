@@ -859,7 +859,7 @@ class WptBoard(tk.Toplevel):
 
     def askSym(self, pos=None):
         sym_board = SymBoard(self, pos)
-        print('-->', sym_board.sym)
+        #print('-->', sym_board.sym)
         return sym_board.sym
 
     def onEditSymRule(self):
@@ -1322,25 +1322,26 @@ class SymBoard(tk.Toplevel):
         self.__hl_bg_color = 'lightblue'
         self.__sym = None
         self.__last_widget = None
-        self.__widgets = {}
+        self.__w_syms = {}
 
         #board
         pos = '+%d+%d' % (pos[0], pos[1]) if pos is not None else '+0+0'
         self.geometry(pos)
+        self.title('')
         self.bind('<Escape>', self.onClosed)
         self.protocol('WM_DELETE_WINDOW', lambda: self.onClosed(None))
 
         def_sym = conf.getDefSymList()
         dir_sym = conf.getIconPath().keys()
-        self.__ext_sym = listdiff(dir_sym, def_sym)
+        ext_sym = listdiff(dir_sym, def_sym)
 
         sn = 0
         for sym in def_sym:
             self.showSym(sym, sn, self.__bg_color)
             sn += 1
 
-        sn += self.__col_sz - sn%self.__col_sz
-        for sym in self.__ext_sym:
+        sn = ceil(sn/self.__col_sz) * self.__col_sz
+        for sym in ext_sym:
             self.showSym(sym, sn, self.__ext_bg_color)
             sn += 1
 
@@ -1353,11 +1354,12 @@ class SymBoard(tk.Toplevel):
     def showSym(self, sym, sn, bg_color):
         col_sz = self.__col_sz
 
-        name = sym.title()
+        #txt = sym.title()
+        txt = ""
         icon = ImageTk.PhotoImage(conf.getIcon(sym))
 
         disp = tk.Label(self)
-        disp.config(image=icon, text=name, compound='left', anchor='w', bg=bg_color)
+        disp.config(image=icon, text=txt, compound='left', anchor='w', bg=bg_color)
         disp.image=icon
 
         disp.grid(row=int(sn/col_sz), column=sn%col_sz, sticky='we')
@@ -1365,7 +1367,7 @@ class SymBoard(tk.Toplevel):
         disp.bind('<Button-1>', self.onClick)
 
         #save
-        self.__widgets[disp] = sym
+        self.__w_syms[disp] = sym
 
     def onClosed(self, e):
         self.master.focus_set()
@@ -1376,16 +1378,18 @@ class SymBoard(tk.Toplevel):
         if last_w != e.widget:
             #unhighlight last
             if last_w is not None:
-                last_sym = self.__widgets.get(last_w)
-                bg_color = self.__ext_bg_color if last_sym in self.__ext_sym else self.__bg_color
+                last_sym = self.__w_syms.get(last_w)
+                bg_color = self.__bg_color if last_sym in conf.getDefSymList() else self.__ext_bg_color
                 last_w.config(bg=bg_color)
             #highlight curr
             e.widget.config(bg=self.__hl_bg_color)
+            self.title(self.__w_syms[e.widget])
 
         self.__last_widget = e.widget
 
     def onClick(self, e):
-        self.__sym = self.__widgets.get(self.__last_widget).title()
+        #self.__sym = e.widget.cget('text')
+        self.__sym = self.__w_syms[e.widget].title()
         self.onClosed(None)
 
 last_widget = None
