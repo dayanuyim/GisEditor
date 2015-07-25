@@ -590,7 +590,9 @@ class MapController:
             del _draw
 
 
+    #disable for now, because the algo will be broken if two pt across the image
     def isTrackInImage(self, trk, img_attr):
+        return True
         #if some track point is in disp
         for pt in trk:
             (px, py) = pt.getPixel(img_attr.level)
