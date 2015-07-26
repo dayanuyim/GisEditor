@@ -157,6 +157,13 @@ class SymRule:
         else:
             return False
 
+    def clone(self):
+        rule = SymRule()
+        rule.enabled = self.enabled
+        rule.type = self.type
+        rule.text = self.text
+        rule.symbol = self.symbol
+        return rule
 
 if __name__ == '__main__':
     rules = SymbolRules('./sym_rule.conf')

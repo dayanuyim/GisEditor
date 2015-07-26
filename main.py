@@ -21,7 +21,7 @@ from tile import  TileSystem, TileMap, GeoPoint
 from coord import  CoordinateSystem
 from gpx import GpsDocument, WayPoint
 from pic import PicDocument
-from sym import SymRuleType
+from sym import SymRuleType, SymRule
 
 
 class DispBoard(tk.Frame):
@@ -1420,6 +1420,8 @@ class SymRuleBoard(tk.Toplevel):
         self.__widgets = {}
         self.__var_widgets = {}
         self.__rules = conf.Sym_rules
+        self.__font = 'Arialuni 12'
+        self.__bfont = 'Arialuni 12 bold'
 
         #board
         pos = '+%d+%d' % (pos[0], pos[1]) if pos is not None else '+0+0'
@@ -1429,6 +1431,7 @@ class SymRuleBoard(tk.Toplevel):
         self.protocol('WM_DELETE_WINDOW', lambda: self.onClosed(None))
 
         self.init()
+        self.initRightMenu()
         self.initTypeMenu()
 
         #set focus
@@ -1455,8 +1458,7 @@ class SymRuleBoard(tk.Toplevel):
         self.__save_btn.pack(side='left', anchor='nw')
 
         frame = self.sf.interior()
-        font = 'Arialuni 12'
-        bfont = 'Arialuni 12 bold'
+        bfont = self.__bfont
 
         row = 0
         #tk.Label(frame, text='Enabled', font=bfont).grid(row=row, column=0)
@@ -1466,56 +1468,68 @@ class SymRuleBoard(tk.Toplevel):
 
         for rule in self.__rules:
             row += 1
+            self.genRuleWidgets(rule, row)  #view
+            self.setRuleWidgets(rule)      #data
 
-            #config
-            en_label = tk.Label(frame, font=bfont, anchor='e')
-            self.setWidgetCommon(en_label, row, 0)
+    def genRuleWidgets(self, rule, row):
+        bfont = self.__bfont
+        font = self.__font
 
-            type_label = tk.Label(frame, font=font, anchor='w')
-            self.setWidgetCommon(type_label, row, 1)
+        #config
+        frame = self.sf.interior()
+        en_label = tk.Label(frame, font=bfont, anchor='e')
+        self.setWidgetCommon(en_label, row, 0)
 
-            #text_label = tk.Label(frame, font=font)
-            text_label = tk.Entry(frame, font=font, relief='flat', state='disabled', disabledbackground=self.__bg_color)
-            self.setWidgetEditable(text_label, self.onTextWrite)
-            self.setWidgetCommon(text_label, row, 2)
+        type_label = tk.Label(frame, font=font, anchor='w')
+        self.setWidgetCommon(type_label, row, 1)
 
-            sym_label = tk.Label(frame, font=font, compound='left', anchor='w')
-            self.setWidgetCommon(sym_label, row, 3)
+        #text_label = tk.Label(frame, font=font)
+        text_label = tk.Entry(frame, font=font, relief='flat', state='disabled', disabledbackground=self.__bg_color)
+        self.setWidgetEditable(text_label, self.onTextWrite)
+        self.setWidgetCommon(text_label, row, 2)
 
-            #save
-            self.__widgets[rule] = (
-                    en_label,
-                    type_label,
-                    text_label,
-                    sym_label
-            )
+        sym_label = tk.Label(frame, font=font, compound='left', anchor='w')
+        self.setWidgetCommon(sym_label, row, 3)
 
-            #set data
-            self.setRuleWidgets(rule)
+        #save
+        self.__widgets[rule] = (
+                en_label,
+                type_label,
+                text_label,
+                sym_label
+        )
 
     def onSave(self):
         self.__rules.save()
         self.__save_btn.config(state='disabled')
 
-    def swapRuleWidgetPos(self, rule1, rule2):
-        w1 = self.__widgets[rule1]
-        w2 = self.__widgets[rule2]
+    def getWidgetsRow(self, rule):
+        w = self.__widgets[rule]
+        row = w[0].grid_info()['row']
+        return row
 
-        r1 = w1[0].grid_info()['row']
-        r2 = w2[0].grid_info()['row']
+    def resetWidgetsRow(self, widgets, row):
+        col = 0
+        for w in widgets:
+            w.grid(row=row, column=col, sticky='news')
+            col += 1
+
+    def shiftWidgetsRow(self, rule, inc):
+        widgets = self.__widgets[rule]
+        row = self.getWidgetsRow(rule)
+
+        for w in widgets: w.grid_forget()
+        self.resetWidgetsRow(widgets, row+inc)
+
+    def swapWidgetsRow(self, rule1, rule2):
+        r1 = self.getWidgetsRow(rule1)
+        r2 = self.getWidgetsRow(rule2)
 
         for w in w1: w.grid_forget()
         for w in w2: w.grid_forget()
 
-        col = 0
-        for w in w1:
-            w.grid(row=r2, column=col, sticky='news')
-            col += 1
-
-        col = 0
-        for w in w2:
-            w.grid(row=r1, column=col, sticky='news')
-            col += 1
+        self.resetWidgetsRow(w1, r2)
+        self.resetWidgetsRow(w2, r1)
 
     def onPriorityMove(self, inc):
         rule1 = self.__focused_rule
@@ -1524,7 +1538,7 @@ class SymRuleBoard(tk.Toplevel):
         rule2 = self.__rules[idx2]
 
         #view
-        self.swapRuleWidgetPos(rule1, rule2)
+        self.swapWidgetsRow(rule1, rule2)
 
         #data
         self.__rules.remove(rule1)
@@ -1550,6 +1564,7 @@ class SymRuleBoard(tk.Toplevel):
     def setWidgetCommon(self, w, row, col):
         w.bind('<Motion>', self.onMotion)
         w.bind('<Button-1>', self.onClick)
+        w.bind('<Button-3>', self.onRightClick)
         w.grid(row=row, column=col, sticky='news')
 
     def getRuleOfWidget(self, widget):
@@ -1654,6 +1669,52 @@ class SymRuleBoard(tk.Toplevel):
             rule.type = t
             self.setRuleWidgets(rule)
             self.__save_btn.config(state='normal')
+
+    #{{ add/dup rule
+
+    def onRightClick(self, e):
+        self.__add_menu.post(e.x_root, e.y_root)
+
+    def initRightMenu(self):
+        menu = tk.Menu(self, tearoff=0)
+        menu.add_command(label='Insert rule', command=self.onAddRule)
+        menu.add_command(label='Duplicate rule', command=lambda: self.onAddRule(dup=1))
+        menu.add_separator()
+        menu.add_command(label='Remove rule', command=self.onRemoveRule)
+        self.__add_menu = menu
+
+    def onAddRule(self, dup=0):
+        rule = self.__focused_rule
+        idx = self.__rules.index(rule)
+        row = self.getWidgetsRow(rule)
+        new_rule = rule.clone() if dup == 1 else SymRule()
+
+        #data
+        self.__rules.insert(idx, new_rule)
+
+        #view, to shift
+        for i in range(len(self.__rules)-1, idx , -1):
+            rule = self.__rules[i]
+            self.shiftWidgetsRow(rule, 1)
+
+        #view, to insert new
+        self.genRuleWidgets(new_rule, row)
+        self.setRuleWidgets(new_rule)
+
+    def onRemoveRule(self):
+        rule = self.__focused_rule
+        widgets = self.__widgets[rule]
+
+        #data
+        self.__rules.remove(rule)
+        self.__widgets.pop(rule, None)
+
+        #view
+        for w in widgets:
+            w.grid_forget()
+
+        self.__focused_rule = None
+    #}}
 
 def listdiff(list1, list2):
     result = []
