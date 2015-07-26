@@ -62,11 +62,17 @@ class SymbolRules:
     def __delitem__(self, idx):
         del self.__rules[idx]
 
-    def append(self, rule):
-        self.__rules.append(rule)
+    def append(self, item):
+        self.__rules.append(item)
 
-    def remove(self, pt):
-        self.__rules.remove(rule)
+    def remove(self, item):
+        self.__rules.remove(item)
+
+    def index(self, item):
+        return self.__rules.index(item)
+
+    def insert(self, idx, item):
+        self.__rules.insert(idx, item)
 
     def load(self):
         path = self.__path
