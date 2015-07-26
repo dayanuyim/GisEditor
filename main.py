@@ -1448,10 +1448,10 @@ class SymRuleBoard(tk.Toplevel):
         self.sf = pmw.ScrolledFrame(self, usehullsize = 1, hull_width = 450, hull_height = 600)
         self.sf.pack(side='bottom', anchor='nw', fill = 'both', expand = 1)
 
-        self.__dec_btn = tk.Button(self, text=' - ', state='disabled', command=lambda: self.onPriorityMove(-1))
+        self.__dec_btn = tk.Button(self, text='↑', state='disabled', command=lambda: self.onPriorityMove(-1))
         self.__dec_btn.pack(side='right', anchor='ne')
 
-        self.__inc_btn = tk.Button(self, text=' + ', state='disabled', command=lambda: self.onPriorityMove(1))
+        self.__inc_btn = tk.Button(self, text='↓', state='disabled', command=lambda: self.onPriorityMove(1))
         self.__inc_btn.pack(side='right', anchor='ne')
 
         self.__save_btn = tk.Button(self, text='Save', state='disabled', command=lambda: self.onSave())
@@ -1522,6 +1522,9 @@ class SymRuleBoard(tk.Toplevel):
         self.resetWidgetsRow(widgets, row+inc)
 
     def swapWidgetsRow(self, rule1, rule2):
+        w1 = self.__widgets[rule1]
+        w2 = self.__widgets[rule2]
+
         r1 = self.getWidgetsRow(rule1)
         r2 = self.getWidgetsRow(rule2)
 
