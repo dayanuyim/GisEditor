@@ -862,7 +862,7 @@ class WptBoard(tk.Toplevel):
 
     def askSym(self, pos=None, init_sym=None):
         sym_board = SymBoard(self, pos, init_sym)
-        print('-->', sym_board.sym)
+        #print('-->', sym_board.sym)
         return sym_board.sym
 
     def onEditSymRule(self):
@@ -1346,6 +1346,7 @@ class SymBoard(tk.Toplevel):
 
         #board
         self.title('')
+        self.resizable(0, 0)
         self.bind('<Escape>', self.onClosed)
         self.protocol('WM_DELETE_WINDOW', lambda: self.onClosed(None))
 
@@ -1363,11 +1364,16 @@ class SymBoard(tk.Toplevel):
             self.showSym(sym, sn, self.__ext_bg_color)
             sn += 1
 
-        self.pos = pos
         self.sym = init_sym
 
+        if pos is not None:
+            self.withdraw()  #for silent update
+            self.update()
+            self.pos = pos  #set
+            self.deiconify()
+
         #display
-        #self.transient()
+        self.transient(master)  #remove max/min buttons
         self.focus_set()  #present key-press, sent back to parent
         self.grab_set()   #disalbe interact of parent
         self.wait_window(self)  #block until destroy()
@@ -1829,12 +1835,24 @@ def getPrefCornerPos(widget, pos):
     sh = widget.winfo_screenheight()
     ww = widget.winfo_width()
     wh = widget.winfo_height()
+    if isinstance(widget, tk.Toplevel): wh += 30  #@@ height of title bar
     x, y = pos
+
     #print('screen:', (sw, sh), 'window:', (ww, wh), 'pos:', pos)
-    if (sw-x) < ww and (sw-x) < x:
-        x -= ww
-    if (sh-y) < wh and (sh-y) < y:
-        y -= wh
+    if ww > (sw-x):
+        if ww <= x:         #pop left
+            x -= ww
+        elif (sw-x) >= x:  #pop right, but adjust
+            x = max(0, sw-ww)
+        else:              #pop left, but adjust
+            x = 0
+    if wh > (sh-y):
+        if wh <= y:         #pop up
+            y -= wh
+        elif (sh-y) >= y:  #pop down, but adjust
+            y = max(0, sh-wh)
+        else:              #pop up, but adjust
+            y = 0
     return (x, y)
 
 def isExit(disp_board):
