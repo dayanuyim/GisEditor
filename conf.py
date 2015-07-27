@@ -22,7 +22,7 @@ GPSBABEL_DIR = __config['gpsbabel_dir']
 IMG_FONT = ImageFont.truetype("ARIALUNI.TTF", 18) #global use font (Note: the operation is time wasting)
 TZ = timedelta(hours=8)
 ICON_DIR = './icon'
-ICON_SIZE = 24
+ICON_SIZE = 32
 DEF_SYMBOL = "Waypoint"
 DEF_SYMS_CONF = "./def_sym.conf"
 
