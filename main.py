@@ -862,7 +862,7 @@ class WptBoard(tk.Toplevel):
 
     def askSym(self, pos=None, init_sym=None):
         sym_board = SymBoard(self, pos, init_sym)
-        #print('-->', sym_board.sym)
+        print('-->', sym_board.sym)
         return sym_board.sym
 
     def onEditSymRule(self):
@@ -1311,8 +1311,26 @@ class TrkBoard(tk.Toplevel):
             self.pt_list.insert('end', txt)
 
 class SymBoard(tk.Toplevel):
+
     @property
     def sym(self): return self.__sym
+
+    @sym.setter
+    def sym(self, val):
+        if val is not None:
+            self.__sym = val
+            widget = self.getSymWidget(val.lower())
+            self.selectSymWidget(widget)
+
+    @property
+    def pos(self): return self.__pos
+
+    @pos.setter
+    def pos(self, val):
+        if val is not None:
+            self.__pos = val
+            val = getPrefCornerPos(self, val)
+            self.geometry('+%d+%d' % val)
 
     def __init__(self, master, pos=None, init_sym=None):
         super().__init__(master)
@@ -1324,10 +1342,9 @@ class SymBoard(tk.Toplevel):
         self.__sym = None
         self.__curr_widget = None
         self.__w_syms = {}
+        self.__pos = (0, 0)
 
         #board
-        pos = '+%d+%d' % (pos[0], pos[1]) if pos is not None else '+0+0'
-        self.geometry(pos)
         self.title('')
         self.bind('<Escape>', self.onClosed)
         self.protocol('WM_DELETE_WINDOW', lambda: self.onClosed(None))
@@ -1346,16 +1363,15 @@ class SymBoard(tk.Toplevel):
             self.showSym(sym, sn, self.__ext_bg_color)
             sn += 1
 
-        if init_sym is not None:
-            init_sym = init_sym.lower()
-            widget = self.getSymWidget(init_sym)
-            self.selectSymWidget(widget)
+        self.pos = pos
+        self.sym = init_sym
 
-        #set focus
-        self.transient()
-        self.focus_set()
-        self.grab_set()
-        self.wait_window(self)
+        #display
+        #self.transient()
+        self.focus_set()  #present key-press, sent back to parent
+        self.grab_set()   #disalbe interact of parent
+        self.wait_window(self)  #block until destroy()
+
 
     def onClosed(self, e):
         self.master.focus_set()
@@ -1807,6 +1823,19 @@ def __readFiles(paths, gps_path, pic_path):
             pic_path.append(path)
         elif isGpsFile(path):
             gps_path.append(path)
+
+def getPrefCornerPos(widget, pos):
+    sw = widget.winfo_screenwidth()
+    sh = widget.winfo_screenheight()
+    ww = widget.winfo_width()
+    wh = widget.winfo_height()
+    x, y = pos
+    #print('screen:', (sw, sh), 'window:', (ww, wh), 'pos:', pos)
+    if (sw-x) < ww and (sw-x) < x:
+        x -= ww
+    if (sh-y) < wh and (sh-y) < y:
+        y -= wh
+    return (x, y)
 
 def isExit(disp_board):
 
