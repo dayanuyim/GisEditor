@@ -182,6 +182,7 @@ class DispBoard(tk.Frame):
             sn += 1
             wpt.name = "%02d %s" % (sn, wpt.name)
 
+        self.__alter_time = datetime.now()
         self.resetMap()
 
     def onUnnumberWpt(self):
@@ -190,10 +191,13 @@ class DispBoard(tk.Frame):
             idx = wpt.name.find(' ')
             if idx >= 0 and wpt.name[:idx].isdigit():
                 wpt.name = wpt.name[idx+1:]
+
+        self.__alter_time = datetime.now()
         self.resetMap()
 
     def onToggleWptNmae(self):
         self.map_ctrl.hide_txt = not self.map_ctrl.hide_txt
+        self.__alter_time = datetime.now() #@@
         self.resetMap()
 
     def onEditTrk(self, trk=None):
