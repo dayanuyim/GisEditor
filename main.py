@@ -1782,7 +1782,8 @@ def isGpsFile(path):
         return True
     if ext == '.gdb':
         return True
-    return False
+    #assue the file is a gps file!
+    return True
 
 def getGpsDocument(path):
     (fname, ext) = os.path.splitext(path)
@@ -1805,6 +1806,7 @@ def toGpxString(src_path):
 
     shutil.copyfile(src_path, tmp_path)  #to work around the problem of gpx read non-ascii filename
     cmd = '"%s" -i %s -f "%s" -o gpx,gpxver=1.1 -F -' % (exe_file, ext[1:], tmp_path)
+    print(cmd)
     output = subprocess.check_output(cmd, shell=True)
     os.remove(tmp_path)
 
@@ -1879,7 +1881,6 @@ def onExit(root, disp_board):
         root.destroy()
 
 if __name__ == '__main__':
-
     #create window
     root = tk.Tk()
     root.title("PicGisEditor")
