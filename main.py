@@ -642,8 +642,11 @@ class MapController:
             if icon is not None:
                 if icon.mode == 'RGBA':
                     img.paste(icon, (px-adj, py-adj), icon)
+                elif icon.mode == 'LA' or (icon.mode == 'P' and 'transparency' in icon.info):
+                    mask = icon.convert('RGBA')
+                    img.paste(icon, (px-adj, py-adj), mask)
                 else:
-                    #print("Warning: Icon for '%s' is not RGBA" % wpt.sym)
+                    print("Warning: Icon for '%s' with mode %s is not ransparency" % (wpt.sym, icon.mode))
                     img.paste(icon, (px-adj, py-adj))
 
         #draw point   //replace by icon
