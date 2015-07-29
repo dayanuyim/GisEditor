@@ -1176,6 +1176,7 @@ class TrkBoard(tk.Toplevel):
         self.pt_list.config(selectmode='extended', yscrollcommand=pt_scroll.set, width=43, height=30)
         self.pt_list.pack(side='left', anchor='nw', expand=1, fill='both')
         self.pt_list.bind('<ButtonRelease-1>', self.onPtSelected)
+        self.pt_list.bind('<Up>', self.onPtSelected)
         self.pt_list.bind('<Down>', self.onPtSelected)
         self.pt_list.bind('<Delete>', self.onPtDeleted)
 
