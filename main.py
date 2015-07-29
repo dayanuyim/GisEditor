@@ -182,8 +182,7 @@ class DispBoard(tk.Frame):
             sn += 1
             wpt.name = "%02d %s" % (sn, wpt.name)
 
-        self.__alter_time = datetime.now()
-        self.resetMap()
+        self.setAlter('wpt')
 
     def onUnnumberWpt(self):
         wpt_list = self.map_ctrl.getAllWpts()
@@ -192,31 +191,30 @@ class DispBoard(tk.Frame):
             if idx >= 0 and wpt.name[:idx].isdigit():
                 wpt.name = wpt.name[idx+1:]
 
-        self.__alter_time = datetime.now()
-        self.resetMap()
+        self.setAlter('wpt')
 
     def onToggleWptNmae(self):
         self.map_ctrl.hide_txt = not self.map_ctrl.hide_txt
-        self.__alter_time = datetime.now() #@@
         self.resetMap()
 
     def onEditTrk(self, trk=None):
         trk_list = self.map_ctrl.getAllTrks()
         trk_board = TrkBoard(self, trk_list, trk)
-        #trk_board.addAlteredHandler(self.resetAlterTime)
+        #trk_board.addAlteredHandler(self.setAlter)
         #trk_board.show()
 
     def onEditWpt(self, mode, wpt=None):
         wpt_list = self.map_ctrl.getAllWpts()
         wpt_board = WptBoard.factory(mode, self, wpt_list, wpt)
         #print('after wptboard')
-        #wpt_board.addAlteredHandler(self.resetAlterTime)
+        #wpt_board.addAlteredHandler(self.setAlter)
         #wpt_board.show()
         self.__focused_wpt = None
 
-    def resetAlterTime(self):
+    def setAlter(self, alter):
+        print(alter, 'is altered')
         self.__alter_time = datetime.now()
-
+        self.resetMap(force=alter)
     #}} 
 
 
@@ -274,16 +272,13 @@ class DispBoard(tk.Frame):
         #set
         self.__setMap(img)
 
-    def onDeleteWpt(self):
-        wpt = self.__focused_wpt
-        self.__focused_wpt = None
-        self.deleteWpt(wpt)
-        
-    def deleteWpt(self, wpt):
-        if wpt is not None:
-            self.__alter_time = datetime.now()
-            self.map_ctrl.deleteWpt(wpt)
-            self.resetMap()
+    def onDeleteWpt(self, wpt=None):
+        if wpt is None:
+            wpt = self.__focused_wpt
+            self.__focused_wpt = None
+
+        self.map_ctrl.deleteWpt(wpt)
+        self.setAlter('wpt')
 
     def onClickUp(self, event):
         self.__mouse_down_pos = None
@@ -310,7 +305,7 @@ class DispBoard(tk.Frame):
         else:
             self.info_label.config(text="[%s] level: %s" % (c.tile_map.getMapName(), c.level))
 
-    def resetMap(self, pt = None, w=None, h=None):
+    def resetMap(self, pt=None, w=None, h=None, force=None):
         if w is None: w = self.disp_label.winfo_width()
         if h is None: h = self.disp_label.winfo_height()
 
@@ -319,7 +314,7 @@ class DispBoard(tk.Frame):
             self.map_ctrl.lon = pt.lon
             self.map_ctrl.shiftGeoPixel(-w/2, -h/2)
 
-        self.__img = self.map_ctrl.getTileImage(w, h)  #buffer the image
+        self.__img = self.map_ctrl.getTileImage(w, h, force)  #buffer the image
         self.__setMap(self.__img)
 
     def restore(self):
@@ -446,12 +441,12 @@ class MapController:
         print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: done")
         return img
 
-    def getTileImage(self, width, height):
+    def getTileImage(self, width, height, force=None):
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: begin")
 
         #The image attributes with which we want to create a image compatible.
         req_attr = ImageAttr(self.level, self.px, self.py, self.px + width, self.py + height)
-        img, attr = self.__genGpsMap(req_attr)
+        img, attr = self.__genGpsMap(req_attr, force)
 
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  crop map")
         img = self.__genCropMap(img, attr, req_attr)
@@ -461,27 +456,26 @@ class MapController:
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: done")
         return img
 
-    def __isCacheValid(self, cache_img):
-        return self.__parent.alter_time is None or cache_img.time > self.__parent.alter_time
+    #def __isCacheValid(self, cache_img):
+        #return self.__parent.alter_time is None or cache_img.time > self.__parent.alter_time
 
     def __isCacheContains(self, img_attr):
         return self.__cache_attr is not None and self.__cache_attr.containsImgae(img_attr)
 
-    def __genGpsMap(self, req_attr):
-        if self.__isCacheContains(req_attr) and self.__isCacheValid(self.__cache_gpsmap):
+    def __genGpsMap(self, req_attr, force=None):
+        if force not in ('all', 'gps', 'trk', 'wpt') and self.__isCacheContains(req_attr):
+            print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  get gps map from cache")
             return (self.__cache_gpsmap, self.__cache_attr)
 
         img, attr = self.__genBaseMap(req_attr)
-        img = img.copy()   #copy
-        img.time = datetime.now()
+        self.__cache_gpsmap = img.copy()   #copy as cache
 
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw trk")
-        self.__drawTrk(img, attr)
+        self.__drawTrk(self.__cache_gpsmap, attr)
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw wpt")
-        self.__drawWpt(img, attr)
+        self.__drawWpt(self.__cache_gpsmap, attr)
 
-        self.__cache_gpsmap = img  #save copy as cache
-        return img, attr
+        return self.__cache_gpsmap, attr
 
     def __genBaseMap(self, req_attr):
         if self.__isCacheContains(req_attr):
@@ -830,9 +824,8 @@ class WptBoard(tk.Toplevel):
     def removeAlteredHandler(self, h):
         self._altered_handlers.remove(h)
 
-    def onAltered(self):
-        self._is_changed = True
-        self.master.resetAlterTime()   #hard code fist!!!
+    def onAltered(self, alter):
+        self.master.setAlter(alter)   #hard code fist!!!
         #for handler in self._altered_handlers:
             #handler()
         
@@ -843,8 +836,8 @@ class WptBoard(tk.Toplevel):
         self.destroy()
 
     def onDeleted(self, e):
-        self.master.deleteWpt(self._curr_wpt)
-        self.onAltered()
+        self._is_changed = True
+        self.master.onDeleteWpt(self._curr_wpt)
 
         next_wpt = self._getNextWpt()
         self._wpt_list.remove(self._curr_wpt)
@@ -859,10 +852,11 @@ class WptBoard(tk.Toplevel):
         if self._curr_wpt.name != name:
             self._curr_wpt.name = name
             self._curr_wpt.sym = conf.getSymbol(name)
+            self._is_changed = True
             self.showWptIcon(self._curr_wpt)
+
+            self.onAltered('wpt')
             self.highlightWpt(self._curr_wpt)
-            #update status
-            self.onAltered()
 
     def onFocusChanged(self, *args):
         self.highlightWpt(self._curr_wpt)
@@ -983,10 +977,11 @@ class WptSingleBoard(WptBoard):
 
         if sym is not None and sym != wpt.sym:
             wpt.sym = sym
+            self._is_changed = True
             self.showWptIcon(wpt)
+
             #update map
-            self.onAltered()
-            self.master.resetMap()
+            self.onAltered('wpt')
             self.highlightWpt(wpt)
 
     def showWptIcon(self, wpt):
@@ -1230,9 +1225,8 @@ class TrkBoard(tk.Toplevel):
     def removeAlteredHandler(self, h):
         self._altered_handlers.remove(h)
 
-    def onAltered(self):
-        self._is_changed = True
-        self.master.resetAlterTime()   #hard code fist!!!
+    def onAltered(self, alter):
+        self.master.setAlter(alter)   #hard code fist!!!
         #for handler in self._altered_handlers:
         #    handler()
 
@@ -1250,7 +1244,8 @@ class TrkBoard(tk.Toplevel):
         name = self._var_name.get()
         if self._curr_trk.name != name:
             self._curr_trk.name = name
-            self.onAltered()
+            self._is_changed = True
+            self.onAltered('trk')
 
     def onColorChanged(self, *args):
         color = self._var_color.get()
@@ -1281,9 +1276,9 @@ class TrkBoard(tk.Toplevel):
             for i in idx:
                 self.pt_list.delete(i)
                 del self._curr_trk[i]
+            self._is_changed = True
 
-            self.onAltered()
-            self.master.resetMap()
+            self.onAltered('trk')
 
     def highlightTrk(self, pts):
         if self._var_focus.get():
