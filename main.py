@@ -9,7 +9,7 @@ import urllib.request
 import shutil
 import tempfile
 from os import path
-from PIL import Image, ImageTk, ImageDraw, ImageFont
+from PIL import Image, ImageTk, ImageDraw, ImageFont, ImageColor
 from math import floor, ceil, sqrt
 from tkinter import messagebox, filedialog
 from datetime import datetime
@@ -1213,7 +1213,9 @@ class TrkBoard(tk.Toplevel):
         tk.Label(frame, text="Color", font=bold_font).grid(row=1, column=0, sticky='e')
         self._var_color = tk.StringVar()
         self._var_color.trace('w', self.onColorChanged)
-        tk.Entry(frame, font=font, textvariable=self._var_color).grid(row=1, column=1, sticky='w')
+        self.__color_entry = tk.Entry(frame, font=font, textvariable=self._var_color)
+        self.__color_entry.grid(row=1, column=1, sticky='w')
+        self.__color_entry_bg = self.__color_entry['bg']
 
         #tk.Checkbutton(frame, text='Focus Track point', variable=self._var_focus).grid(row=2, column=1, sticky='w')
 
@@ -1249,10 +1251,17 @@ class TrkBoard(tk.Toplevel):
 
     def onColorChanged(self, *args):
         color = self._var_color.get()
-        if self._curr_trk.color != color:
-            self._curr_trk.color = color
-            self.onAltered()
-            self.master.resetMap()
+        if self._curr_trk.color == color:
+            self.__color_entry.config(bg=self.__color_entry_bg)  #reset default bg color
+        else:
+            #try: ImageColor.getrgb(color) except ValueError as e: print('Not support color %s: %s' % (color, e))
+            if color.lower() not in ImageColor.colormap:
+                self.__color_entry.config(bg='lightpink')
+            else:
+                self.__color_entry.config(bg='lightgreen')
+                self._curr_trk.color = color
+                self._is_changed = True
+                self.onAltered('trk')
 
     def onFocus(self, *args):
         is_focus = self._var_focus.get()
