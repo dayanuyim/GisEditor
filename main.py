@@ -190,12 +190,11 @@ class DispBoard(tk.Frame):
             idx = wpt.name.find(' ')
             if idx >= 0 and wpt.name[:idx].isdigit():
                 wpt.name = wpt.name[idx+1:]
-
         self.setAlter('wpt')
 
     def onToggleWptNmae(self):
         self.map_ctrl.hide_txt = not self.map_ctrl.hide_txt
-        self.resetMap()
+        self.resetMap(force='wpt')
 
     def onEditTrk(self, trk=None):
         trk_list = self.map_ctrl.getAllTrks()
@@ -464,7 +463,7 @@ class MapController:
 
     def __genGpsMap(self, req_attr, force=None):
         if force not in ('all', 'gps', 'trk', 'wpt') and self.__isCacheContains(req_attr):
-            print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  get gps map from cache")
+            #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  get gps map from cache")
             return (self.__cache_gpsmap, self.__cache_attr)
 
         img, attr = self.__genBaseMap(req_attr)
