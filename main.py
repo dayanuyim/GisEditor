@@ -607,7 +607,7 @@ class MapController:
         draw = ImageDraw.Draw(img)
         for wpt in wpts:
             (px, py) = wpt.getPixel(img_attr.level)
-            self.drawWayPoint(img, img_attr, wpt, "gray", draw=draw)
+            self.drawWayPoint(img, img_attr, wpt, "black", draw=draw)
         del draw
 
     def drawWayPoint(self, img, img_attr, wpt, txt_color, bg_color=None, draw=None):
@@ -625,7 +625,7 @@ class MapController:
         _draw = draw if draw is not None else ImageDraw.Draw(img)
 
         if bg_color is not None:
-            r = ceil(conf.ICON_SIZE/sqrt(2))
+            r = ceil(conf.ICON_SIZE/2) + 5
             _draw.ellipse((px-r, py-r, px+r, py+r), fill=bg_color, outline='gray')
 
 
