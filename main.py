@@ -625,7 +625,7 @@ class MapController:
         _draw = draw if draw is not None else ImageDraw.Draw(img)
 
         if bg_color is not None:
-            r = ceil(conf.ICON_SIZE/2) + 5
+            r = ceil(conf.ICON_SIZE/sqrt(2))
             _draw.ellipse((px-r, py-r, px+r, py+r), fill=bg_color, outline='gray')
 
 
