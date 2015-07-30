@@ -860,11 +860,6 @@ class WptBoard(tk.Toplevel):
     def onFocusChanged(self, *args):
         self.highlightWpt(self._curr_wpt)
 
-    def askSym(self, pos=None, init_sym=None):
-        sym_board = SymBoard(self, pos, init_sym)
-        #print('-->', sym_board.sym)
-        return sym_board.sym
-
     def onEditSymRule(self):
         SymRuleBoard(self)
     
@@ -972,7 +967,7 @@ class WptSingleBoard(WptBoard):
 
     def onSymClick(self, e):
         wpt = self._curr_wpt
-        sym = self.askSym(pos=(e.x_root, e.y_root), init_sym=wpt.sym)
+        sym = askSym(self, pos=(e.x_root, e.y_root), init_sym=wpt.sym)
 
         if sym is not None and sym != wpt.sym:
             wpt.sym = sym
@@ -1328,9 +1323,11 @@ class SymBoard(tk.Toplevel):
 
     @sym.setter
     def sym(self, val):
-        if val is not None:
-            self.__sym = val
-            widget = self.getSymWidget(val.lower())
+        self.__sym = val
+        if val is None:
+            self.selectSymWidget(None)
+        else:
+            widget = self.__widgets.get(val.lower())
             self.selectSymWidget(widget)
 
     @property
@@ -1338,21 +1335,21 @@ class SymBoard(tk.Toplevel):
 
     @pos.setter
     def pos(self, val):
-        if val is not None:
-            self.__pos = val
-            val = getPrefCornerPos(self, val)
-            self.geometry('+%d+%d' % val)
+        val = (0,0) if val is None else getPrefCornerPos(self, val)
+        self.geometry('+%d+%d' % val)
+        self.__pos = val
 
-    def __init__(self, master, pos=None, init_sym=None):
+    def __init__(self, master=None):
         super().__init__(master)
 
+        self.__parent = None #for show/onClosed
         self.__col_sz = 20
         self.__bg_color = self.cget('bg')
         self.__ext_bg_color = 'lightgray'
         self.__hl_bg_color = 'lightblue'
         self.__sym = None
         self.__curr_widget = None
-        self.__w_syms = {}
+        self.__widgets = {}
         self.__pos = (0, 0)
 
         #board
@@ -1361,6 +1358,7 @@ class SymBoard(tk.Toplevel):
         self.bind('<Escape>', self.onClosed)
         self.protocol('WM_DELETE_WINDOW', lambda: self.onClosed(None))
 
+        #init
         def_sym = conf.getDefSymList()
         dir_sym = conf.getIconPath().keys()
         ext_sym = listdiff(dir_sym, def_sym)
@@ -1375,24 +1373,34 @@ class SymBoard(tk.Toplevel):
             self.showSym(sym, sn, self.__ext_bg_color)
             sn += 1
 
-        self.sym = init_sym
+        #hidden
+        self.withdraw()  #for silent update
+        self.visible = tk.BooleanVar(value=False)
 
-        if pos is not None:
-            self.withdraw()  #for silent update
-            self.update()
-            self.pos = pos  #set
-            self.deiconify()
+        #update window size
+        self.update()  
 
-        #display
-        self.transient(master)  #remove max/min buttons
-        self.focus_set()  #present key-press, sent back to parent
+    def show(self, parent):
+        self.__parent = parent #rec
+
+        #UI
+        self.transient(parent)  #remove max/min buttons
+        self.focus_set()  #prevent key-press sent back to parent
         self.grab_set()   #disalbe interact of parent
-        self.wait_window(self)  #block until destroy()
 
+        #show
+        self.deiconify()
+        self.visible.set(True)
+        parent.wait_variable(self.visible)
 
     def onClosed(self, e):
-        self.master.focus_set()
-        self.destroy()
+        if self.__parent is not None:
+            self.__parent.focus_set()
+        self.grab_release()
+
+        #self.destroy()
+        self.withdraw()
+        self.visible.set(False)
 
     def showSym(self, sym, sn, bg_color):
         col_sz = self.__col_sz
@@ -1410,17 +1418,13 @@ class SymBoard(tk.Toplevel):
         disp.bind('<Button-1>', self.onClick)
 
         #save
-        self.__w_syms[disp] = sym
-
-    def getSymWidget(self, sym):
-        for w, s in self.__w_syms.items():
-            if s == sym:
-                return w
-        return None
+        disp.sym = sym
+        self.__widgets[sym] = disp
 
     def onMotion(self, e):
         self.selectSymWidget(e.widget)
 
+    #careful: widget could be None
     def selectSymWidget(self, widget):
         if self.__curr_widget != widget:
             self.unhighlight(self.__curr_widget)
@@ -1429,18 +1433,16 @@ class SymBoard(tk.Toplevel):
 
     def unhighlight(self, widget):
         if widget is not None:
-            sym = self.__w_syms.get(widget)
-            bg_color = self.__bg_color if sym in conf.getDefSymList() else self.__ext_bg_color
+            bg_color = self.__bg_color if widget.sym in conf.getDefSymList() else self.__ext_bg_color
             widget.config(bg=bg_color)
 
     def highlight(self, widget):
         if widget is not None:
             widget.config(bg=self.__hl_bg_color)
-            self.title(self.__w_syms[widget])
+            self.title(widget.sym)
 
     def onClick(self, e):
-        #self.__sym = e.widget.cget('text')
-        self.__sym = self.__w_syms[e.widget].title()
+        self.__sym = e.widget.sym.title()
         self.onClosed(None)
 
 class SymRuleBoard(tk.Toplevel):
@@ -1684,9 +1686,9 @@ class SymRuleBoard(tk.Toplevel):
         elif e.widget == txt_w:
             pass
         elif e.widget == sym_w:
-            sym_board = SymBoard(self, pos, rule.symbol)
-            if rule.symbol != sym_board.sym and sym_board.sym is not None:
-                rule.symbol = sym_board.sym
+            sym = askSym(self, pos, rule.symbol)
+            if sym is not None and rule.symbol != sym:
+                rule.symbol = sym
                 self.setRuleWidgets(rule)
                 self.__save_btn.config(state='normal')
 
@@ -1751,6 +1753,21 @@ class SymRuleBoard(tk.Toplevel):
 
         self.__focused_rule = None
     #}}
+
+__sym_board = None
+def askSym(parent, pos=None, init_sym=None):
+    #sym_board = SymBoard(master, pos, init_sym)
+    #return sym_board.sym
+
+    global __sym_board
+
+    if __sym_board is None:
+        __sym_board = SymBoard()
+    __sym_board.pos = pos
+    __sym_board.sym = init_sym
+
+    __sym_board.show(parent)
+    return __sym_board.sym
 
 def listdiff(list1, list2):
     result = []
