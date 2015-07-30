@@ -1327,8 +1327,9 @@ class SymBoard(tk.Toplevel):
         if val is None:
             self.selectSymWidget(None)
         else:
-            widget = self.__widgets.get(val.lower())
-            self.selectSymWidget(widget)
+            val = conf._tosymkey(val)
+            w = self.__widgets.get(val)
+            self.selectSymWidget(w)
 
     @property
     def pos(self): return self.__pos
@@ -1405,7 +1406,6 @@ class SymBoard(tk.Toplevel):
     def showSym(self, sym, sn, bg_color):
         col_sz = self.__col_sz
 
-        #txt = sym.title()
         txt = ""
         icon = ImageTk.PhotoImage(conf.getIcon(sym))
 
@@ -1442,7 +1442,7 @@ class SymBoard(tk.Toplevel):
             self.title(widget.sym)
 
     def onClick(self, e):
-        self.__sym = e.widget.sym.title()
+        self.__sym = e.widget.sym
         self.onClosed(None)
 
 class SymRuleBoard(tk.Toplevel):
