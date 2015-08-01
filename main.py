@@ -86,7 +86,7 @@ class DispBoard(tk.Frame):
     #txt = "LatLon/97: (%f, %f), TM2/97: (%.3f, %.3f), TM2/67: (%.3f, %.3f)" % (geo.lat, geo.lon, x_tm2_97/1000, y_tm2_97/1000, x_tm2_67/1000, y_tm2_67/1000)
     def initMapInfo(self):
         font = 'Arialuni 12'
-        bfont = 'Arialuni 12 bold'
+        bfont = font + ' bold'
 
         frame = tk.Frame(self)
 
@@ -100,22 +100,25 @@ class DispBoard(tk.Frame):
         self.__info_level = tk.IntVar()
         tk.Entry(frame, font=font, width=2, textvariable=self.__info_level).pack(side='left', expand=0, anchor='nw')
 
-        #tm2/67
-        tk.Label(frame, font=bfont, text='TM2/67').pack(side='left', expand=0, anchor='nw')
-        self.__info_67tm2 = tk.StringVar()
-        tk.Entry(frame, font=font, width=16, textvariable=self.__info_67tm2).pack(side='left', expand=0, anchor='nw')
-
-        #tm2/97
-        tk.Label(frame, font=bfont, text='TM2/97').pack(side='left', expand=0, anchor='nw')
-        self.__info_97tm2 = tk.StringVar()
-        tk.Entry(frame, font=font, width=16, textvariable=self.__info_97tm2).pack(side='left', expand=0, anchor='nw')
-
-        #latlon/97
-        tk.Label(frame, font=bfont, text='LatLon/97').pack(side='left', expand=0, anchor='nw')
-        self.__info_97latlon = tk.StringVar()
-        tk.Entry(frame, font=font, textvariable=self.__info_97latlon).pack(side='left', expand=0, anchor='nw')
+        #pos
+        self.__info_67tm2 = self.genInfoPos(frame, font, 'TM2/67', 16)
+        self.__info_97tm2 = self.genInfoPos(frame, font, 'TM2/97', 16)
+        self.__info_97latlon = self.genInfoPos(frame, font, 'LatLon/97', 20)
 
         return frame
+
+    def genInfoPos(self, frame, font, title, width):
+        bfont = font + ' bold'
+
+        label = tk.Label(frame, font=bfont, text=title)
+        label.pack(side='left', expand=0, anchor='nw')
+
+        var = tk.StringVar()
+        entry = tk.Entry(frame, font=font, width=width,textvariable=var)
+        entry.pack(side='left', expand=0, anchor='nw')
+        entry.variable = var
+
+        return entry
 
     def setMapInfo(self, geo=None):
         self.__info_level.set(self.map_ctrl.level)
@@ -123,9 +126,9 @@ class DispBoard(tk.Frame):
         if geo is not None:
             x_97tm2, y_97tm2 = CoordinateSystem.TWD97_LatLonToTWD97_TM2(geo.lat, geo.lon)
             x_67tm2, y_67tm2  = CoordinateSystem.TWD97_TM2ToTWD67_TM2(x_97tm2, y_97tm2)
-            self.__info_97latlon.set("%f, %f" % (geo.lat, geo.lon))
-            self.__info_97tm2.set("%.3f, %.3f" % (x_97tm2/1000, y_97tm2/1000))
-            self.__info_67tm2.set("%.3f, %.3f" % (x_67tm2/1000, y_67tm2/1000))
+            self.__info_97latlon.variable.set("%f, %f" % (geo.lat, geo.lon))
+            self.__info_97tm2.variable.set("%.3f, %.3f" % (x_97tm2/1000, y_97tm2/1000))
+            self.__info_67tm2.variable.set("%.3f, %.3f" % (x_67tm2/1000, y_67tm2/1000))
 
     def addGpx(self, gpx):
         self.map_ctrl.addGpxLayer(gpx)
