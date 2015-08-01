@@ -117,8 +117,42 @@ class DispBoard(tk.Frame):
         entry = tk.Entry(frame, font=font, width=width,textvariable=var)
         entry.pack(side='left', expand=0, anchor='nw')
         entry.variable = var
+        
+        entry.bind('<Return>', self.onSetPos)
 
         return entry
+
+    def onSetPos(self, e):
+        #get pos
+        try:
+            pos = e.widget.get()
+            x, y = pos.split(',')
+            x = float(x.strip())
+            y = float(y.strip())
+            #print('x=%f, y=%f' % (x, y))
+        except:
+            messagebox.showwarning('Bad Format', "Please use format '%d,%d'")
+            return
+
+        #convet to 97 latlon
+        if e.widget == self.__info_67tm2:
+            lat, lon = CoordinateSystem.TWD67_TM2ToTWD97_LatLon(x*1000, y*1000)
+        elif e.widget == self.__info_97tm2:
+            lat, lon = CoordinateSystem.TWD97_TM2ToTWD97_LatLon(x*1000, y*1000)
+        elif e.widget == self.__info_97latlon:
+            lat, lon = x, y
+
+        #check
+        min_lon, min_lat = self.map_ctrl.tile_map.lower_corner
+        max_lon, max_lat = self.map_ctrl.tile_map.upper_corner
+        if not (min_lat <= lat and lat <= max_lat and min_lon <= lon and lon <= max_lon):
+            messagebox.showwarning('Invalid Location', 'Please check location')
+            return
+
+        #focus geo on map
+        geo = GeoPoint(lat=lat, lon=lon)
+        self.setMapInfo(geo)
+        self.resetMap(geo)
 
     def setMapInfo(self, geo=None):
         self.__info_level.set(self.map_ctrl.level)
