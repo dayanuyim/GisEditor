@@ -96,18 +96,16 @@ class DispBoard(tk.Frame):
         info_mapname['text'] = self.map_ctrl.tile_map.getMapName()
 
         #level
-        tk.Label(frame, font=font, text='level').pack(side='left', expand=0, anchor='nw')
-        self.__info_level = tk.IntVar()
-        tk.Entry(frame, font=font, width=2, textvariable=self.__info_level).pack(side='left', expand=0, anchor='nw')
+        self.__info_level = self.genInfoWidget(frame, font, 'Level', 2, self.onSetLevel)
 
         #pos
-        self.__info_67tm2 = self.genInfoPos(frame, font, 'TM2/67', 16)
-        self.__info_97tm2 = self.genInfoPos(frame, font, 'TM2/97', 16)
-        self.__info_97latlon = self.genInfoPos(frame, font, 'LatLon/97', 20)
+        self.__info_67tm2 = self.genInfoWidget(frame, font, 'TM2/67', 16, self.onSetPos)
+        self.__info_97tm2 = self.genInfoWidget(frame, font, 'TM2/97', 16, self.onSetPos)
+        self.__info_97latlon = self.genInfoWidget(frame, font, 'LatLon/97', 20, self.onSetPos)
 
         return frame
 
-    def genInfoPos(self, frame, font, title, width):
+    def genInfoWidget(self, frame, font, title, width, cb=None):
         bfont = font + ' bold'
 
         label = tk.Label(frame, font=bfont, text=title)
@@ -118,9 +116,22 @@ class DispBoard(tk.Frame):
         entry.pack(side='left', expand=0, anchor='nw')
         entry.variable = var
         
-        entry.bind('<Return>', self.onSetPos)
+        if cb is not None:
+            entry.bind('<Return>', cb)
 
         return entry
+
+    def onSetLevel(self, e):
+        if e.widget == self.__info_level:
+            try:
+                level = int(e.widget.get())
+            except:
+                messagebox.showwarning('Bad Number', 'Please check level')
+                return
+            level = min(max(7, level), 18)  #limit
+            self.map_ctrl.level = level
+            self.setMapInfo()
+            self.resetMap()
 
     def onSetPos(self, e):
         #get pos
@@ -155,7 +166,7 @@ class DispBoard(tk.Frame):
         self.resetMap(geo)
 
     def setMapInfo(self, geo=None):
-        self.__info_level.set(self.map_ctrl.level)
+        self.__info_level.variable.set(self.map_ctrl.level)
 
         if geo is not None:
             x_97tm2, y_97tm2 = CoordinateSystem.TWD97_LatLonToTWD97_TM2(geo.lat, geo.lon)
@@ -362,8 +373,9 @@ class DispBoard(tk.Frame):
         disp = self.disp_label
         if e.widget == disp:
             if not hasattr(disp, 'image'):  #init
-                self.setMapInfo()
-                self.resetMap(self.__getPrefGeoPt())
+                geo = self.__getPrefGeoPt()
+                self.setMapInfo(geo)
+                self.resetMap(geo)
             elif e.width != disp.image.width() or e.height != disp.image.height():
                 self.setMapInfo()
                 self.resetMap()
