@@ -1424,6 +1424,7 @@ class SymBoard(tk.Toplevel):
         self.__bg_color = self.cget('bg')
         self.__ext_bg_color = 'lightgray'
         self.__hl_bg_color = 'lightblue'
+        self.__filter_bg_color = 'red'
         self.__sym = None
         self.__curr_widget = None
         self.__widgets = {}
@@ -1436,19 +1437,26 @@ class SymBoard(tk.Toplevel):
         self.protocol('WM_DELETE_WINDOW', lambda: self.onClosed(None))
 
         #init
-        def_sym = conf.getDefSymList()
         dir_sym = conf.getIconPath().keys()
-        ext_sym = listdiff(dir_sym, def_sym)
+        self.__def_sym = conf.getDefSymList()
+        self.__ext_sym = listdiff(dir_sym, self.__def_sym)
 
         sn = 0
-        for sym in def_sym:
+        for sym in self.__def_sym:
             self.showSym(sym, sn, self.__bg_color)
             sn += 1
 
-        sn = ceil(sn/self.__col_sz) * self.__col_sz
-        for sym in ext_sym:
+        sn = self.getNextRowSn(sn)
+        for sym in self.__ext_sym:
             self.showSym(sym, sn, self.__ext_bg_color)
             sn += 1
+
+        span = max(1, int(self.__col_sz/3))
+        row, col = self.toRowCol(self.getNextRowSn(sn))
+        self.__var_filter = tk.StringVar()
+        self.__var_filter.trace('w', self.onFilterSym)
+        filter_entry = tk.Entry(self, textvariable=self.__var_filter)
+        filter_entry.grid(row=row, column=col+self.__col_sz-span, columnspan=span, sticky='news')
 
         #hidden
         self.withdraw()  #for silent update
@@ -1479,8 +1487,13 @@ class SymBoard(tk.Toplevel):
         self.withdraw()
         self.visible.set(False)
 
+    def toRowCol(self, sn):
+        return int(sn/self.__col_sz), sn%self.__col_sz
+
+    def getNextRowSn(self, sn):
+        return ceil(sn/self.__col_sz) * self.__col_sz
+
     def showSym(self, sym, sn, bg_color):
-        col_sz = self.__col_sz
 
         txt = ""
         icon = ImageTk.PhotoImage(conf.getIcon(sym))
@@ -1489,7 +1502,8 @@ class SymBoard(tk.Toplevel):
         disp.config(image=icon, text=txt, compound='left', anchor='w', bg=bg_color)
         disp.image=icon
 
-        disp.grid(row=int(sn/col_sz), column=sn%col_sz, sticky='we')
+        row, col = self.toRowCol(sn)
+        disp.grid(row=row, column=col, sticky='we')
         disp.bind('<Motion>', self.onMotion)
         disp.bind('<Button-1>', self.onClick)
 
@@ -1500,6 +1514,19 @@ class SymBoard(tk.Toplevel):
     def onMotion(self, e):
         self.selectSymWidget(e.widget)
 
+    def onFilterSym(self, *args):
+        #reet 
+        self.sym = None
+
+        f = self.__var_filter.get().lower()
+        for w in self.children.values():
+            if hasattr(w, 'sym'):
+                sym = w.sym.lower()
+                w['bg'] = self.__filter_bg_color if f and f in sym else self.getWidgetsBgColor(w)
+
+    def getWidgetsBgColor(self, widget):
+        return self.__bg_color if widget.sym in self.__def_sym else self.__ext_bg_color
+
     #careful: widget could be None
     def selectSymWidget(self, widget):
         if self.__curr_widget != widget:
@@ -1509,13 +1536,16 @@ class SymBoard(tk.Toplevel):
 
     def unhighlight(self, widget):
         if widget is not None:
-            bg_color = self.__bg_color if widget.sym in conf.getDefSymList() else self.__ext_bg_color
-            widget.config(bg=bg_color)
+            if widget['bg'] != self.__filter_bg_color:
+                widget['bg'] = self.getWidgetsBgColor(widget)
 
     def highlight(self, widget):
         if widget is not None:
-            widget.config(bg=self.__hl_bg_color)
+            if widget['bg'] != self.__filter_bg_color:
+                widget['bg'] = self.__hl_bg_color
             self.title(widget.sym)
+        else:
+            self.title("")
 
     def onClick(self, e):
         self.__sym = e.widget.sym
