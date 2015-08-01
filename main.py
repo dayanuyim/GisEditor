@@ -37,16 +37,15 @@ class DispBoard(tk.Frame):
         self.map_ctrl = MapController(self)
 
         #board
-        self.bg_color='#D0D0D0'
-        self.config(bg=self.bg_color)
+        self.__bg_color=self['bg']
         self.__focused_wpt = None
         self.__img = None         #buffer disp image for restore map
         self.__alter_time = None
 
         #info
-        self.info_label = tk.Label(self, font='24', anchor='w', bg=self.bg_color)
+        info_frame = self.initMapInfo()
+        info_frame.pack(side='top', expand=0, fill='x', anchor='nw')
         self.setMapInfo()
-        self.info_label.pack(expand=0, fill='x', anchor='n')
 
         #display area
         self.__init_w= 800  #deprecated
@@ -83,6 +82,50 @@ class DispBoard(tk.Frame):
         #wpt menu
         self.__wpt_menu = tk.Menu(self.disp_label, tearoff=0)
         self.__wpt_menu.add_command(label='Delete Wpt', underline=0, command=self.onDeleteWpt)
+
+    #txt = "LatLon/97: (%f, %f), TM2/97: (%.3f, %.3f), TM2/67: (%.3f, %.3f)" % (geo.lat, geo.lon, x_tm2_97/1000, y_tm2_97/1000, x_tm2_67/1000, y_tm2_67/1000)
+    def initMapInfo(self):
+        font = 'Arialuni 12'
+        bfont = 'Arialuni 12 bold'
+
+        frame = tk.Frame(self)
+
+        #title
+        info_mapname = tk.Label(frame, font=bfont, bg='lightgray')
+        info_mapname.pack(side='left', expand=0, anchor='nw')
+        info_mapname['text'] = self.map_ctrl.tile_map.getMapName()
+
+        #level
+        tk.Label(frame, font=font, text='level').pack(side='left', expand=0, anchor='nw')
+        self.__info_level = tk.IntVar()
+        tk.Entry(frame, font=font, width=2, textvariable=self.__info_level).pack(side='left', expand=0, anchor='nw')
+
+        #tm2/67
+        tk.Label(frame, font=bfont, text='TM2/67').pack(side='left', expand=0, anchor='nw')
+        self.__info_67tm2 = tk.StringVar()
+        tk.Entry(frame, font=font, width=16, textvariable=self.__info_67tm2).pack(side='left', expand=0, anchor='nw')
+
+        #tm2/97
+        tk.Label(frame, font=bfont, text='TM2/97').pack(side='left', expand=0, anchor='nw')
+        self.__info_97tm2 = tk.StringVar()
+        tk.Entry(frame, font=font, width=16, textvariable=self.__info_97tm2).pack(side='left', expand=0, anchor='nw')
+
+        #latlon/97
+        tk.Label(frame, font=bfont, text='LatLon/97').pack(side='left', expand=0, anchor='nw')
+        self.__info_97latlon = tk.StringVar()
+        tk.Entry(frame, font=font, textvariable=self.__info_97latlon).pack(side='left', expand=0, anchor='nw')
+
+        return frame
+
+    def setMapInfo(self, geo=None):
+        self.__info_level.set(self.map_ctrl.level)
+
+        if geo is not None:
+            x_97tm2, y_97tm2 = CoordinateSystem.TWD97_LatLonToTWD97_TM2(geo.lat, geo.lon)
+            x_67tm2, y_67tm2  = CoordinateSystem.TWD97_TM2ToTWD67_TM2(x_97tm2, y_97tm2)
+            self.__info_97latlon.set("%f, %f" % (geo.lat, geo.lon))
+            self.__info_97tm2.set("%.3f, %.3f" % (x_97tm2/1000, y_97tm2/1000))
+            self.__info_67tm2.set("%.3f, %.3f" % (x_67tm2/1000, y_67tm2/1000))
 
     def addGpx(self, gpx):
         self.map_ctrl.addGpxLayer(gpx)
@@ -134,11 +177,7 @@ class DispBoard(tk.Frame):
         #show lat/lon
         c = self.map_ctrl
         geo = GeoPoint(px=c.px + event.x, py=c.py + event.y, level=c.level) 
-        (x_tm2_97, y_tm2_97) = CoordinateSystem.TWD97_LatLonToTWD97_TM2(geo.lat, geo.lon)
-        (x_tm2_67, y_tm2_67) = CoordinateSystem.TWD97_TM2ToTWD67_TM2(x_tm2_97, y_tm2_97)
-
-        txt = "LatLon/97: (%f, %f), TM2/97: (%.3f, %.3f), TM2/67: (%.3f, %.3f)" % (geo.lat, geo.lon, x_tm2_97/1000, y_tm2_97/1000, x_tm2_67/1000, y_tm2_67/1000)
-        self.setMapInfo(txt=txt)
+        self.setMapInfo(geo)
 
         #show wpt frame
         wpt = c.getWptAt(geo.px, geo.py)
@@ -282,9 +321,6 @@ class DispBoard(tk.Frame):
     def onClickUp(self, event):
         self.__mouse_down_pos = None
 
-        #clear lat/lon
-        #self.setMapInfo()
-
     def onResize(self, e):
         disp = self.disp_label
         if e.widget == disp:
@@ -294,15 +330,6 @@ class DispBoard(tk.Frame):
             elif e.width != disp.image.width() or e.height != disp.image.height():
                 self.setMapInfo()
                 self.resetMap()
-
-    def setMapInfo(self, lat=None, lon=None, txt=None):
-        c = self.map_ctrl
-        if txt is not None:
-            self.info_label.config(text="[%s] level: %s, %s" % (c.tile_map.getMapName(), c.level, txt))
-        elif lat is not None and lon is not None:
-            self.info_label.config(text="[%s] level: %s, lat: %f, lon: %f" % (c.tile_map.getMapName(), c.level, lat, lon))
-        else:
-            self.info_label.config(text="[%s] level: %s" % (c.tile_map.getMapName(), c.level))
 
     def resetMap(self, pt=None, w=None, h=None, force=None):
         if w is None: w = self.disp_label.winfo_width()
