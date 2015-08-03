@@ -324,27 +324,29 @@ class DispBoard(tk.Frame):
 
         curr_wpt = c.getWptAt(px, py)
         prev_wpt = self.__focused_wpt
-        if prev_wpt and curr_wpt != prev_wpt:
-            if curr_wpt is None:  #highlight curr_wpt implies restore, so skip if curr_wpt is not None
-                self.restore()
-        if curr_wpt is not None:
-            self.highlightWpt(curr_wpt)
+        if curr_wpt != prev_wpt:
+            self.highlightWpt(curr_wpt, prev_wpt)
 
         #rec
         self.__focused_wpt = curr_wpt
 
-    def highlightWpt(self, wpt):
-        if wpt is None:
+    def highlightWpt(self, wpt, un_wpt=None):
+        if wpt == un_wpt:
             return
 
-        #draw wpt
-        c = self.map_ctrl
-        img = self.__img.copy()
-        img_attr = ImageAttr(c.level, c.px, c.py, c.px + img.size[0], c.py + img.size[1])
-        c.drawWayPoint(img, img_attr, wpt, 'red', 'white')
+        if wpt is None and un_wpt is not None:
+            #print('unhighlight wpt', un_wpt.name)
+            self.restore()
 
-        #set
-        self.__setMap(img)
+        #draw wpt
+        if wpt is not None:
+            #print('highlight wpt', wpt.name)
+            c = self.map_ctrl
+            img = self.__img.copy()
+            img_attr = ImageAttr(c.level, c.px, c.py, c.px + img.size[0], c.py + img.size[1])
+            c.drawWayPoint(img, img_attr, wpt, 'red', 'white')
+
+            self.__setMap(img)
 
     def highlightTrk(self, pts):
         if pts is None or len(pts) == 0:
