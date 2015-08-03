@@ -37,16 +37,15 @@ class DispBoard(tk.Frame):
         self.map_ctrl = MapController(self)
 
         #board
-        self.bg_color='#D0D0D0'
-        self.config(bg=self.bg_color)
+        self.__bg_color=self['bg']
         self.__focused_wpt = None
         self.__img = None         #buffer disp image for restore map
         self.__alter_time = None
 
         #info
-        self.info_label = tk.Label(self, font='24', anchor='w', bg=self.bg_color)
+        info_frame = self.initMapInfo()
+        info_frame.pack(side='top', expand=0, fill='x', anchor='nw')
         self.setMapInfo()
-        self.info_label.pack(expand=0, fill='x', anchor='n')
 
         #display area
         self.__init_w= 800  #deprecated
@@ -83,6 +82,98 @@ class DispBoard(tk.Frame):
         #wpt menu
         self.__wpt_menu = tk.Menu(self.disp_label, tearoff=0)
         self.__wpt_menu.add_command(label='Delete Wpt', underline=0, command=self.onDeleteWpt)
+
+    #txt = "LatLon/97: (%f, %f), TM2/97: (%.3f, %.3f), TM2/67: (%.3f, %.3f)" % (geo.lat, geo.lon, x_tm2_97/1000, y_tm2_97/1000, x_tm2_67/1000, y_tm2_67/1000)
+    def initMapInfo(self):
+        font = 'Arialuni 12'
+        bfont = font + ' bold'
+
+        frame = tk.Frame(self)
+
+        #title
+        info_mapname = tk.Label(frame, font=bfont, bg='lightgray')
+        info_mapname.pack(side='left', expand=0, anchor='nw')
+        info_mapname['text'] = self.map_ctrl.tile_map.getMapName()
+
+        #level
+        self.__info_level = self.genInfoWidget(frame, font, 'Level', 2, self.onSetLevel)
+
+        #pos
+        self.__info_67tm2 = self.genInfoWidget(frame, font, 'TM2/67', 16, self.onSetPos)
+        self.__info_97tm2 = self.genInfoWidget(frame, font, 'TM2/97', 16, self.onSetPos)
+        self.__info_97latlon = self.genInfoWidget(frame, font, 'LatLon/97', 20, self.onSetPos)
+
+        return frame
+
+    def genInfoWidget(self, frame, font, title, width, cb=None):
+        bfont = font + ' bold'
+
+        label = tk.Label(frame, font=bfont, text=title)
+        label.pack(side='left', expand=0, anchor='nw')
+
+        var = tk.StringVar()
+        entry = tk.Entry(frame, font=font, width=width,textvariable=var)
+        entry.pack(side='left', expand=0, anchor='nw')
+        entry.variable = var
+        
+        if cb is not None:
+            entry.bind('<Return>', cb)
+
+        return entry
+
+    def onSetLevel(self, e):
+        if e.widget == self.__info_level:
+            try:
+                level = int(e.widget.get())
+            except:
+                messagebox.showwarning('Bad Number', 'Please check level')
+                return
+            level = min(max(7, level), 18)  #limit
+            self.map_ctrl.level = level
+            self.setMapInfo()
+            self.resetMap()
+
+    def onSetPos(self, e):
+        #get pos
+        try:
+            pos = e.widget.get()
+            x, y = pos.split(',')
+            x = float(x.strip())
+            y = float(y.strip())
+            #print('x=%f, y=%f' % (x, y))
+        except:
+            messagebox.showwarning('Bad Format', "Please use format '%d,%d'")
+            return
+
+        #convet to 97 latlon
+        if e.widget == self.__info_67tm2:
+            lat, lon = CoordinateSystem.TWD67_TM2ToTWD97_LatLon(x*1000, y*1000)
+        elif e.widget == self.__info_97tm2:
+            lat, lon = CoordinateSystem.TWD97_TM2ToTWD97_LatLon(x*1000, y*1000)
+        elif e.widget == self.__info_97latlon:
+            lat, lon = x, y
+
+        #check
+        min_lon, min_lat = self.map_ctrl.tile_map.lower_corner
+        max_lon, max_lat = self.map_ctrl.tile_map.upper_corner
+        if not (min_lat <= lat and lat <= max_lat and min_lon <= lon and lon <= max_lon):
+            messagebox.showwarning('Invalid Location', 'Please check location')
+            return
+
+        #focus geo on map
+        geo = GeoPoint(lat=lat, lon=lon)
+        self.setMapInfo(geo)
+        self.resetMap(geo)
+
+    def setMapInfo(self, geo=None):
+        self.__info_level.variable.set(self.map_ctrl.level)
+
+        if geo is not None:
+            x_97tm2, y_97tm2 = CoordinateSystem.TWD97_LatLonToTWD97_TM2(geo.lat, geo.lon)
+            x_67tm2, y_67tm2  = CoordinateSystem.TWD97_TM2ToTWD67_TM2(x_97tm2, y_97tm2)
+            self.__info_97latlon.variable.set("%f, %f" % (geo.lat, geo.lon))
+            self.__info_97tm2.variable.set("%.3f, %.3f" % (x_97tm2/1000, y_97tm2/1000))
+            self.__info_67tm2.variable.set("%.3f, %.3f" % (x_67tm2/1000, y_67tm2/1000))
 
     def addGpx(self, gpx):
         self.map_ctrl.addGpxLayer(gpx)
@@ -134,11 +225,7 @@ class DispBoard(tk.Frame):
         #show lat/lon
         c = self.map_ctrl
         geo = GeoPoint(px=c.px + event.x, py=c.py + event.y, level=c.level) 
-        (x_tm2_97, y_tm2_97) = CoordinateSystem.TWD97_LatLonToTWD97_TM2(geo.lat, geo.lon)
-        (x_tm2_67, y_tm2_67) = CoordinateSystem.TWD97_TM2ToTWD67_TM2(x_tm2_97, y_tm2_97)
-
-        txt = "LatLon/97: (%f, %f), TM2/97: (%.3f, %.3f), TM2/67: (%.3f, %.3f)" % (geo.lat, geo.lon, x_tm2_97/1000, y_tm2_97/1000, x_tm2_67/1000, y_tm2_67/1000)
-        self.setMapInfo(txt=txt)
+        self.setMapInfo(geo)
 
         #show wpt frame
         wpt = c.getWptAt(geo.px, geo.py)
@@ -282,27 +369,16 @@ class DispBoard(tk.Frame):
     def onClickUp(self, event):
         self.__mouse_down_pos = None
 
-        #clear lat/lon
-        #self.setMapInfo()
-
     def onResize(self, e):
         disp = self.disp_label
         if e.widget == disp:
             if not hasattr(disp, 'image'):  #init
-                self.setMapInfo()
-                self.resetMap(self.__getPrefGeoPt())
+                geo = self.__getPrefGeoPt()
+                self.setMapInfo(geo)
+                self.resetMap(geo)
             elif e.width != disp.image.width() or e.height != disp.image.height():
                 self.setMapInfo()
                 self.resetMap()
-
-    def setMapInfo(self, lat=None, lon=None, txt=None):
-        c = self.map_ctrl
-        if txt is not None:
-            self.info_label.config(text="[%s] level: %s, %s" % (c.tile_map.getMapName(), c.level, txt))
-        elif lat is not None and lon is not None:
-            self.info_label.config(text="[%s] level: %s, lat: %f, lon: %f" % (c.tile_map.getMapName(), c.level, lat, lon))
-        else:
-            self.info_label.config(text="[%s] level: %s" % (c.tile_map.getMapName(), c.level))
 
     def resetMap(self, pt=None, w=None, h=None, force=None):
         if w is None: w = self.disp_label.winfo_width()
@@ -1348,6 +1424,7 @@ class SymBoard(tk.Toplevel):
         self.__bg_color = self.cget('bg')
         self.__ext_bg_color = 'lightgray'
         self.__hl_bg_color = 'lightblue'
+        self.__filter_bg_color = 'red'
         self.__sym = None
         self.__curr_widget = None
         self.__widgets = {}
@@ -1360,19 +1437,26 @@ class SymBoard(tk.Toplevel):
         self.protocol('WM_DELETE_WINDOW', lambda: self.onClosed(None))
 
         #init
-        def_sym = conf.getDefSymList()
         dir_sym = conf.getIconPath().keys()
-        ext_sym = listdiff(dir_sym, def_sym)
+        self.__def_sym = conf.getDefSymList()
+        self.__ext_sym = listdiff(dir_sym, self.__def_sym)
 
         sn = 0
-        for sym in def_sym:
+        for sym in self.__def_sym:
             self.showSym(sym, sn, self.__bg_color)
             sn += 1
 
-        sn = ceil(sn/self.__col_sz) * self.__col_sz
-        for sym in ext_sym:
+        sn = self.getNextRowSn(sn)
+        for sym in self.__ext_sym:
             self.showSym(sym, sn, self.__ext_bg_color)
             sn += 1
+
+        span = max(1, int(self.__col_sz/3))
+        row, col = self.toRowCol(self.getNextRowSn(sn))
+        self.__var_filter = tk.StringVar()
+        self.__var_filter.trace('w', self.onFilterSym)
+        filter_entry = tk.Entry(self, textvariable=self.__var_filter)
+        filter_entry.grid(row=row, column=col+self.__col_sz-span, columnspan=span, sticky='news')
 
         #hidden
         self.withdraw()  #for silent update
@@ -1403,8 +1487,13 @@ class SymBoard(tk.Toplevel):
         self.withdraw()
         self.visible.set(False)
 
+    def toRowCol(self, sn):
+        return int(sn/self.__col_sz), sn%self.__col_sz
+
+    def getNextRowSn(self, sn):
+        return ceil(sn/self.__col_sz) * self.__col_sz
+
     def showSym(self, sym, sn, bg_color):
-        col_sz = self.__col_sz
 
         txt = ""
         icon = ImageTk.PhotoImage(conf.getIcon(sym))
@@ -1413,7 +1502,8 @@ class SymBoard(tk.Toplevel):
         disp.config(image=icon, text=txt, compound='left', anchor='w', bg=bg_color)
         disp.image=icon
 
-        disp.grid(row=int(sn/col_sz), column=sn%col_sz, sticky='we')
+        row, col = self.toRowCol(sn)
+        disp.grid(row=row, column=col, sticky='we')
         disp.bind('<Motion>', self.onMotion)
         disp.bind('<Button-1>', self.onClick)
 
@@ -1424,6 +1514,19 @@ class SymBoard(tk.Toplevel):
     def onMotion(self, e):
         self.selectSymWidget(e.widget)
 
+    def onFilterSym(self, *args):
+        #reet 
+        self.sym = None
+
+        f = self.__var_filter.get().lower()
+        for w in self.children.values():
+            if hasattr(w, 'sym'):
+                sym = w.sym.lower()
+                w['bg'] = self.__filter_bg_color if f and f in sym else self.getWidgetsBgColor(w)
+
+    def getWidgetsBgColor(self, widget):
+        return self.__bg_color if widget.sym in self.__def_sym else self.__ext_bg_color
+
     #careful: widget could be None
     def selectSymWidget(self, widget):
         if self.__curr_widget != widget:
@@ -1433,13 +1536,16 @@ class SymBoard(tk.Toplevel):
 
     def unhighlight(self, widget):
         if widget is not None:
-            bg_color = self.__bg_color if widget.sym in conf.getDefSymList() else self.__ext_bg_color
-            widget.config(bg=bg_color)
+            if widget['bg'] != self.__filter_bg_color:
+                widget['bg'] = self.getWidgetsBgColor(widget)
 
     def highlight(self, widget):
         if widget is not None:
-            widget.config(bg=self.__hl_bg_color)
+            if widget['bg'] != self.__filter_bg_color:
+                widget['bg'] = self.__hl_bg_color
             self.title(widget.sym)
+        else:
+            self.title("")
 
     def onClick(self, e):
         self.__sym = e.widget.sym
