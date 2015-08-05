@@ -37,10 +37,11 @@ def getSymbol(name):
     sym = rule.symbol if rule is not None else DEF_SYMBOL
     return sym
 
-
-__def_syms = []
+__def_syms = None
 def getDefSymList():
-    if len(__def_syms) == 0:
+    global __def_syms
+    if __def_syms is None:
+        __def_syms = []
         with open(DEF_SYMS_CONF) as def_sym:
             for line in def_sym:
                 if not line.startswith('#'):
@@ -48,31 +49,39 @@ def getDefSymList():
                     __def_syms.append(sym)
     return __def_syms
 
-__sym_paths = {}  #sym->icon_path
+__sym_paths = None  #sym->icon_path
 def getIconPath():
-    if len(__sym_paths) == 0:
+    global __sym_paths
+    if __sym_paths is None:
+        __sym_paths = {}
         for f in os.listdir(ICON_DIR):
-            name, ext = path.splitext(f)
-            sym = _tosymkey(name)
-            __sym_paths[sym] = path.join(ICON_DIR, f)
+            p = path.join(ICON_DIR, f)
+            if path.isfile(p):
+                name, ext = path.splitext(f)
+                sym = _tosymkey(name)
+                __sym_paths[sym] = p
     return __sym_paths
 
-__icons = {}
 def getIcon(sym):
     sym = _tosymkey(sym)
+    icon = __getIcon(sym)
+    if icon is None and sym != DEF_SYMBOL:
+        icon = __getIcon(DEF_SYMBOL)
+    return icon
+
+__icons = {}   #sym->icon image
+def __getIcon(sym):
     icon = __icons.get(sym)
-    if icon is None:   #no key (the possibility of vlaue is None is rare, deu to we load DEF_SYMBOL anyway.
+    if icon is None:
         icon = __loadIcon(sym, ICON_SIZE)
-        __icons[sym] = icon
+        if icon is not None:
+            __icons[sym] = icon  #cache
     return icon
 
 def __loadIcon(sym, sz):
     path =  getIconPath().get(sym)
     if path is None:
-        if sym == DEF_SYMBOL:
-            return None
-        else:
-            return getIcon(DEF_SYMBOL)
+        return None
     icon = Image.open(path)
     icon = icon.resize((sz, sz))
     return icon
