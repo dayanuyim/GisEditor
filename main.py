@@ -13,6 +13,7 @@ from PIL import Image, ImageTk, ImageDraw, ImageFont, ImageColor
 from math import floor, ceil, sqrt
 from tkinter import messagebox, filedialog
 from datetime import datetime
+from threading import Thread, Lock, Condition
 
 #my modules
 import tile
@@ -441,6 +442,9 @@ class MapController:
         self.__geo.level = 14
 
         #image
+        self.__paste_lock = Lock()
+        self.__paste_cv = Condition()
+        self.__paste_count = 0
         self.__cache_basemap = None
         self.__cache_attr = None
         self.extra_p = 128
@@ -594,6 +598,7 @@ class MapController:
 
         return (img, attr)
 
+    #todo: make the function threading
     def __genTileMap(self, img_attr, extra_p):
         #get tile x, y.
         (t_left, t_upper) = TileSystem.getTileXYByPixcelXY(img_attr.left_px - extra_p, img_attr.up_py - extra_p)
@@ -603,16 +608,42 @@ class MapController:
         ty_num = t_lower - t_upper +1
 
         #gen image
+        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "paste tile...")
         disp_img = Image.new("RGBA", (tx_num*256, ty_num*256))
+        self.__paste_count = tx_num*ty_num
         for x in range(tx_num):
             for y in range(ty_num):
-                tile = self.__tile_map.getTileByTileXY(img_attr.level, t_left +x, t_upper +y)
-                disp_img.paste(tile, (x*256, y*256))
+                #tile = self.__tile_map.getTileByTileXY(img_attr.level, t_left +x, t_upper +y)
+                #disp_img.paste(tile, (x*256, y*256))
+                cb = lambda: self.__pasteTile(disp_img, (x*256, y*256), img_attr.level, t_left+x, t_upper+y)
+                th = Thread(target=cb)
+                th.start()
+        self.__waitPasteTile()
+        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "paste tile...done")
 
         #reset img_attr
         disp_attr = ImageAttr(img_attr.level, t_left*256, t_upper*256, (t_right+1)*256 -1, (t_lower+1)*256 -1)
 
         return  (disp_img, disp_attr)
+
+    def __pasteTile(self, img, xy, level, tx, ty):
+        tile = self.__tile_map.getTileByTileXY(level, tx, ty)
+
+        self.__paste_lock.acquire()
+        img.paste(tile, xy)
+        self.__paste_count -= 1
+        self.__paste_lock.release()
+
+        if self.__isPasteTitleDone():
+            with self.__paste_cv:
+                self.__paste_cv.notify()
+
+    def __isPasteTitleDone(self):
+        return self.__paste_count == 0
+
+    def __waitPasteTile(self):
+        with self.__paste_cv:
+            self.__paste_cv.wait_for(self.__isPasteTitleDone)
 
     def __drawTrk(self, img, img_attr):
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw gpx...")
