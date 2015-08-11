@@ -78,6 +78,7 @@ class DispBoard(tk.Frame):
         self.__rclick_menu.add_cascade(label='Numbering wpt...', menu=num_wpt_menu)
         self.__rclick_menu.add_command(label='UnNumbering wpt', underline=0, command=self.onUnnumberWpt)
         self.__rclick_menu.add_command(label='Toggle wpt name', underline=0, command=self.onToggleWptNmae)
+        self.__rclick_menu.add_command(label='Apply symbol rules', underline=0, command=self.onApplySymbolRule)
         self.__rclick_menu.add_separator()
         self.__rclick_menu.add_command(label='Edit tracks...', underline=5, command=self.onEditTrk)
 
@@ -284,6 +285,18 @@ class DispBoard(tk.Frame):
     def onToggleWptNmae(self):
         self.map_ctrl.hide_txt = not self.map_ctrl.hide_txt
         self.resetMap(force='wpt')
+
+    def onApplySymbolRule(self):
+        is_alter = False
+
+        for wpt in self.map_ctrl.getAllWpts():
+            sym = conf.getSymbol(wpt.name)
+            if wpt.sym != sym:
+                wpt.sym = sym
+                is_alter = True
+
+        if is_alter:
+            self.setAlter('wpt')
 
     def onEditTrk(self, trk=None):
         trk_list = self.map_ctrl.getAllTrks()
