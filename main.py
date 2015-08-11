@@ -1989,6 +1989,9 @@ def getGpsDocument(path):
         gpx.load(filestring=gpx_string)
     return gpx
 
+def getPicDocument(path):
+    return PicDocument(path, conf.TZ)
+
 def toGpxString(src_path):
     (fname, ext) = os.path.splitext(src_path)
     if ext == '':
@@ -2090,7 +2093,7 @@ if __name__ == '__main__':
     for path in gps_path:
         disp_board.addGpx(getGpsDocument(path))
     for path in pic_path:
-        disp_board.addPic(PicDocument(path, conf.TZ))
+        disp_board.addPic(getPicDocument(path))
 
     #disp_board.initDisp()
     root.mainloop()
