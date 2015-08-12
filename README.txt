@@ -4,11 +4,11 @@
     - pip install pillow
     - pip install pmw
 3. install gpsbabel
-4. set config
+    - remember the install path
+4. set config giseditor.conf
     - map chache dir
     - gpsbabel dir
 5. set file association
-    - create a loader (giseditor.bat) to invoke main.py
-    - associate gps file with the loader
-6. set right-click menu
-    - use FileMenuTools* to add right-click menu
+    - associate gps, gdb, ... file with the loader/giseditor.bat
+6. set right-click menu (optinal)
+    - use FileMenuTools to add right-click menu
