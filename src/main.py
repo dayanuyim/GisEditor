@@ -42,7 +42,6 @@ class DispBoard(tk.Frame):
         self.__focused_wpt = None
         self.__img = None         #buffer disp image for restore map
         self.__alter_time = None
-        self.__rule_is_alter = False
 
         #info
         info_frame = self.initMapInfo()
@@ -306,11 +305,10 @@ class DispBoard(tk.Frame):
 
     def onEditWpt(self, mode, wpt=None):
         wpt_list = self.map_ctrl.getAllWpts()
-        wpt_board = WptBoard.factory(mode, self, wpt_list, wpt, self.__rule_is_alter)
+        wpt_board = WptBoard.factory(mode, self, wpt_list, wpt)
         #print('after wptboard')
         #wpt_board.addAlteredHandler(self.setAlter)
         #wpt_board.show()
-        self.__rule_is_alter = wpt_board.rule_is_alter
         self.__focused_wpt = None
 
     def setAlter(self, alter):
@@ -874,21 +872,18 @@ class ImageAttr:
 
 class WptBoard(tk.Toplevel):
     @staticmethod
-    def factory(mode, master, wpt_list, wpt=None, rule_is_alter=False):
+    def factory(mode, master, wpt_list, wpt=None):
         if mode == 'single':
-            return WptSingleBoard(master, wpt_list, wpt, rule_is_alter)
+            return WptSingleBoard(master, wpt_list, wpt)
         elif mode == 'list':
-            return WptListBoard(master, wpt_list, wpt, rule_alter)
+            return WptListBoard(master, wpt_list, wpt)
         else:
             raise ValueError("WptBoade only supports mode: 'single' and 'list'")
 
     @property
     def is_changed(self): return self._is_changed
 
-    @property
-    def rule_is_alter(self): return self._rule_is_alter
-
-    def __init__(self, master, wpt_list, wpt=None, alter_handler=None, rule_is_alter=False):
+    def __init__(self, master, wpt_list, wpt=None, alter_handler=None):
         super().__init__(master)
 
         if wpt_list is None or len(wpt_list) == 0:
@@ -909,7 +904,6 @@ class WptBoard(tk.Toplevel):
         self._title_focus = "Focus"
         self._altered_handlers = []
         self._is_changed = False
-        self._rule_is_alter = rule_is_alter
 
         if alter_handler is not None:
             addAlteredHandler(alter_handler)
@@ -994,8 +988,7 @@ class WptBoard(tk.Toplevel):
         self.highlightWpt(self._curr_wpt)
 
     def onEditSymRule(self):
-        rule = SymRuleBoard(self, None, self._rule_is_alter)
-        self._rule_is_alter = rule.is_alter
+        SymRuleBoard(self)
     
     def highlightWpt(self, wpt):
         #focus
@@ -1015,8 +1008,8 @@ class WptBoard(tk.Toplevel):
         pass
 
 class WptSingleBoard(WptBoard):
-    def __init__(self, master, wpt_list, wpt=None, rule_is_alter=False):
-        super().__init__(master, wpt_list, wpt, None, rule_is_alter)
+    def __init__(self, master, wpt_list, wpt=None):
+        super().__init__(master, wpt_list, wpt)
 
         #change buttons
         self.__left_btn = tk.Button(self, text="<<", command=lambda:self.onWptSelected(-1), disabledforeground='lightgray')
@@ -1152,8 +1145,8 @@ class WptSingleBoard(WptBoard):
             self.__right_btn.config(state=('disabled' if idx == sz-1 else 'normal'))
 
 class WptListBoard(WptBoard):
-    def __init__(self, master, wpt_list, wpt=None, rule_is_alter=False):
-        super().__init__(master, wpt_list, wpt, None, rule_is_alter)
+    def __init__(self, master, wpt_list, wpt=None):
+        super().__init__(master, wpt_list, wpt)
 
         self.__widgets = {}  #wpt: widgets 
         self.__focused_wpt = None
@@ -1610,11 +1603,7 @@ class SymBoard(tk.Toplevel):
         self.onClosed(None)
 
 class SymRuleBoard(tk.Toplevel):
-    @property
-    def is_alter(self):
-        return self.__is_alter
-
-    def __init__(self, master, pos=None, is_alter=False):
+    def __init__(self, master, pos=None):
         super().__init__(master)
 
         self.__bg_color = self.cget('bg')
@@ -1625,7 +1614,6 @@ class SymRuleBoard(tk.Toplevel):
         self.__rules = conf.Sym_rules
         self.__font = 'Arialuni 12'
         self.__bfont = 'Arialuni 12 bold'
-        self.__is_alter = is_alter
 
         #board
         pos = '+%d+%d' % (pos[0], pos[1]) if pos is not None else '+0+0'
@@ -1658,8 +1646,7 @@ class SymRuleBoard(tk.Toplevel):
         self.__inc_btn = tk.Button(self, text='↓', state='disabled', command=lambda: self.onPriorityMove(1))
         self.__inc_btn.pack(side='right', anchor='ne')
 
-        self.__save_btn = tk.Button(self, text='Save', command=lambda: self.onSave())
-        self.__save_btn['state'] = 'normal' if self.is_alter else 'disabled'
+        self.__save_btn = tk.Button(self, text='Save', state='disabled', command=lambda: self.onSave())
         self.__save_btn.pack(side='left', anchor='nw')
 
         frame = self.sf.interior()
@@ -1850,7 +1837,6 @@ class SymRuleBoard(tk.Toplevel):
         if e.widget == en_w:
             rule.enabled = not rule.enabled
             self.setRuleWidgets(rule)
-            self.__is_alter = True
             self.__save_btn.config(state='normal')
         elif e.widget == type_w:
             self.__type_menu.post(e.x_root, e.y_root)
@@ -1861,7 +1847,6 @@ class SymRuleBoard(tk.Toplevel):
             if sym is not None and rule.symbol != sym:
                 rule.symbol = sym
                 self.setRuleWidgets(rule)
-                self.__is_alter = True
                 self.__save_btn.config(state='normal')
 
     def onTextWrite(self, widget):
@@ -1870,7 +1855,6 @@ class SymRuleBoard(tk.Toplevel):
         if rule.text != var.get():
             #print('rule change text from ', rule.text, 'to', var.get() )
             rule.text = var.get()
-            self.__is_alter = True
             self.__save_btn.config(state='normal')
 
     def onTypeWrite(self, t):
@@ -1879,7 +1863,6 @@ class SymRuleBoard(tk.Toplevel):
         if rule.type != t:
             rule.type = t
             self.setRuleWidgets(rule)
-            self.__is_alter = True
             self.__save_btn.config(state='normal')
 
     #{{ add/dup rule
@@ -2082,7 +2065,6 @@ def onExit(root, disp_board):
         root.destroy()
 
 if __name__ == '__main__':
-
     #create window
     root = tk.Tk()
     root.title("PicGisEditor")
