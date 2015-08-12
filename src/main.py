@@ -392,6 +392,8 @@ class DispBoard(tk.Frame):
         if e.widget == disp:
             if not hasattr(disp, 'image'):  #init
                 geo = self.__getPrefGeoPt()
+                if geo is None:
+                    geo = self.map_ctrl.geo
                 self.setMapInfo(geo)
                 self.resetMap(geo)
             elif e.width != disp.image.width() or e.height != disp.image.height():
@@ -423,6 +425,9 @@ class MapController:
     #{{ properties
     @property
     def tile_map(self): return self.__tile_map
+
+    @property
+    def geo(self): return self.__geo
 
     @property
     def lat(self): return self.__geo.lat
