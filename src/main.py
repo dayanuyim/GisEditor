@@ -1612,6 +1612,8 @@ class SymRuleBoard(tk.Toplevel):
         self.__widgets = {}
         self.__var_widgets = {}
         self.__rules = conf.Sym_rules
+        if not hasattr(self.__rules, 'is_altered'):
+            self.__rules.is_altered = False
         self.__font = 'Arialuni 12'
         self.__bfont = 'Arialuni 12 bold'
 
@@ -1646,7 +1648,8 @@ class SymRuleBoard(tk.Toplevel):
         self.__inc_btn = tk.Button(self, text='↓', state='disabled', command=lambda: self.onPriorityMove(1))
         self.__inc_btn.pack(side='right', anchor='ne')
 
-        self.__save_btn = tk.Button(self, text='Save', state='disabled', command=lambda: self.onSave())
+        self.__save_btn = tk.Button(self, text='Save', command=lambda: self.onSave())
+        self.__save_btn['state'] = 'normal' if self.__rules.is_altered else 'disabled' 
         self.__save_btn.pack(side='left', anchor='nw')
 
         frame = self.sf.interior()
@@ -1693,6 +1696,7 @@ class SymRuleBoard(tk.Toplevel):
 
     def onSave(self):
         self.__rules.save()
+        self.__rules.is_altered = False
         self.__save_btn.config(state='disabled')
 
     def getWidgetsRow(self, rule):
@@ -1837,6 +1841,7 @@ class SymRuleBoard(tk.Toplevel):
         if e.widget == en_w:
             rule.enabled = not rule.enabled
             self.setRuleWidgets(rule)
+            self.__rules.is_altered = True
             self.__save_btn.config(state='normal')
         elif e.widget == type_w:
             self.__type_menu.post(e.x_root, e.y_root)
@@ -1847,6 +1852,7 @@ class SymRuleBoard(tk.Toplevel):
             if sym is not None and rule.symbol != sym:
                 rule.symbol = sym
                 self.setRuleWidgets(rule)
+                self.__rules.is_altered = True
                 self.__save_btn.config(state='normal')
 
     def onTextWrite(self, widget):
@@ -1855,6 +1861,7 @@ class SymRuleBoard(tk.Toplevel):
         if rule.text != var.get():
             #print('rule change text from ', rule.text, 'to', var.get() )
             rule.text = var.get()
+            self.__rules.is_altered = True
             self.__save_btn.config(state='normal')
 
     def onTypeWrite(self, t):
@@ -1863,6 +1870,7 @@ class SymRuleBoard(tk.Toplevel):
         if rule.type != t:
             rule.type = t
             self.setRuleWidgets(rule)
+            self.__rules.is_altered = True
             self.__save_btn.config(state='normal')
 
     #{{ add/dup rule
