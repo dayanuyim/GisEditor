@@ -178,10 +178,12 @@ class DispBoard(tk.Frame):
             self.__info_67tm2.variable.set("%.3f, %.3f" % (x_67tm2/1000, y_67tm2/1000))
 
     def addGpx(self, gpx):
-        self.map_ctrl.addGpxLayer(gpx)
+        if gpx is not None:
+            self.map_ctrl.addGpxLayer(gpx)
 
     def addPic(self, pic):
-        self.map_ctrl.addPicLayer(pic)
+        if pic is not None:
+            self.map_ctrl.addPicLayer(pic)
 
     #deprecated
     def initDisp(self):
@@ -1986,7 +1988,11 @@ def getGpsDocument(path):
     return gpx
 
 def getPicDocument(path):
-    return PicDocument(path, conf.TZ)
+    try:
+        return PicDocument(path, conf.TZ)
+    except:
+        print('No metadata in the picture:', path)
+    return None
 
 def toGpxString(src_path):
     (fname, ext) = os.path.splitext(src_path)
