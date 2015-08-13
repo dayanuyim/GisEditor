@@ -40,6 +40,7 @@ class DispBoard(tk.Frame):
         #board
         self.__bg_color=self['bg']
         self.__focused_wpt = None
+        self.__focused_geo = None
         self.__img = None         #buffer disp image for restore map
         self.__alter_time = None
 
@@ -55,10 +56,11 @@ class DispBoard(tk.Frame):
         self.disp_label.pack(expand=1, fill='both', anchor='n')
         self.disp_label.bind('<MouseWheel>', self.onMouseWheel)
         self.disp_label.bind('<Motion>', self.onMotion)
-        self.disp_label.bind("<Button-1>", self.onClickDown)
-        self.disp_label.bind("<Button-3>", self.onRightClickDown)
+        self.disp_label.bind("<Button-1>", lambda e: self.onClickDown(e, 'left'))
+        self.disp_label.bind("<Button-3>", lambda e: self.onClickDown(e, 'right'))
         self.disp_label.bind("<Button1-Motion>", self.onClickMotion)
-        self.disp_label.bind("<Button1-ButtonRelease>", self.onClickUp)
+        self.disp_label.bind("<Button1-ButtonRelease>", lambda e: self.onClickUp(e, 'left'))
+        self.disp_label.bind("<Button3-ButtonRelease>", lambda e: self.onClickUp(e, 'right'))
         self.disp_label.bind("<Configure>", self.onResize)
 
         #right-click menu
@@ -223,24 +225,24 @@ class DispBoard(tk.Frame):
         self.setMapInfo()
         self.resetMap()
 
-    def onClickDown(self, event):
+    def onClickDown(self, event, flag):
         self.__mouse_down_pos = (event.x, event.y)
 
-        #show lat/lon
-        c = self.map_ctrl
-        geo = GeoPoint(px=c.px + event.x, py=c.py + event.y, level=c.level) 
+        geo = self.__focused_geo
+        wpt = self.__focused_wpt
+
+        #geo info
         self.setMapInfo(geo)
 
-        #show wpt frame
-        wpt = c.getWptAt(geo.px, geo.py)
+        #wpt. left->edit, right->menu
         if wpt is not None:
-            self.onEditWpt(mode='single', wpt=wpt)
-
-    def onRightClickDown(self, event):
-        if self.__focused_wpt is not None:
-            self.__wpt_menu.post(event.x_root, event.y_root)
-        else:
-            self.__rclick_menu.post(event.x_root, event.y_root)
+            if flag == 'left':
+                self.onEditWpt(mode='single', wpt=wpt)
+            elif flag == 'right':
+                self.__wpt_menu.post(event.x_root, event.y_root)  #right menu for wpt
+        #general right menu
+        elif flag == 'right':
+                self.__rclick_menu.post(event.x_root, event.y_root)  #right menu
 
     #{{ Right click actions
     def onGpxSave(self):
@@ -342,6 +344,7 @@ class DispBoard(tk.Frame):
             self.highlightWpt(curr_wpt, prev_wpt)
 
         #rec
+        self.__focused_geo = GeoPoint(px=px, py=py, level=c.level)
         self.__focused_wpt = curr_wpt
 
     def highlightWpt(self, wpt, un_wpt=None):
@@ -382,7 +385,7 @@ class DispBoard(tk.Frame):
         self.map_ctrl.deleteWpt(wpt)
         self.setAlter('wpt')
 
-    def onClickUp(self, event):
+    def onClickUp(self, event, flag):
         self.__mouse_down_pos = None
 
     def onResize(self, e):
