@@ -67,7 +67,7 @@ class DispBoard(tk.Frame):
         self.__rclick_menu = tk.Menu(self.disp_label, tearoff=0)
         self.__rclick_menu.add_command(label='Save to gpx...', underline=0, command=self.onGpxSave)
         self.__rclick_menu.add_separator()
-        self.__rclick_menu.add_command(label='Add wpt')
+        self.__rclick_menu.add_command(label='Add wpt', command=self.onAddWpt)
         edit_wpt_menu = tk.Menu(self.__rclick_menu, tearoff=0)
         edit_wpt_menu.add_command(label='Edit 1-by-1', underline=5, command=lambda:self.onEditWpt(mode='single'))
         edit_wpt_menu.add_command(label='Edit in list', underline=5, command=lambda:self.onEditWpt(mode='list'))
@@ -260,6 +260,15 @@ class DispBoard(tk.Frame):
         self.__alter_time = None
 
         return True
+
+    def onAddWpt(self):
+        geo = self.__focused_geo
+        wpt = WayPoint(geo.lat, geo.lon)
+        wpt.time = datetime.now()
+
+        self.addWpt(wpt)
+        self.setAlter('wpt')
+        
 
     def onNumberWpt(self, name=None, time=None):
         wpt_list = self.map_ctrl.getAllWpts()
