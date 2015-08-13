@@ -181,9 +181,9 @@ class DispBoard(tk.Frame):
         if gpx is not None:
             self.map_ctrl.addGpxLayer(gpx)
 
-    def addPic(self, pic):
-        if pic is not None:
-            self.map_ctrl.addPicLayer(pic)
+    def addWpt(self, wpt):
+        if wpt is not None:
+            self.map_ctrl.addWpt(wpt)
 
     #deprecated
     def initDisp(self):
@@ -252,8 +252,6 @@ class DispBoard(tk.Frame):
         doc = GpsDocument()
         for gpx in self.map_ctrl.gpx_layers:
             doc.merge(gpx)
-        for wpt in self.map_ctrl.pic_layers:
-            doc.addWpt(wpt)
 
         #save
         doc.save(fpath)
@@ -473,8 +471,9 @@ class MapController:
         self.hide_txt = False
 
         #layer
+        self.__pseudo_gpx = GpsDocument()  #to hold waypoints which not read from gpx
         self.gpx_layers = []
-        self.pic_layers = []
+        self.gpx_layers.append(self.__pseudo_gpx)
 
 
     def shiftGeoPixel(self, px, py):
@@ -484,16 +483,19 @@ class MapController:
     def addGpxLayer(self, gpx):
         self.gpx_layers.append(gpx)
 
-    def addPicLayer(self, pic):
-        self.pic_layers.append(pic)
+    def addWpt(self, pic):
+        self.__pseudo_gpx.addWpt(pic)
+
+    def deleteWpt(self, wpt):
+        for gpx in self.gpx_layers:
+            if wpt in gpx.way_points:
+                gpx.way_points.remove(wpt)
 
     def getAllWpts(self):
         wpts = []
         for gpx in self.gpx_layers:
             for wpt in gpx.way_points:
                 wpts.append(wpt)
-        for pic in self.pic_layers:
-                wpts.append(pic)
         return wpts
 
     def getAllTrks(self):
@@ -510,13 +512,6 @@ class MapController:
             if abs(px-wpx) < r and abs(py-wpy) < r:
                 return wpt
         return None
-
-    def deleteWpt(self, wpt):
-        for gpx in self.gpx_layers:
-            if wpt in gpx.way_points:
-                gpx.way_points.remove(wpt)
-        if wpt in self.pic_layers:
-                self.pic_layers.remove(wpt)
 
     #old version for ref
     def ___getTileImage(self, width, height):
@@ -2094,7 +2089,7 @@ if __name__ == '__main__':
     for path in gps_path:
         disp_board.addGpx(getGpsDocument(path))
     for path in pic_path:
-        disp_board.addPic(getPicDocument(path))
+        disp_board.addWpt(getPicDocument(path))
 
     #disp_board.initDisp()
     root.mainloop()
