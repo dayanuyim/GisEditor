@@ -2033,6 +2033,8 @@ def readFiles(paths):
     gps_path = []
     pic_path = []
     __readFiles(paths, gps_path, pic_path)
+    gps_path.sort()
+    pic_path.sort()
     return gps_path, pic_path
     
 def __readFiles(paths, gps_path, pic_path):
