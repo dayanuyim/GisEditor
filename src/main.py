@@ -1984,15 +1984,19 @@ def isGpsFile(path):
     return True
 
 def getGpsDocument(path):
-    (fname, ext) = os.path.splitext(path)
-    ext = ext.lower()
-    gpx = GpsDocument(conf.TZ)
-    if ext == '.gpx':
-        gpx.load(filename=path)
-    else:
-        gpx_string = toGpxString(path)
-        gpx.load(filestring=gpx_string)
-    return gpx
+    try:
+        (fname, ext) = os.path.splitext(path)
+        ext = ext.lower()
+        gpx = GpsDocument(conf.TZ)
+        if ext == '.gpx':
+            gpx.load(filename=path)
+        else:
+            gpx_string = toGpxString(path)
+            gpx.load(filestring=gpx_string)
+        return gpx
+    except:
+        print('no support type:', path)
+        return None
 
 def getPicDocument(path):
     try:
