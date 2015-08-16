@@ -654,7 +654,11 @@ class MapController:
         return  (disp_img, disp_attr)
 
     def __pasteTile(self, img, xy, level, tx, ty):
-        tile = self.__tile_map.getTileByTileXY(level, tx, ty)
+        try:
+            tile = self.__tile_map.getTileByTileXY(level, tx, ty)
+        except:
+            print("load map error: (level=%d, tx=%d, ty=%d)" % (level, tx, ty))
+            tile = getTextImag('load map error', (256,256))
 
         self.__paste_lock.acquire()
         img.paste(tile, xy)
