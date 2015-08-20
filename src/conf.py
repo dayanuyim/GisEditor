@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import platform
 from os import path
 from PIL import ImageFont, Image
 from sym import SymbolRules
@@ -30,6 +31,7 @@ ICON_DIR = __config['icon_dir']
 ICON_SIZE = int(__config['icon_size'])
 DEF_SYMBOL = _tosymkey(__config['def_symbol'])
 DEF_SYMS_CONF = __config['def_syms_conf']
+OS = platform.system()
 
 #global variables
 Sym_rules = SymbolRules(__config['sym_rule_conf'])

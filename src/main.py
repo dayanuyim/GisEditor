@@ -54,7 +54,11 @@ class DispBoard(tk.Frame):
         self.__init_h = 600  #deprecated
         self.disp_label = tk.Label(self, bg='#808080')
         self.disp_label.pack(expand=1, fill='both', anchor='n')
-        self.disp_label.bind('<MouseWheel>', self.onMouseWheel)
+        if conf.OS == "Linux":
+            self.disp_label.bind('<Button-4>', lambda e: self.onMouseWheel(e, 1))  #roll up
+            self.disp_label.bind('<Button-5>', lambda e: self.onMouseWheel(e, -1)) #roll down
+        else:
+            self.disp_label.bind('<MouseWheel>', lambda e: self.onMouseWheel(e, e.delta))
         self.disp_label.bind('<Motion>', self.onMotion)
         self.disp_label.bind("<Button-1>", lambda e: self.onClickDown(e, 'left'))
         self.disp_label.bind("<Button-3>", lambda e: self.onClickDown(e, 'right'))
@@ -207,17 +211,12 @@ class DispBoard(tk.Frame):
 
         return None
         
-    def onMouseWheel(self, event):
-        label = event.widget
-
+    def onMouseWheel(self, event, delta):
         #set focused pixel
         self.map_ctrl.shiftGeoPixel(event.x, event.y)
 
         #level
-        if event.delta > 0:
-            self.map_ctrl.level += 1
-        elif event.delta < 0:
-            self.map_ctrl.level -= 1
+        self.map_ctrl.level += 1 if delta > 0 else -1
 
         #set focused pixel again
         self.map_ctrl.shiftGeoPixel(-event.x, -event.y)
