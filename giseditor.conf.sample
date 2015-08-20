@@ -1,2 +1,12 @@
+def_syms_conf=def_sym.conf
+sym_rule_conf=sym_rule.conf
 cache_dir=C:\Users\TT_Tsai\Dropbox\backup\mapcache
-gpsbabel_dir=C:\Program Files (x86)\GPSBabel
+gpsbabel_exe=C:\Program Files (x86)\GPSBabel\gpsbabel.exe
+truetypefont=ARIALUNI.TTF
+font_size=18
+tz=8
+icon_dir=icon
+icon_size=32
+def_symbol=Waypoint
+max_supp_level=18
+min_supp_level=7
