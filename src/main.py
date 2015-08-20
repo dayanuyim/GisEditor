@@ -136,7 +136,7 @@ class DispBoard(tk.Frame):
             except:
                 messagebox.showwarning('Bad Number', 'Please check level')
                 return
-            level = min(max(7, level), 18)  #limit
+            level = min(max(conf.MIN_SUPP_LEVEL, level), conf.MAX_SUPP_LEVEL)  #limit
             self.map_ctrl.level = level
             self.setMapInfo()
             self.resetMap()

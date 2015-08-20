@@ -32,6 +32,8 @@ ICON_SIZE = int(__config['icon_size'])
 DEF_SYMBOL = _tosymkey(__config['def_symbol'])
 DEF_SYMS_CONF = __config['def_syms_conf']
 OS = platform.system()
+MAX_SUPP_LEVEL = int(__config['max_supp_level'])
+MIN_SUPP_LEVEL = int(__config['min_supp_level'])
 
 #global variables
 Sym_rules = SymbolRules(__config['sym_rule_conf'])
