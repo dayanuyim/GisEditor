@@ -1029,9 +1029,9 @@ class WptSingleBoard(WptBoard):
         super().__init__(master, wpt_list, wpt)
 
         #change buttons
-        self.__left_btn = tk.Button(self, text="<<", command=lambda:self.onWptSelected(-1), disabledforeground='lightgray')
+        self.__left_btn = tk.Button(self, text="<<", command=lambda:self.onWptSelected(-1), disabledforeground='gray')
         self.__left_btn.pack(side='left', anchor='w', expand=0, fill='y')
-        self.__right_btn = tk.Button(self, text=">>", command=lambda:self.onWptSelected(1), disabledforeground='lightgray')
+        self.__right_btn = tk.Button(self, text=">>", command=lambda:self.onWptSelected(1), disabledforeground='gray')
         self.__right_btn.pack(side='right', anchor='e', expand=0, fill='y')
 
         #info
@@ -1296,9 +1296,9 @@ class TrkBoard(tk.Toplevel):
         self.protocol('WM_DELETE_WINDOW', lambda: self.onClosed(None))
 
         #change buttons
-        self.__left_btn = tk.Button(self, text="<<", command=lambda:self.onSelected(-1), disabledforeground='lightgray')
+        self.__left_btn = tk.Button(self, text="<<", command=lambda:self.onSelected(-1), disabledforeground='gray')
         self.__left_btn.pack(side='left', anchor='w', expand=0, fill='y')
-        self.__right_btn = tk.Button(self, text=">>", command=lambda:self.onSelected(1), disabledforeground='lightgray')
+        self.__right_btn = tk.Button(self, text=">>", command=lambda:self.onSelected(1), disabledforeground='gray')
         self.__right_btn.pack(side='right', anchor='e', expand=0, fill='y')
 
         #info
@@ -1494,7 +1494,7 @@ class SymBoard(tk.Toplevel):
         self.__parent = None #for show/onClosed
         self.__col_sz = 20
         self.__bg_color = self.cget('bg')
-        self.__ext_bg_color = 'lightgray'
+        self.__ext_bg_color = 'gray'
         self.__hl_bg_color = 'lightblue'
         self.__filter_bg_color = 'red'
         self.__sym = None
