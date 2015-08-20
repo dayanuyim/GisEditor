@@ -212,17 +212,18 @@ class DispBoard(tk.Frame):
         return None
         
     def onMouseWheel(self, event, delta):
-        #set focused pixel
-        self.map_ctrl.shiftGeoPixel(event.x, event.y)
+        ctrl = self.map_ctrl
+        level = ctrl.level + (1 if delta > 0 else -1)
 
-        #level
-        self.map_ctrl.level += 1 if delta > 0 else -1
+        if conf.MIN_SUPP_LEVEL <= level and level <= conf.MAX_SUPP_LEVEL:
+            ctrl.shiftGeoPixel(event.x, event.y) #make click point as focused geo
+            ctrl.level = level
+            ctrl.shiftGeoPixel(-event.x, -event.y) #shift to make click point at the same position
 
-        #set focused pixel again
-        self.map_ctrl.shiftGeoPixel(-event.x, -event.y)
-
-        self.setMapInfo()
-        self.resetMap()
+            self.setMapInfo()
+            self.resetMap()
+        else:
+            messagebox.showwarning('Level Over Limit', 'The level should between %d ~ %d' % (conf.MIN_SUPP_LEVEL, conf.MAX_SUPP_LEVEL))
 
     def onClickDown(self, event, flag):
         self.__mouse_down_pos = (event.x, event.y)
