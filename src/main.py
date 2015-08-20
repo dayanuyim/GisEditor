@@ -1537,11 +1537,11 @@ class SymBoard(tk.Toplevel):
         #UI
         self.transient(parent)  #remove max/min buttons
         self.focus_set()  #prevent key-press sent back to parent
-        self.grab_set()   #disalbe interact of parent
-
-        #show
-        self.deiconify()
+        
+        self.deiconify() #show
         self.visible.set(True)
+
+        self.grab_set()   #disalbe interact of parent
         parent.wait_variable(self.visible)
 
     def onClosed(self, e):
