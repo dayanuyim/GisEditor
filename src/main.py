@@ -2014,7 +2014,7 @@ def toGpxString(src_path):
     if ext == '':
         raise ValueError("cannot identify input format")
 
-    exe_file = conf.GPSBABEL_DIR + "\gpsbabel.exe"
+    exe_file = conf.GPSBABEL_EXE
     tmp_path = os.path.join(tempfile.gettempdir(),  "giseditor_gps.tmp")
 
     shutil.copyfile(src_path, tmp_path)  #to work around the problem of gpx read non-ascii filename
@@ -2098,6 +2098,7 @@ def onExit(root, disp_board):
 if __name__ == '__main__':
     #create window
     root = tk.Tk()
+    pmw.initialise(root)
     root.title("PicGisEditor")
     root.geometry('800x600+400+0')
 

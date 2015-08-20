@@ -7,6 +7,9 @@ from sym import SymbolRules
 from datetime import timedelta
 from coord import CoordinateSystem
 
+def _tosymkey(sym):
+    return sym.title()
+
 #constance
 def __readConfig(conf_path):
     conf = {}
@@ -16,12 +19,9 @@ def __readConfig(conf_path):
             conf[k] = v
     return conf
 __config = __readConfig('./giseditor.conf')
+
 CACHE_DIR = __config['cache_dir']
-GPSBABEL_DIR = __config['gpsbabel_dir']
-
-def _tosymkey(sym):
-    return sym.title()
-
+GPSBABEL_EXE = __config['gpsbabel_exe']
 IMG_FONT = ImageFont.truetype("ARIALUNI.TTF", 18) #global use font (Note: the operation is time wasting)
 TZ = timedelta(hours=8)
 ICON_DIR = './icon'
