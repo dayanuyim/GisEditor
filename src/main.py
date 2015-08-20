@@ -938,7 +938,10 @@ class WptBoard(tk.Toplevel):
         #set focus
         self.transient(self.master)
         self.focus_set()
-        self.update()   #ensure viewable before grab
+        if conf.OS == 'Linux':
+            self.withdraw() #ensure update silently
+            self.update()   #ensure viewable before grab, 
+            self.deiconify() #show
         self.grab_set()
 
     #def show(self):
@@ -1326,7 +1329,10 @@ class TrkBoard(tk.Toplevel):
         #set focus
         self.transient(self.master)
         self.focus_set()
-        self.update()   #ensure viewable before grab
+        if conf.OS == 'Linux':
+            self.withdraw() #ensure update silently
+            self.update()   #ensure viewable before grab, 
+            self.deiconify() #show
         self.grab_set()
 
     #def show(self):
@@ -1646,7 +1652,10 @@ class SymRuleBoard(tk.Toplevel):
         #set focus
         self.transient(self.master)
         self.focus_set()
-        self.update()   #ensure viewable before grab
+        if conf.OS == 'Linux':
+            self.withdraw() #ensure update silently
+            self.update()   #ensure viewable before grab, 
+            self.deiconify() #show
         self.grab_set()
         self.wait_window(self)
 
