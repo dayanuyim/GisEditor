@@ -10,7 +10,6 @@ from coord import CoordinateSystem
 def _tosymkey(sym):
     return sym.title()
 
-#constance
 def __readConfig(conf_path):
     conf = {}
     with open(conf_path) as conf_file:
@@ -20,17 +19,20 @@ def __readConfig(conf_path):
     return conf
 __config = __readConfig('./giseditor.conf')
 
+#constance
 CACHE_DIR = __config['cache_dir']
 GPSBABEL_EXE = __config['gpsbabel_exe']
-IMG_FONT = ImageFont.truetype("ARIALUNI.TTF", 18) #global use font (Note: the operation is time wasting)
-TZ = timedelta(hours=8)
-ICON_DIR = './icon'
-ICON_SIZE = 32
-DEF_SYMBOL = _tosymkey("Waypoint")
-DEF_SYMS_CONF = "./def_sym.conf"
+TTF = __config['truetypefont']
+FONT_SIZE = int(__config['font_size'])
+IMG_FONT = ImageFont.truetype(TTF, FONT_SIZE) #global use font (Note: the operation is time wasting)
+TZ = timedelta(hours=float(__config['tz']))
+ICON_DIR = __config['icon_dir']
+ICON_SIZE = int(__config['icon_size'])
+DEF_SYMBOL = _tosymkey(__config['def_symbol'])
+DEF_SYMS_CONF = __config['def_syms_conf']
 
 #global variables
-Sym_rules = SymbolRules('./sym_rule.conf')
+Sym_rules = SymbolRules(__config['sym_rule_conf'])
 
 def getSymbol(name):
     rule = Sym_rules.getMatchRule(name)
