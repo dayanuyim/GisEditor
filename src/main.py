@@ -935,8 +935,9 @@ class WptBoard(tk.Toplevel):
         self._var_name.trace('w', self.onNameChanged)
 
         #set focus
-        self.transient()
+        self.transient(self.master)
         self.focus_set()
+        self.update()   #ensure viewable before grab
         self.grab_set()
 
     #def show(self):
@@ -1322,8 +1323,9 @@ class TrkBoard(tk.Toplevel):
             self.setCurrTrk(trk_list[0])
 
         #set focus
-        self.transient()
+        self.transient(self.master)
         self.focus_set()
+        self.update()   #ensure viewable before grab
         self.grab_set()
 
     #def show(self):
@@ -1641,8 +1643,9 @@ class SymRuleBoard(tk.Toplevel):
         self.initTypeMenu()
 
         #set focus
-        self.transient()
+        self.transient(self.master)
         self.focus_set()
+        self.update()   #ensure viewable before grab
         self.grab_set()
         self.wait_window(self)
 
