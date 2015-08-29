@@ -2011,7 +2011,7 @@ def getGpsDocument(path):
             gpx.load(filestring=gpx_string)
         return gpx
     except:
-        print('no support type:', path)
+        print("no support type '%s' for %s" % (ext, path))
         return None
 
 def getPicDocument(path):
