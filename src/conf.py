@@ -34,6 +34,8 @@ DEF_SYMS_CONF = __config['def_syms_conf']
 OS = platform.system()
 MAX_SUPP_LEVEL = int(__config['max_supp_level'])
 MIN_SUPP_LEVEL = int(__config['min_supp_level'])
+SPLIT_TIME_GAP = timedelta(hours=float(__config['split_time_gap']))
+SPLIT_DIST_GAP = float(__config['split_dist_gap']) #unit:km
 
 #global variables
 Sym_rules = SymbolRules(__config['sym_rule_conf'])

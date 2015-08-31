@@ -163,7 +163,7 @@ class GpsDocument:
         self.__updateBounds(wpt) #maintain bounds (gpx file may not have metadata)
 
     def addTrkPt(self, trk, pt):
-        trk.addTrackPoint(pt)
+        trk.add(pt)
         self.__updateBounds(pt) #maintain bounds (gpx file may not have metadata)
 
     def __updateBounds(self, pt):
@@ -319,7 +319,16 @@ class GpsDocument:
             self.__trks = sorted(self.__trks, key=lambda trk: trk.name)
         elif time is not None:
             self.__trks = sorted(self.__trks, key=lambda trk: trk.time)
-            
+
+    def splitTrk(self, same_grp_fn):
+        sp_trks = []
+        for trk in self.__trks:
+            sp_trks.extend(trk.split(same_grp_fn))
+
+        #replace
+        has_split = len(self.__trks) != len(sp_trks)
+        self.__trks = sp_trks
+        return has_split
 
 class Track:
     @property
@@ -346,11 +355,29 @@ class Track:
     def __len__(self):
         return len(self.__trkseg)
 
-    def addTrackPoint(self, pt):
+    def add(self, pt):
         self.__trkseg.append(pt)
 
     def remove(self, pt):
         self.__trkseg.remove(pt)
+
+    def split(self, same_grp_fn):
+        sp_trks = []
+
+        last_pt = None
+        for pt in self.__trkseg:
+            #create new trk
+            if last_pt is None or not same_grp_fn(last_pt, pt):
+                trk=Track()
+                trk.name = "%s-%d" % (self.name, len(sp_trks)+1)
+                trk.color = self.color
+                sp_trks.append(trk)
+            #append trkpt
+            sp_trks[-1].add(pt)
+            #iterate
+            last_pt = pt
+
+        return sp_trks
 
 class TrackPoint:
     @property
