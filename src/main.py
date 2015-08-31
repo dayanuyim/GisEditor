@@ -94,7 +94,7 @@ class DispBoard(tk.Frame):
 
         #wpt menu
         self.__wpt_menu = tk.Menu(self.disp_label, tearoff=0)
-        self.__wpt_menu.add_command(label='Delete Wpt', underline=0, command=self.onDeleteWpt)
+        self.__wpt_menu.add_command(label='Delete Wpt', underline=0, command=self.onWptDeleted)
 
     #txt = "LatLon/97: (%f, %f), TM2/97: (%.3f, %.3f), TM2/67: (%.3f, %.3f)" % (geo.lat, geo.lon, x_tm2_97/1000, y_tm2_97/1000, x_tm2_67/1000, y_tm2_67/1000)
     def initMapInfo(self):
@@ -424,13 +424,18 @@ class DispBoard(tk.Frame):
         #set
         self.__setMap(img)
 
-    def onDeleteWpt(self, wpt=None):
+    def onWptDeleted(self, wpt=None, prompt=True):
+        if prompt:
+            if not messagebox.askyesno('Delete Waypoint', "Delete the Waypoint?"):
+                return False
+
         if wpt is None:
             wpt = self.__focused_wpt
             self.__focused_wpt = None
 
         self.map_ctrl.deleteWpt(wpt)
         self.setAlter('wpt')
+        return True
 
     def onClickUp(self, event, flag):
         self.__mouse_down_pos = None
@@ -963,7 +968,8 @@ class WptBoard(tk.Toplevel):
         self.geometry('+0+0')
         self.protocol('WM_DELETE_WINDOW', lambda: self.onClosed(None))
         self.bind('<Escape>', self.onClosed)
-        self.bind('<Delete>', self.onDeleted)
+        self.bind('<Shift-Delete>', lambda e: self.onDeleted(e, prompt=False))
+        self.bind('<Delete>', lambda e: self.onDeleted(e, prompt=True))
 
         #focus
         self._var_focus = tk.BooleanVar()
@@ -1016,9 +1022,11 @@ class WptBoard(tk.Toplevel):
         self.master.focus_set()
         self.destroy()
 
-    def onDeleted(self, e):
+    def onDeleted(self, e, prompt=True):
+        if not self.master.onWptDeleted(self._curr_wpt, prompt):
+            return
+
         self._is_changed = True
-        self.master.onDeleteWpt(self._curr_wpt)
 
         next_wpt = self._getNextWpt()
         self._wpt_list.remove(self._curr_wpt)
