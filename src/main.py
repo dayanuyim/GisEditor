@@ -1324,7 +1324,6 @@ class TrkBoard(tk.Toplevel):
         self._trk_list = trk_list
         self._altered_handlers = []
         self._is_changed = False
-        self._sel_idxes = None
         self._var_focus = tk.BooleanVar()
         self._var_focus.trace('w', self.onFocus)
 
@@ -1446,26 +1445,25 @@ class TrkBoard(tk.Toplevel):
 
     def onFocus(self, *args):
         is_focus = self._var_focus.get()
-        if self._sel_idxes is not None:
-            pts = [self._curr_trk[i] for i in self._sel_idxes]
-            self.highlightTrk(pts)
+        if is_focus:
+            idxes = self.pt_list.curselection()
+            if idxes:
+                pts = [self._curr_trk[i] for i in idxes]
+                self.highlightTrk(pts)
 
     def onPtSelected(self, e):
         idxes = self.pt_list.curselection()
-        if self._sel_idxes != idxes:
-            self._sel_idxes = idxes
+        if idxes:
             pts = [e.widget.data[i] for i in idxes]  #index of pts -> pts
             self.highlightTrk(pts)
 
     def onPtDeleted(self, e):
-        if self._sel_idxes is not None:
-            idx = sorted(self._sel_idxes, reverse=True)
-            self._sel_idxes = None
-
-            #Todo: may improve by deleting range.
-            for i in idx:
-                self.pt_list.delete(i)
-                del self._curr_trk[i]
+        idxes = self.pt_list.curselection()
+        if idxes:
+            #Todo: may improve by deleting range?
+            for i in sorted(idxes, reverse=True):
+                self.pt_list.delete(i) #view
+                del self._curr_trk[i]  #data
             self._is_changed = True
 
             self.onAltered('trk')
