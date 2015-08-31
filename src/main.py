@@ -1286,7 +1286,7 @@ class TrkBoard(tk.Toplevel):
         self._trk_list = trk_list
         self._altered_handlers = []
         self._is_changed = False
-        self._sel_idx = None
+        self._sel_idxes = None
         self._var_focus = tk.BooleanVar()
         self._var_focus.trace('w', self.onFocus)
 
@@ -1315,8 +1315,8 @@ class TrkBoard(tk.Toplevel):
         self.pt_list.config(selectmode='extended', yscrollcommand=pt_scroll.set, width=43, height=30)
         self.pt_list.pack(side='left', anchor='nw', expand=1, fill='both')
         self.pt_list.bind('<ButtonRelease-1>', self.onPtSelected)
-        self.pt_list.bind('<Up>', self.onPtSelected)
-        self.pt_list.bind('<Down>', self.onPtSelected)
+        self.pt_list.bind('<KeyRelease-Up>', self.onPtSelected)
+        self.pt_list.bind('<KeyRelease-Down>', self.onPtSelected)
         self.pt_list.bind('<Delete>', self.onPtDeleted)
 
 
@@ -1408,21 +1408,21 @@ class TrkBoard(tk.Toplevel):
 
     def onFocus(self, *args):
         is_focus = self._var_focus.get()
-        if self._sel_idx is not None:
-            pts = [self._curr_trk[i] for i in self._sel_idx]
+        if self._sel_idxes is not None:
+            pts = [self._curr_trk[i] for i in self._sel_idxes]
             self.highlightTrk(pts)
 
     def onPtSelected(self, e):
-        idx = self.pt_list.curselection()
-        if self._sel_idx != idx:
-            self._sel_idx = idx
-            pts = [e.widget.data[i] for i in idx]  #index of pts -> pts
+        idxes = self.pt_list.curselection()
+        if self._sel_idxes != idxes:
+            self._sel_idxes = idxes
+            pts = [e.widget.data[i] for i in idxes]  #index of pts -> pts
             self.highlightTrk(pts)
 
     def onPtDeleted(self, e):
-        if self._sel_idx is not None:
-            idx = sorted(self._sel_idx, reverse=True)
-            self._sel_idx = None
+        if self._sel_idxes is not None:
+            idx = sorted(self._sel_idxes, reverse=True)
+            self._sel_idxes = None
 
             #Todo: may improve by deleting range.
             for i in idx:
