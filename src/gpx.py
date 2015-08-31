@@ -320,10 +320,10 @@ class GpsDocument:
         elif time is not None:
             self.__trks = sorted(self.__trks, key=lambda trk: trk.time)
 
-    def splitTrk(self, same_grp_fn):
+    def splitTrk(self, split_fn):
         sp_trks = []
         for trk in self.__trks:
-            sp_trks.extend(trk.split(same_grp_fn))
+            sp_trks.extend(trk.split(split_fn))
 
         #replace
         has_split = len(self.__trks) != len(sp_trks)
@@ -361,13 +361,13 @@ class Track:
     def remove(self, pt):
         self.__trkseg.remove(pt)
 
-    def split(self, same_grp_fn):
+    def split(self, split_fn):
         sp_trks = []
 
         last_pt = None
         for pt in self.__trkseg:
             #create new trk
-            if last_pt is None or not same_grp_fn(last_pt, pt):
+            if last_pt is None or split_fn(last_pt, pt):
                 trk=Track()
                 trk.name = "%s-%d" % (self.name, len(sp_trks)+1)
                 trk.color = self.color

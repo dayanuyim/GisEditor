@@ -87,9 +87,9 @@ class DispBoard(tk.Frame):
         self.__rclick_menu.add_separator()
         self.__rclick_menu.add_command(label='Edit tracks...', underline=5, command=self.onEditTrk)
         split_trk_menu = tk.Menu(self.__rclick_menu, tearoff=0)
-        split_trk_menu.add_command(label='By day', command=lambda:self.onSplitTrk(self.trkSameDay))
-        split_trk_menu.add_command(label='By time gap', command=lambda:self.onSplitTrk(self.trkWithinTime))
-        split_trk_menu.add_command(label='By distance', command=lambda:self.onSplitTrk(self.trkWithinDist))
+        split_trk_menu.add_command(label='By day', command=lambda:self.onSplitTrk(self.trkDiffDay))
+        split_trk_menu.add_command(label='By time gap', command=lambda:self.onSplitTrk(self.trkTimeGap))
+        split_trk_menu.add_command(label='By distance', command=lambda:self.onSplitTrk(self.trkDistGap))
         self.__rclick_menu.add_cascade(label='Split tracks...', menu=split_trk_menu)
 
         #wpt menu
@@ -321,32 +321,32 @@ class DispBoard(tk.Frame):
 
 
     @staticmethod
-    def trkSameDay(pt1, pt2):
+    def trkDiffDay(pt1, pt2):
         t1 = pt1.time + conf.TZ
         t2 = pt2.time + conf.TZ
-        return t1.year == t2.year and \
-               t1.month == t2.month and \
-               t1.day == t2.day
+        return not (t1.year == t2.year and \
+                    t1.month == t2.month and \
+                    t1.day == t2.day)
 
     @staticmethod
-    def trkWithinTime(pt1, pt2):
-        return pt2.time - pt1.time <= conf.SPLIT_TIME_GAP
+    def trkTimeGap(pt1, pt2):
+        return pt2.time - pt1.time > conf.SPLIT_TIME_GAP
 
     @staticmethod
-    def trkWithinDist(pt1, pt2):
+    def trkDistGap(pt1, pt2):
         x1, y1 = CoordinateSystem.TWD97_LatLonToTWD97_TM2(pt1.lat, pt1.lon)
         x2, y2 = CoordinateSystem.TWD97_LatLonToTWD97_TM2(pt2.lat, pt2.lon)
         x = x2-x1
         y = y2-y1
         dist = sqrt(x**2+y**2)
         #print('dist', dist)
-        return dist <= conf.SPLIT_DIST_GAP
+        return dist > conf.SPLIT_DIST_GAP
 
-    def onSplitTrk(self, same_grp_fn):
+    def onSplitTrk(self, split_fn):
         is_alter = False
             
         for gpx in self.map_ctrl.gpx_layers:
-            if gpx.splitTrk(same_grp_fn):
+            if gpx.splitTrk(split_fn):
                 is_alter = True
 
         if is_alter:
