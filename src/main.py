@@ -811,7 +811,6 @@ class MapController:
             r = ceil(conf.ICON_SIZE/sqrt(2))
             _draw.ellipse((px-r, py-r, px+r, py+r), fill=bg_color, outline='gray')
 
-
         #paste icon
         if wpt.sym is not None:
             icon = conf.getIcon(wpt.sym)
@@ -1088,10 +1087,10 @@ class WptSingleBoard(WptBoard):
         self.__img_label = None
         self.__img_sz = (img_w, img_h) = (600, 450)
         if self._hasPicWpt():
-            self.__img_label = tk.Label(self, anchor='n', width=img_w, height=img_h, bg='black')
+            #bd=0: let widget size align image size; set width/height to disable auto resizing
+            self.__img_label = tk.Label(self, bg='black', bd=0, width=img_w, height=img_h)
             self.__img_label.pack(side='top', anchor='nw', expand=1, fill='both', padx=0, pady=0)
-
-        self.bind('<Configure>', self.onResize)
+            self.__img_label.bind('<Configure>', self.onImageResize)
 
         #set wpt
         if wpt is None:
@@ -1101,13 +1100,14 @@ class WptSingleBoard(WptBoard):
         #wait
         self.wait_window(self)
 
-    def onResize(self, e):
-        if e.widget == self.__img_label:
+    def onImageResize(self, e):
+        if hasattr(self.__img_label, 'image'):
             img_w = self.__img_label.image.width()
             img_h = self.__img_label.image.height()
+            #print('event: %d, %d; winfo: %d, %d; label: %d, %d; img: %d, %d' % (e.width, e.height, self.__img_label.winfo_width(), self.__img_label.winfo_height(), self.__img_label['width'], self.__img_label['height'], img_w, img_h))
             if e.width < img_w or e.height < img_h or (e.width > img_w and e.height > img_h):
-                print('need to zomm image')
-                self.setWptImg(self._curr_wpt, (e.width, e.height))
+                #print('need to zomm image')
+                self.setWptImg(self._curr_wpt)
 
     def onWptSelected(self, inc):
         idx = self._wpt_list.index(self._curr_wpt) + inc
@@ -1173,12 +1173,16 @@ class WptSingleBoard(WptBoard):
         self.__icon_label.image = icon
         self.__icon_label.config(image=icon, text=wpt.sym, compound='right')
 
-    def setWptImg(self, wpt, size):
-        if self.__img_label is not None:
-            img = getAspectResize(wpt.img, size) if isinstance(wpt, PicDocument) else getTextImag("(No Pic)", size)
-            img = ImageTk.PhotoImage(img)
-            self.__img_label.config(image=img)
-            self.__img_label.image = img #keep a ref
+    def setWptImg(self, wpt):
+        img_w = self.__img_label
+
+        if img_w is None:
+            return
+        size = self.__img_sz if not hasattr(img_w, 'image') else (img_w.winfo_width(), img_w.winfo_height())
+        img = getAspectResize(wpt.img, size) if isinstance(wpt, PicDocument) else getTextImag("(No Pic)", size)
+        img = ImageTk.PhotoImage(img)
+        img_w.config(image=img)
+        img_w.image = img #keep a ref
 
     def setCurrWpt(self, wpt):
         if self._curr_wpt != wpt:
@@ -1191,7 +1195,7 @@ class WptSingleBoard(WptBoard):
         self.title(wpt.name)
 
         #set imgae
-        self.setWptImg(wpt, self.__img_sz)
+        self.setWptImg(wpt)
 
         #info
         self.showWptIcon(wpt)
@@ -2014,12 +2018,18 @@ def getAspectResize(img, size):
     dst_w, dst_h = size
     src_w, src_h = img.size
 
-    w_ratio = dst_w / src_w
-    h_ratio = dst_h / src_h
-    ratio = min(w_ratio, h_ratio)
+    ratio_w = dst_w / src_w
+    ratio_h = dst_h / src_h
 
-    w = int(src_w*ratio)
-    h = int(src_h*ratio)
+    if ratio_w < ratio_h: #zoom to width
+        w = dst_w
+        h = int(src_h*ratio_w)
+    elif ratio_h < ratio_w: #zoom to height
+        w = int(src_w*ratio_h)
+        h = dst_h
+    else:
+        w = dst_w
+        h = dst_h
 
     return img.resize((w, h))
 
