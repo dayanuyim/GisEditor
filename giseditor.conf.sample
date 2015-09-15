@@ -10,3 +10,5 @@ icon_size=32
 def_symbol=Waypoint
 max_supp_level=18
 min_supp_level=7
+split_time_gap=4.0
+split_dist_gap=200
