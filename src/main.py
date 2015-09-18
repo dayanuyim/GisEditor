@@ -44,6 +44,10 @@ class DispBoard(tk.Frame):
         self.__img = None         #buffer disp image for restore map
         self.__alter_time = None
 
+        #canvas items
+        self.__canvas_map = None
+        self.__canvas_sel_area = None
+
         #info
         info_frame = self.initMapInfo()
         info_frame.pack(side='top', expand=0, fill='x', anchor='nw')
@@ -52,23 +56,23 @@ class DispBoard(tk.Frame):
         #display area
         self.__init_w= 800  #deprecated
         self.__init_h = 600  #deprecated
-        self.disp_label = tk.Label(self, bg='#808080')
-        self.disp_label.pack(expand=1, fill='both', anchor='n')
+        self.disp_canvas = tk.Canvas(self, bg='#808080')
+        self.disp_canvas.pack(expand=1, fill='both', anchor='n')
         if conf.OS == "Linux":
-            self.disp_label.bind('<Button-4>', lambda e: self.onMouseWheel(e, 1))  #roll up
-            self.disp_label.bind('<Button-5>', lambda e: self.onMouseWheel(e, -1)) #roll down
+            self.disp_canvas.bind('<Button-4>', lambda e: self.onMouseWheel(e, 1))  #roll up
+            self.disp_canvas.bind('<Button-5>', lambda e: self.onMouseWheel(e, -1)) #roll down
         else:
-            self.disp_label.bind('<MouseWheel>', lambda e: self.onMouseWheel(e, e.delta))
-        self.disp_label.bind('<Motion>', self.onMotion)
-        self.disp_label.bind("<Button-1>", lambda e: self.onClickDown(e, 'left'))
-        self.disp_label.bind("<Button-3>", lambda e: self.onClickDown(e, 'right'))
-        self.disp_label.bind("<Button1-Motion>", self.onClickMotion)
-        self.disp_label.bind("<Button1-ButtonRelease>", lambda e: self.onClickUp(e, 'left'))
-        self.disp_label.bind("<Button3-ButtonRelease>", lambda e: self.onClickUp(e, 'right'))
-        self.disp_label.bind("<Configure>", self.onResize)
+            self.disp_canvas.bind('<MouseWheel>', lambda e: self.onMouseWheel(e, e.delta))
+        self.disp_canvas.bind('<Motion>', self.onMotion)
+        self.disp_canvas.bind("<Button-1>", lambda e: self.onClickDown(e, 'left'))
+        self.disp_canvas.bind("<Button-3>", lambda e: self.onClickDown(e, 'right'))
+        self.disp_canvas.bind("<Button1-Motion>", self.onClickMotion)
+        self.disp_canvas.bind("<Button1-ButtonRelease>", lambda e: self.onClickUp(e, 'left'))
+        self.disp_canvas.bind("<Button3-ButtonRelease>", lambda e: self.onClickUp(e, 'right'))
+        self.disp_canvas.bind("<Configure>", self.onResize)
 
         #right-click menu
-        self.__rclick_menu = tk.Menu(self.disp_label, tearoff=0)
+        self.__rclick_menu = tk.Menu(self.disp_canvas, tearoff=0)
         self.__rclick_menu.add_command(label='Save to gpx...', underline=0, command=self.onGpxSave)
         self.__rclick_menu.add_separator()
         self.__rclick_menu.add_command(label='Add wpt', command=self.onAddWpt)
@@ -91,9 +95,11 @@ class DispBoard(tk.Frame):
         split_trk_menu.add_command(label='By time gap', command=lambda:self.onSplitTrk(self.trkTimeGap))
         split_trk_menu.add_command(label='By distance', command=lambda:self.onSplitTrk(self.trkDistGap))
         self.__rclick_menu.add_cascade(label='Split tracks...', menu=split_trk_menu)
+        self.__rclick_menu.add_separator()
+        self.__rclick_menu.add_command(label='Save to image...', underline=0, command=self.onImageSave)
 
         #wpt menu
-        self.__wpt_menu = tk.Menu(self.disp_label, tearoff=0)
+        self.__wpt_menu = tk.Menu(self.disp_canvas, tearoff=0)
         self.__wpt_menu.add_command(label='Delete Wpt', underline=0, command=self.onWptDeleted)
 
     #txt = "LatLon/97: (%f, %f), TM2/97: (%.3f, %.3f), TM2/67: (%.3f, %.3f)" % (geo.lat, geo.lon, x_tm2_97/1000, y_tm2_97/1000, x_tm2_67/1000, y_tm2_67/1000)
@@ -360,14 +366,55 @@ class DispBoard(tk.Frame):
         #wpt_board.show()
         self.__focused_wpt = None
 
+    def genSelectAreaImage(self, w, h):
+        img = Image.new('RGBA', (w, h), (255,255,0, 128))  #yellow 
+        draw = ImageDraw.Draw(img)
+        xy = ((w,0), (w,20), (w-20,0))
+        draw.polygon(xy, fill='red') #right-upper green
+        del draw
+        return img
+
+    def onImageSave(self):
+        if self.__canvas_sel_area is not None:
+            return
+        w = round(self.disp_canvas.winfo_width()/2)
+        h = round(self.disp_canvas.winfo_height()/2)
+
+        #create select area
+        pimg = ImageTk.PhotoImage(self.genSelectAreaImage(w, h))
+        self.disp_canvas.sel_area_img = pimg #keep ref
+        sel_area = self.disp_canvas.create_image((w, h), image=pimg, anchor='center')
+
+        #bind motion events
+        def onSelectAreaClick(e):
+            self.__sel_area_mousepos = (e.x, e.y)
+        def onSelectAreaRelease(e):
+            self.__sel_area_mousepos = None
+        def onSelectAreaMotion(e):
+            dx = e.x - self.__sel_area_mousepos[0]
+            dy = e.y - self.__sel_area_mousepos[1]
+            self.disp_canvas.move(self.__canvas_sel_area, dx, dy)
+            self.__sel_area_mousepos = (e.x, e.y)
+
+        self.disp_canvas.tag_bind(sel_area, "<Button-1>", onSelectAreaClick)
+        self.disp_canvas.tag_bind(sel_area, "<Button1-ButtonRelease>", onSelectAreaRelease)
+        self.disp_canvas.tag_bind(sel_area, "<Button1-Motion>", onSelectAreaMotion)
+
+        #rec
+        self.__canvas_sel_area = sel_area  #keep
+
+    #}} Right click actions
+
     def setAlter(self, alter):
         print(alter, 'is altered')
         self.__alter_time = datetime.now()
         self.resetMap(force=alter)
-    #}} 
-
 
     def onClickMotion(self, event):
+        #disable when 'image save' mode
+        if self.__canvas_sel_area is not None:
+            return
+
         if self.__mouse_down_pos is not None:
             label = event.widget
 
@@ -380,6 +427,10 @@ class DispBoard(tk.Frame):
             self.__mouse_down_pos = (event.x, event.y)
 
     def onMotion(self, event):
+        #disable when 'image save' mode
+        if self.__canvas_sel_area is not None:
+            return
+
         #draw point
         c = self.map_ctrl
         px=c.px + event.x
@@ -441,7 +492,7 @@ class DispBoard(tk.Frame):
         self.__mouse_down_pos = None
 
     def onResize(self, e):
-        disp = self.disp_label
+        disp = self.disp_canvas
         if e.widget == disp:
             if not hasattr(disp, 'image'):  #init
                 geo = self.__getPrefGeoPt()
@@ -454,8 +505,8 @@ class DispBoard(tk.Frame):
                 self.resetMap()
 
     def resetMap(self, pt=None, w=None, h=None, force=None):
-        if w is None: w = self.disp_label.winfo_width()
-        if h is None: h = self.disp_label.winfo_height()
+        if w is None: w = self.disp_canvas.winfo_width()
+        if h is None: h = self.disp_canvas.winfo_height()
 
         if pt is not None:
             self.map_ctrl.lat = pt.lat
@@ -469,9 +520,12 @@ class DispBoard(tk.Frame):
         self.__setMap(self.__img)
 
     def __setMap(self, img):
-        photo = ImageTk.PhotoImage(img)
-        self.disp_label.config(image=photo)
-        self.disp_label.image = photo #keep a ref
+        pimg = ImageTk.PhotoImage(img)
+        self.disp_canvas.image = pimg #keep a ref
+        
+        if self.__canvas_map is not None:
+            self.disp_canvas.delete(self.__canvas_map)
+        self.__canvas_map = self.disp_canvas.create_image((0,0), image=pimg, anchor='nw')
 
 class MapController:
 
