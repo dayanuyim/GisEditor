@@ -44,6 +44,10 @@ class DispBoard(tk.Frame):
         self.__img = None         #buffer disp image for restore map
         self.__alter_time = None
 
+        #canvas items
+        self.__canvas_map = None
+        self.__canvas_sel_area = None
+
         #info
         info_frame = self.initMapInfo()
         info_frame.pack(side='top', expand=0, fill='x', anchor='nw')
@@ -362,14 +366,55 @@ class DispBoard(tk.Frame):
         #wpt_board.show()
         self.__focused_wpt = None
 
+    def genSelectAreaImage(self, w, h):
+        img = Image.new('RGBA', (w, h), (255,255,0, 128))  #yellow 
+        draw = ImageDraw.Draw(img)
+        xy = ((w,0), (w,20), (w-20,0))
+        draw.polygon(xy, fill='red') #right-upper green
+        del draw
+        return img
+
+    def onImageSave(self):
+        if self.__canvas_sel_area is not None:
+            return
+        w = round(self.disp_canvas.winfo_width()/2)
+        h = round(self.disp_canvas.winfo_height()/2)
+
+        #create select area
+        pimg = ImageTk.PhotoImage(self.genSelectAreaImage(w, h))
+        self.disp_canvas.sel_area_img = pimg #keep ref
+        sel_area = self.disp_canvas.create_image((w, h), image=pimg, anchor='center')
+
+        #bind motion events
+        def onSelectAreaClick(e):
+            self.__sel_area_mousepos = (e.x, e.y)
+        def onSelectAreaRelease(e):
+            self.__sel_area_mousepos = None
+        def onSelectAreaMotion(e):
+            dx = e.x - self.__sel_area_mousepos[0]
+            dy = e.y - self.__sel_area_mousepos[1]
+            self.disp_canvas.move(self.__canvas_sel_area, dx, dy)
+            self.__sel_area_mousepos = (e.x, e.y)
+
+        self.disp_canvas.tag_bind(sel_area, "<Button-1>", onSelectAreaClick)
+        self.disp_canvas.tag_bind(sel_area, "<Button1-ButtonRelease>", onSelectAreaRelease)
+        self.disp_canvas.tag_bind(sel_area, "<Button1-Motion>", onSelectAreaMotion)
+
+        #rec
+        self.__canvas_sel_area = sel_area  #keep
+
+    #}} Right click actions
+
     def setAlter(self, alter):
         print(alter, 'is altered')
         self.__alter_time = datetime.now()
         self.resetMap(force=alter)
-    #}} 
-
 
     def onClickMotion(self, event):
+        #disable when 'image save' mode
+        if self.__canvas_sel_area is not None:
+            return
+
         if self.__mouse_down_pos is not None:
             label = event.widget
 
@@ -382,6 +427,10 @@ class DispBoard(tk.Frame):
             self.__mouse_down_pos = (event.x, event.y)
 
     def onMotion(self, event):
+        #disable when 'image save' mode
+        if self.__canvas_sel_area is not None:
+            return
+
         #draw point
         c = self.map_ctrl
         px=c.px + event.x
@@ -472,8 +521,11 @@ class DispBoard(tk.Frame):
 
     def __setMap(self, img):
         pimg = ImageTk.PhotoImage(img)
-        self.disp_canvas.create_image((0,0), image=pimg, anchor='nw')
         self.disp_canvas.image = pimg #keep a ref
+        
+        if self.__canvas_map is not None:
+            self.disp_canvas.delete(self.__canvas_map)
+        self.__canvas_map = self.disp_canvas.create_image((0,0), image=pimg, anchor='nw')
 
 class MapController:
 
