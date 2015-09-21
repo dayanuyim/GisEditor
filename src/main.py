@@ -214,11 +214,11 @@ class DispBoard(tk.Frame):
         #prefer track point
         for trk in self.map_ctrl.getAllTrks():
             for pt in trk:
-                return pt
+                return pt.geo
 
         #wpt
         for wpt in self.map_ctrl.getAllWpts():
-            return wpt
+            return wpt.geo
 
         return None
         
@@ -519,13 +519,12 @@ class DispBoard(tk.Frame):
                 self.setMapInfo()
                 self.resetMap()
 
-    def resetMap(self, pt=None, w=None, h=None, force=None):
+    def resetMap(self, geo=None, w=None, h=None, force=None):
         if w is None: w = self.disp_canvas.winfo_width()
         if h is None: h = self.disp_canvas.winfo_height()
 
-        if pt is not None:
-            self.map_ctrl.lat = pt.lat
-            self.map_ctrl.lon = pt.lon
+        if geo is not None:
+            self.map_ctrl.setGeo(geo)
             self.map_ctrl.shiftGeoPixel(-w/2, -h/2)
 
         self.__img = self.map_ctrl.getTileImage(w, h, force)  #buffer the image
@@ -553,23 +552,15 @@ class MapController:
 
     @property
     def lat(self): return self.__geo.lat
-    @lat.setter
-    def lat(self, v): self.__geo.lat = v
 
     @property
     def lon(self): return self.__geo.lon
-    @lon.setter
-    def lon(self, v): self.__geo.lon = v
 
     @property
     def px(self): return self.__geo.px
-    @px.setter
-    def px(self, v): self.__geo.px = v
 
     @property
     def py(self): return self.__geo.py
-    @py.setter
-    def py(self, v): self.__geo.py = v
 
     @property
     def level(self): return self.__geo.level
@@ -600,9 +591,14 @@ class MapController:
         self.gpx_layers.append(self.__pseudo_gpx)
 
 
+    def setGeo(self, geo):
+        level = self.level #reserve level
+        self.__geo = GeoPoint(lat=geo.lat, lon=geo.lon) #clone
+        self.__geo.level = level
+
     def shiftGeoPixel(self, px, py):
-        self.__geo.px += int(px)
-        self.__geo.py += int(py)
+        geo = self.__geo
+        self.__geo = GeoPoint(px=geo.px+int(px), py=geo.py+int(py), level=geo.level)
 
     def addGpxLayer(self, gpx):
         self.gpx_layers.append(gpx)

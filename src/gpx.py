@@ -384,6 +384,8 @@ class TrackPoint:
     def lat(self): return self.__geo.lat
     @property
     def lon(self): return self.__geo.lon
+    @property
+    def geo(self): return self.__geo
 
     def __init__(self, lat, lon):
         self.__geo = GeoPoint(lat=lat, lon=lon)
