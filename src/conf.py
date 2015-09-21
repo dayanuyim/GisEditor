@@ -36,6 +36,8 @@ MAX_SUPP_LEVEL = int(__config['max_supp_level'])
 MIN_SUPP_LEVEL = int(__config['min_supp_level'])
 SPLIT_TIME_GAP = timedelta(hours=float(__config['split_time_gap']))
 SPLIT_DIST_GAP = float(__config['split_dist_gap']) #unit:km
+SELECT_AREA_W = 7.0
+SELECT_AREA_H = 5.0
 
 #global variables
 Sym_rules = SymbolRules(__config['sym_rule_conf'])
