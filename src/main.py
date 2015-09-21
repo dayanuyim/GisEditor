@@ -374,9 +374,24 @@ class DispBoard(tk.Frame):
         del draw
         return img
 
+    def checkSelectAreaSize(self):
+        geo1 = self.map_ctrl.geo  #left-up 
+        w, h = self.__img.size
+        geo2 = GeoPoint(px=geo1.px+w, py=geo1.py+h, level=geo1.level)  #right-down
+        x1, y1 = CoordinateSystem.TWD97_LatLonToTWD97_TM2(geo1.lat, geo1.lon)
+        x2, y2 = CoordinateSystem.TWD97_LatLonToTWD97_TM2(geo2.lat, geo2.lon)
+        print(x2-x1, y2-y1, conf.SELECT_AREA_W, conf.SELECT_AREA_H)
+        return abs(x2-x1) >= conf.SELECT_AREA_W*1000 and abs(y2-y1) >= conf.SELECT_AREA_H*1000
+
     def onImageSave(self):
         if self.__canvas_sel_area is not None:
             return
+
+        if not self.checkSelectAreaSize():
+            messagebox.showwarning('Cannot show select area', 'Please zoom out or resize the window to enlarge the map')
+            return
+        #set select area w/h
+
         w = round(self.disp_canvas.winfo_width()/2)
         h = round(self.disp_canvas.winfo_height()/2)
 
