@@ -393,8 +393,7 @@ class TrackPoint:
         self.time = None
 
     def getPixel(self, level):
-        self.__geo.level = level
-        return (self.__geo.px, self.__geo.py)
+        return self.__geo.pixcel(level)
 
 class WayPoint(TrackPoint):
     def __init__(self, lat, lon):

@@ -165,8 +165,8 @@ def getTM25Kv4TileMap(cache_dir):
     return tm
 
 
-# The class represent a unique geographic point.
-# *It is designed to be 'immutable'. 'level' is a exception because of it only effects the 'granularity', not the position.
+# The class represent a unique geographic point, and designed to be 'immutable'.
+# 'level' is the 'granularity' needed to init px/py and access px/py.
 class GeoPoint:
     MAX_LEVEL = 23
 
@@ -180,11 +180,10 @@ class GeoPoint:
         else:
             raise ValueError("Not propriate init")
 
-
+    # Fileds init ===================
     def __setLatlon(self, lat, lon):
         self.__lat = lat
         self.__lon = lon
-        self.__level = self.MAX_LEVEL #default level
         self.__px = None
         self.__py = None
         self.__tm2_67x = None
@@ -193,7 +192,6 @@ class GeoPoint:
     def __setPixcel(self, px, py, level):
         self.__lat = None
         self.__lon = None
-        self.__level = level
         self.__px = px << (self.MAX_LEVEL - level)  #px of max level
         self.__py = py << (self.MAX_LEVEL - level)  #py of max level
         self.__tm2_67x = None
@@ -202,12 +200,12 @@ class GeoPoint:
     def __setTM2_67(self, tm2_67x, tm2_67y):
         self.__lat = None
         self.__lon = None
-        self.__level = self.MAX_LEVEL #default level
         self.__px = None
         self.__py = None
         self.__tm2_67x = tm2_67x
         self.__tm2_67y = tm2_67y
 
+    # convert: All->TWD97/LatLon
     def __checkLatlon(self):
         if self.__lat is None or self.__lon is None:
             if self.__px is not None and self.__py is not None:
@@ -217,8 +215,9 @@ class GeoPoint:
             else:
                 raise ValueError("Not propriate init")
 
+    # convert TWD97/LatLon -> each =========
     def __checkPixcel(self):
-        if self.__px is None or self.__py is None or self.__level is None:
+        if self.__px is None or self.__py is None:
             self.__checkLatlon()
             self.__px, self.__py = TileSystem.getPixcelXYByLatLon(self.__lat, self.__lon, self.MAX_LEVEL)
 
@@ -240,22 +239,21 @@ class GeoPoint:
         return self.__lon
 
     #accesor Pixel  ==========
-    @property
-    def level(self):
-        return self.__level
-    @level.setter
-    def level(self, level):
-        self.__level = level
-
-    @property
-    def px(self):
+    def px(self, level):
         self.__checkPixcel()
-        return self.__px >> (self.MAX_LEVEL - self.level)
+        return self.__px >> (self.MAX_LEVEL - level)
 
-    @property
-    def py(self):
+    def py(self, level):
         self.__checkPixcel()
-        return self.__py >> (self.MAX_LEVEL - self.level)
+        return self.__py >> (self.MAX_LEVEL - level)
+
+    def pixcel(self, level):
+        return (self.px(level), self.py(level))
+
+    def incPixcel(self, px, py, level):
+        px = self.px(level) + px
+        py = self.py(level) + py
+        return GeoPoint(px=px, py=py, level=level)
 
     #accesor TWD67 TM2 ==========
     @property

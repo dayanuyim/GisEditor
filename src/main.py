@@ -524,7 +524,7 @@ class DispBoard(tk.Frame):
         if h is None: h = self.disp_canvas.winfo_height()
 
         if geo is not None:
-            self.map_ctrl.setGeo(geo)
+            self.map_ctrl.geo = geo
             self.map_ctrl.shiftGeoPixel(-w/2, -h/2)
 
         self.__img = self.map_ctrl.getTileImage(w, h, force)  #buffer the image
@@ -549,6 +549,8 @@ class MapController:
 
     @property
     def geo(self): return self.__geo
+    @geo.setter
+    def geo(self, v): self.__geo = v
 
     @property
     def lat(self): return self.__geo.lat
@@ -557,22 +559,22 @@ class MapController:
     def lon(self): return self.__geo.lon
 
     @property
-    def px(self): return self.__geo.px
+    def px(self): return self.__geo.px(self.__level)
 
     @property
-    def py(self): return self.__geo.py
+    def py(self): return self.__geo.py(self.__level)
 
     @property
-    def level(self): return self.__geo.level
+    def level(self): return self.__level
     @level.setter
-    def level(self, v): self.__geo.level = v
+    def level(self, v): self.__level = v
 
     def __init__(self, parent):
         #def settings
         self.__parent = parent
         self.__tile_map = tile.getTM25Kv3TileMap(cache_dir=conf.CACHE_DIR)
         self.__geo = GeoPoint(lon=121.334754, lat=24.987969)  #default location
-        self.__geo.level = 14
+        self.__level = 14
 
         #image
         self.__paste_lock = Lock()
@@ -591,14 +593,8 @@ class MapController:
         self.gpx_layers.append(self.__pseudo_gpx)
 
 
-    def setGeo(self, geo):
-        level = self.level #reserve level
-        self.__geo = GeoPoint(lat=geo.lat, lon=geo.lon) #clone
-        self.__geo.level = level
-
     def shiftGeoPixel(self, px, py):
-        geo = self.__geo
-        self.__geo = GeoPoint(px=geo.px+int(px), py=geo.py+int(py), level=geo.level)
+        self.geo = self.geo.incPixcel(int(px), int(py), self.__level)
 
     def addGpxLayer(self, gpx):
         self.gpx_layers.append(gpx)
