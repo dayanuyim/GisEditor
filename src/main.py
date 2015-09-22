@@ -19,7 +19,6 @@ from threading import Thread, Lock, Condition
 import tile
 import conf
 from tile import  TileSystem, TileMap, GeoPoint
-from coord import  CoordinateSystem
 from gpx import GpsDocument, WayPoint
 from pic import PicDocument
 from sym import SymRuleType, SymRule
@@ -164,23 +163,24 @@ class DispBoard(tk.Frame):
             messagebox.showwarning('Bad Format', "Please use format '%d,%d'")
             return
 
-        #convet to 97 latlon
+        #make geo according to the coordinate
         if e.widget == self.__info_67tm2:
-            lat, lon = CoordinateSystem.TWD67_TM2ToTWD97_LatLon(x*1000, y*1000)
+            geo = GeoPoint(twd67_x=int(x*1000), twd67_y=int(y*1000))
         elif e.widget == self.__info_97tm2:
-            lat, lon = CoordinateSystem.TWD97_TM2ToTWD97_LatLon(x*1000, y*1000)
+            geo = GeoPoint(twd69_x=int(x*1000), twd69_y=int(y*1000))
         elif e.widget == self.__info_97latlon:
-            lat, lon = x, y
+            geo = GeoPoint(lat=x, lon=y)
+        else:
+            raise ValueError("Code flow error to set location")
 
         #check
         min_lon, min_lat = self.map_ctrl.tile_map.lower_corner
         max_lon, max_lat = self.map_ctrl.tile_map.upper_corner
-        if not (min_lat <= lat and lat <= max_lat and min_lon <= lon and lon <= max_lon):
+        if not (min_lat <= geo.lat and geo.lat <= max_lat and min_lon <= geo.lon and geo.lon <= max_lon):
             messagebox.showwarning('Invalid Location', 'Please check location')
             return
 
         #focus geo on map
-        geo = GeoPoint(lat=lat, lon=lon)
         self.setMapInfo(geo)
         self.resetMap(geo)
 
@@ -188,11 +188,9 @@ class DispBoard(tk.Frame):
         self.__info_level.variable.set(self.map_ctrl.level)
 
         if geo is not None:
-            x_97tm2, y_97tm2 = CoordinateSystem.TWD97_LatLonToTWD97_TM2(geo.lat, geo.lon)
-            x_67tm2, y_67tm2  = CoordinateSystem.TWD97_TM2ToTWD67_TM2(x_97tm2, y_97tm2)
             self.__info_97latlon.variable.set("%f, %f" % (geo.lat, geo.lon))
-            self.__info_97tm2.variable.set("%.3f, %.3f" % (x_97tm2/1000, y_97tm2/1000))
-            self.__info_67tm2.variable.set("%.3f, %.3f" % (x_67tm2/1000, y_67tm2/1000))
+            self.__info_97tm2.variable.set("%.3f, %.3f" % (geo.twd97_x/1000, geo.twd97_y/1000))
+            self.__info_67tm2.variable.set("%.3f, %.3f" % (geo.twd67_x/1000, geo.twd67_y/1000))
 
     def addGpx(self, gpx):
         if gpx is not None:
@@ -340,11 +338,9 @@ class DispBoard(tk.Frame):
 
     @staticmethod
     def trkDistGap(pt1, pt2):
-        x1, y1 = CoordinateSystem.TWD97_LatLonToTWD97_TM2(pt1.lat, pt1.lon)
-        x2, y2 = CoordinateSystem.TWD97_LatLonToTWD97_TM2(pt2.lat, pt2.lon)
-        x = x2-x1
-        y = y2-y1
-        dist = sqrt(x**2+y**2)
+        dx = pt2.twd97_x - pt1.twd97_x
+        dy = pt2.twd97_y - pt1.twd97_y
+        dist = sqrt(dx**2+dy**2)
         #print('dist', dist)
         return dist > conf.SPLIT_DIST_GAP
 
@@ -375,13 +371,13 @@ class DispBoard(tk.Frame):
         return img
 
     def checkSelectAreaSize(self):
-        geo1 = self.map_ctrl.geo  #left-up 
         w, h = self.__img.size
-        geo2 = GeoPoint(px=geo1.px+w, py=geo1.py+h, level=geo1.level)  #right-down
-        x1, y1 = CoordinateSystem.TWD97_LatLonToTWD97_TM2(geo1.lat, geo1.lon)
-        x2, y2 = CoordinateSystem.TWD97_LatLonToTWD97_TM2(geo2.lat, geo2.lon)
-        print(x2-x1, y2-y1, conf.SELECT_AREA_W, conf.SELECT_AREA_H)
-        return abs(x2-x1) >= conf.SELECT_AREA_W*1000 and abs(y2-y1) >= conf.SELECT_AREA_H*1000
+        geo1 = self.map_ctrl.geo  #left-up 
+        geo2 = geo1.incPixcel(w, h, self.map_ctrl.level) #right-down
+        dx = geo2.twd97_x - geo1.twd97_x
+        dy = geo1.twd97_y - geo2.twd97_y
+        print(dx, dy, conf.SELECT_AREA_W, conf.SELECT_AREA_H)
+        return dx >= conf.SELECT_AREA_W*1000 and dy >= conf.SELECT_AREA_H*1000
 
     def onImageSave(self):
         if self.__canvas_sel_area is not None:
@@ -943,14 +939,14 @@ class MapController:
 
 
     @staticmethod
-    def getTWD67TM2ByPixcelXY(x, y, level):
-        (lat, lon) = TileSystem.getLatLonByPixcelXY(x, y, level)
-        return CoordinateSystem.TWD97_LatLonToTWD67_TM2(lat, lon)
+    def getTWD67TM2ByPixcelXY(px, py, level):
+        geo = GeoPoint(px=px, py=py, level=level)
+        return (geo.twd67_x, geo.twd67_y)
 
     @staticmethod
     def getPixcelXYByTWD67TM2(x, y, level):
-        (lat, lon) = CoordinateSystem.TWD67_TM2ToTWD97_LatLon(x, y)
-        return TileSystem.getPixcelXYByLatLon(lat, lon, level)
+        geo = GeoPoint(twd67_x=x, twd67_y=y)
+        return geo.pixel(level)
 
 #record image atrr
 class ImageAttr:
