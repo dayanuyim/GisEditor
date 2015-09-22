@@ -170,66 +170,66 @@ def getTM25Kv4TileMap(cache_dir):
 class GeoPoint:
     MAX_LEVEL = 23
 
-    def __init__(self, lat=None, lon=None, px=None, py=None, level=None, tm2_67x=None, tm2_67y=None, tm2_97x=None, tm2_97y=None):
+    def __init__(self, lat=None, lon=None, px=None, py=None, level=None, twd67_x=None, twd67_y=None, twd97_x=None, twd97_y=None):
         if lat is not None and lon is not None:
             self.__initFields(lat=lat, lon=lon)
         elif px is not None and py is not None and level is not None:
             self.__initFields(px=px, py=py, level=level)
-        elif tm2_67x is not None and tm2_67y is not None:
-            self.__initFields(tm2_67x=tm2_67x, tm2_67y=tm2_67y)
-        elif tm2_97x is not None and tm2_97y is not None:
-            self.__initFields(tm2_97x=tm2_97x, tm2_97y=tm2_97y)
+        elif twd67_x is not None and twd67_y is not None:
+            self.__initFields(twd67_x=twd67_x, twd67_y=twd67_y)
+        elif twd97_x is not None and twd97_y is not None:
+            self.__initFields(twd97_x=twd97_x, twd97_y=twd97_y)
         else:
             raise ValueError("Not propriate init")
 
     # Fileds init ===================
-    def __initFields(self, lat=None, lon=None, px=None, py=None, level=None, tm2_67x=None, tm2_67y=None, tm2_97x=None, tm2_97y=None):
+    def __initFields(self, lat=None, lon=None, px=None, py=None, level=None, twd67_x=None, twd67_y=None, twd97_x=None, twd97_y=None):
         self.__lat = lat
         self.__lon = lon
         self.__px = None if px is None else px << (self.MAX_LEVEL - level)  #px of max level
         self.__py = None if py is None else py << (self.MAX_LEVEL - level)  #py of max level
-        self.__tm2_67x = tm2_67x
-        self.__tm2_67y = tm2_67y
-        self.__tm2_97x = tm2_97x
-        self.__tm2_97y = tm2_97y
+        self.__twd67_x = twd67_x
+        self.__twd67_y = twd67_y
+        self.__twd97_x = twd97_x
+        self.__twd97_y = twd97_y
 
-    # convert: All->TWD97/LatLon
-    def __checkLatlon(self):
+    # convert: All->WGS84/LatLon
+    def __checkWGS84Latlon(self):
         if self.__lat is None or self.__lon is None:
             if self.__px is not None and self.__py is not None:
                 self.__lat, self.__lon = TileSystem.getLatLonByPixcelXY(self.__px, self.__py, self.MAX_LEVEL)
-            elif self.__tm2_67x is not None and self.__tm2_67y is not None:
-                self.__lat, self.__lon = CoordinateSystem.TWD67_TM2ToTWD97_LatLon(self.__tm2_67x, self.__tm2_67y)
-            elif self.__tm2_97x is not None and self.__tm2_97y is not None:
-                self.__lat, self.__lon = CoordinateSystem.TWD97_TM2ToTWD97_LatLon(self.__tm2_97x, self.__tm2_97y)
+            elif self.__twd67_x is not None and self.__twd67_y is not None:
+                self.__lat, self.__lon = CoordinateSystem.TWD67_TM2ToTWD97_LatLon(self.__twd67_x, self.__twd67_y)
+            elif self.__twd97_x is not None and self.__twd97_y is not None:
+                self.__lat, self.__lon = CoordinateSystem.TWD97_TM2ToTWD97_LatLon(self.__twd97_x, self.__twd97_y)
             else:
                 raise ValueError("Not propriate init")
 
     # convert TWD97/LatLon -> each =========
     def __checkPixcel(self):
         if self.__px is None or self.__py is None:
-            self.__checkLatlon()
+            self.__checkWGS84Latlon()
             self.__px, self.__py = TileSystem.getPixcelXYByLatLon(self.__lat, self.__lon, self.MAX_LEVEL)
 
-    def __checkTM2_67(self):
-        if self.__tm2_67x is None or self.__tm2_67y is None:
-            self.__checkLatlon()
-            self.__tm2_67x, self.__tm2_67y = CoordinateSystem.TWD97_LatLonToTWD67_TM2(self.__lat, self.__lon)
+    def __checkTWD67TM2(self):
+        if self.__twd67_x is None or self.__twd67_y is None:
+            self.__checkWGS84Latlon()
+            self.__twd67_x, self.__twd67_y = CoordinateSystem.TWD97_LatLonToTWD67_TM2(self.__lat, self.__lon)
     
-    def __checkTM2_97(self):
-        if self.__tm2_97x is None or self.__tm2_97y is None:
-            self.__checkLatlon()
-            self.__tm2_97x, self.__tm2_97y = CoordinateSystem.TWD97_LatLonToTWD97_TM2(self.__lat, self.__lon)
+    def __checkTWD97TM2(self):
+        if self.__twd97_x is None or self.__twd97_y is None:
+            self.__checkWGS84Latlon()
+            self.__twd97_x, self.__twd97_y = CoordinateSystem.TWD97_LatLonToTWD97_TM2(self.__lat, self.__lon)
 
     #accesor LatLon  ==========
     @property
     def lat(self):
-        self.__checkLatlon()
+        self.__checkWGS84Latlon()
         return self.__lat
 
     @property
     def lon(self):
-        self.__checkLatlon()
+        self.__checkWGS84Latlon()
         return self.__lon
 
     #accesor Pixel  ==========
@@ -251,25 +251,25 @@ class GeoPoint:
 
     #accesor TWD67 TM2 ==========
     @property
-    def tm2_67x(self):
-        self.__checkTM2_67()
-        return self.__tm2_67x
+    def twd67_x(self):
+        self.__checkTWD67TM2()
+        return self.__twd67_x
 
     @property
-    def tm2_67y(self):
-        self.__checkTM2_67()
-        return self.__tm2_67y
+    def twd67_y(self):
+        self.__checkTWD67TM2()
+        return self.__twd67_y
 
     #accesor TWD97 TM2 ==========
     @property
-    def tm2_97x(self):
-        self.__checkTM2_97()
-        return self.__tm2_97x
+    def twd97_x(self):
+        self.__checkTWD97TM2()
+        return self.__twd97_x
 
     @property
-    def tm2_97y(self):
-        self.__checkTM2_97()
-        return self.__tm2_97y
+    def twd97_y(self):
+        self.__checkTWD97TM2()
+        return self.__twd97_y
 
 
 class GeoPoint2:
