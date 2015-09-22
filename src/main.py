@@ -376,7 +376,6 @@ class DispBoard(tk.Frame):
         geo2 = geo1.incPixcel(w, h, self.map_ctrl.level) #right-down
         dx = geo2.twd97_x - geo1.twd97_x
         dy = geo1.twd97_y - geo2.twd97_y
-        print(dx, dy, conf.SELECT_AREA_W, conf.SELECT_AREA_H)
         return dx >= conf.SELECT_AREA_W*1000 and dy >= conf.SELECT_AREA_H*1000
 
     def onImageSave(self):
@@ -386,15 +385,29 @@ class DispBoard(tk.Frame):
         if not self.checkSelectAreaSize():
             messagebox.showwarning('Cannot show select area', 'Please zoom out or resize the window to enlarge the map')
             return
-        #set select area w/h
 
-        w = round(self.disp_canvas.winfo_width()/2)
-        h = round(self.disp_canvas.winfo_height()/2)
+        #set select area w/h
+        level = self.map_ctrl.level
+        geo1 = self.map_ctrl.geo  #upper-left
+        geo2 = GeoPoint(twd67_x=geo1.twd67_x+1000*conf.SELECT_AREA_W, twd67_y=geo1.twd67_y-1000*conf.SELECT_AREA_H) #lower-down
+        sel_w = geo2.px(level) - geo1.px(level)
+        sel_h = geo2.py(level) - geo1.py(level)
+
+        canvas_w = self.disp_canvas.winfo_width()
+        canvas_h = self.disp_canvas.winfo_height()
+        canvas_center = (round(self.disp_canvas.winfo_width()/2), round(self.disp_canvas.winfo_height()/2))
+        pad_w = int((canvas_w-sel_w)/2)
+        pad_h = int((canvas_h-sel_h)/2)
+        button_w = 20
+        button_h = 20
 
         #create select area
-        pimg = ImageTk.PhotoImage(self.genSelectAreaImage(w, h))
+        pimg = ImageTk.PhotoImage(self.genSelectAreaImage(sel_w, sel_h))
         self.disp_canvas.sel_area_img = pimg #keep ref
-        sel_area = self.disp_canvas.create_image((w, h), image=pimg, anchor='center')
+        sel_area = self.disp_canvas.create_image(canvas_center, image=pimg, anchor='center')
+        w = pad_w + sel_w
+        h = pad_h + sel_h
+        ok_button = self.disp_canvas.create_oval(w-button_w, h-button_h, w, h, fill='green')
 
         #bind motion events
         def onSelectAreaClick(e):
