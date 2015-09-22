@@ -379,21 +379,13 @@ class Track:
 
         return sp_trks
 
-class TrackPoint:
-    @property
-    def lat(self): return self.__geo.lat
-    @property
-    def lon(self): return self.__geo.lon
-    @property
-    def geo(self): return self.__geo
-
+class TrackPoint(GeoPoint):
+    #property lat
+    #property lon
     def __init__(self, lat, lon):
-        self.__geo = GeoPoint(lat=lat, lon=lon)
+        super().__init__(lat=lat, lon=lon)
         self.ele = 0.0
         self.time = None
-
-    def getPixel(self, level):
-        return self.__geo.pixcel(level)
 
 class WayPoint(TrackPoint):
     def __init__(self, lat, lon):

@@ -247,7 +247,7 @@ class GeoPoint:
         self.__checkPixcel()
         return self.__py >> (self.MAX_LEVEL - level)
 
-    def pixcel(self, level):
+    def pixel(self, level):
         return (self.px(level), self.py(level))
 
     def incPixcel(self, px, py, level):

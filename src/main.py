@@ -214,11 +214,11 @@ class DispBoard(tk.Frame):
         #prefer track point
         for trk in self.map_ctrl.getAllTrks():
             for pt in trk:
-                return pt.geo
+                return pt
 
         #wpt
         for wpt in self.map_ctrl.getAllWpts():
-            return wpt.geo
+            return wpt
 
         return None
         
@@ -624,7 +624,7 @@ class MapController:
     def getWptAt(self, px, py):
         r = int(conf.ICON_SIZE/2)
         for wpt in self.getAllWpts():
-            wpx, wpy = wpt.getPixel(self.level)
+            wpx, wpy = wpt.pixel(self.level)
             if abs(px-wpx) < r and abs(py-wpy) < r:
                 return wpt
         return None
@@ -806,7 +806,7 @@ class MapController:
 
         if len(pts) == 1:
             #print('draw trk point')
-            (px, py) = pts[0].getPixel(img_attr.level)
+            (px, py) = pts[0].pixel(img_attr.level)
             px -= img_attr.left_px
             py -= img_attr.up_py
 
@@ -819,7 +819,7 @@ class MapController:
             #print('draw trk seg')
             xy = []
             for pt in pts:
-                (px, py) = pt.getPixel(img_attr.level)
+                (px, py) = pt.pixel(img_attr.level)
                 xy.append(px - img_attr.left_px)
                 xy.append(py - img_attr.up_py)
 
@@ -837,7 +837,7 @@ class MapController:
         return True
         #if some track point is in disp
         for pt in trk:
-            (px, py) = pt.getPixel(img_attr.level)
+            (px, py) = pt.pixel(img_attr.level)
             if img_attr.containsPoint(px, py):
                 return True
         return False
@@ -850,14 +850,14 @@ class MapController:
 
         draw = ImageDraw.Draw(img)
         for wpt in wpts:
-            (px, py) = wpt.getPixel(img_attr.level)
+            (px, py) = wpt.pixel(img_attr.level)
             self.drawWayPoint(img, img_attr, wpt, "black", draw=draw)
         del draw
 
     def drawWayPoint(self, img, img_attr, wpt, txt_color, bg_color=None, draw=None):
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw wpt'", wpt.name, "'")
         #check range
-        (px, py) = wpt.getPixel(img_attr.level)
+        (px, py) = wpt.pixel(img_attr.level)
         if not img_attr.containsPoint(px, py):
             return
 
