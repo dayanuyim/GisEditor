@@ -170,40 +170,28 @@ def getTM25Kv4TileMap(cache_dir):
 class GeoPoint:
     MAX_LEVEL = 23
 
-    def __init__(self, lat=None, lon=None, px=None, py=None, level=None, tm2_67x=None, tm2_67y=None):
+    def __init__(self, lat=None, lon=None, px=None, py=None, level=None, tm2_67x=None, tm2_67y=None, tm2_97x=None, tm2_97y=None):
         if lat is not None and lon is not None:
-            self.__setLatlon(lat, lon)
+            self.__initFields(lat=lat, lon=lon)
         elif px is not None and py is not None and level is not None:
-            self.__setPixcel(px, py, level)
+            self.__initFields(px=px, py=py, level=level)
         elif tm2_67x is not None and tm2_67y is not None:
-            self.__setTM2_67(tm2_67x, tm2_67y)
+            self.__initFields(tm2_67x=tm2_67x, tm2_67y=tm2_67y)
+        elif tm2_97x is not None and tm2_97y is not None:
+            self.__initFields(tm2_97x=tm2_97x, tm2_97y=tm2_97y)
         else:
             raise ValueError("Not propriate init")
 
     # Fileds init ===================
-    def __setLatlon(self, lat, lon):
+    def __initFields(self, lat=None, lon=None, px=None, py=None, level=None, tm2_67x=None, tm2_67y=None, tm2_97x=None, tm2_97y=None):
         self.__lat = lat
         self.__lon = lon
-        self.__px = None
-        self.__py = None
-        self.__tm2_67x = None
-        self.__tm2_67y = None
-
-    def __setPixcel(self, px, py, level):
-        self.__lat = None
-        self.__lon = None
-        self.__px = px << (self.MAX_LEVEL - level)  #px of max level
-        self.__py = py << (self.MAX_LEVEL - level)  #py of max level
-        self.__tm2_67x = None
-        self.__tm2_67y = None
-
-    def __setTM2_67(self, tm2_67x, tm2_67y):
-        self.__lat = None
-        self.__lon = None
-        self.__px = None
-        self.__py = None
+        self.__px = None if px is None else px << (self.MAX_LEVEL - level)  #px of max level
+        self.__py = None if py is None else py << (self.MAX_LEVEL - level)  #py of max level
         self.__tm2_67x = tm2_67x
         self.__tm2_67y = tm2_67y
+        self.__tm2_97x = tm2_97x
+        self.__tm2_97y = tm2_97y
 
     # convert: All->TWD97/LatLon
     def __checkLatlon(self):
@@ -212,6 +200,8 @@ class GeoPoint:
                 self.__lat, self.__lon = TileSystem.getLatLonByPixcelXY(self.__px, self.__py, self.MAX_LEVEL)
             elif self.__tm2_67x is not None and self.__tm2_67y is not None:
                 self.__lat, self.__lon = CoordinateSystem.TWD67_TM2ToTWD97_LatLon(self.__tm2_67x, self.__tm2_67y)
+            elif self.__tm2_97x is not None and self.__tm2_97y is not None:
+                self.__lat, self.__lon = CoordinateSystem.TWD97_TM2ToTWD97_LatLon(self.__tm2_97x, self.__tm2_97y)
             else:
                 raise ValueError("Not propriate init")
 
@@ -226,6 +216,10 @@ class GeoPoint:
             self.__checkLatlon()
             self.__tm2_67x, self.__tm2_67y = CoordinateSystem.TWD97_LatLonToTWD67_TM2(self.__lat, self.__lon)
     
+    def __checkTM2_97(self):
+        if self.__tm2_97x is None or self.__tm2_97y is None:
+            self.__checkLatlon()
+            self.__tm2_97x, self.__tm2_97y = CoordinateSystem.TWD97_LatLonToTWD97_TM2(self.__lat, self.__lon)
 
     #accesor LatLon  ==========
     @property
@@ -265,6 +259,18 @@ class GeoPoint:
     def tm2_67y(self):
         self.__checkTM2_67()
         return self.__tm2_67y
+
+    #accesor TWD97 TM2 ==========
+    @property
+    def tm2_97x(self):
+        self.__checkTM2_97()
+        return self.__tm2_97x
+
+    @property
+    def tm2_97y(self):
+        self.__checkTM2_97()
+        return self.__tm2_97y
+
 
 class GeoPoint2:
     MAX_LEVEL = 23
