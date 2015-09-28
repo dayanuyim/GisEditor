@@ -277,7 +277,6 @@ class DispBoard(tk.Frame):
 
         self.addWpt(wpt)
         self.setAlter('wpt')
-        
 
     def onNumberWpt(self, name=None, time=None):
         wpt_list = self.map_ctrl.getAllWpts()
@@ -2236,7 +2235,7 @@ if __name__ == '__main__':
     root = tk.Tk()
     pmw.initialise(root)
     root.title("PicGisEditor")
-    root.geometry('800x600+400+0')
+    root.geometry('950x700+200+0')
 
     pad_ = 2
     disp_board = DispBoard(root)
