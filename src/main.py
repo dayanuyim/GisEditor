@@ -22,6 +22,7 @@ from tile import  TileSystem, TileMap, GeoPoint
 from gpx import GpsDocument, WayPoint
 from pic import PicDocument
 from sym import SymRuleType, SymRule
+from util import AreaSelector
 
 
 class DispBoard(tk.Frame):
@@ -361,70 +362,23 @@ class DispBoard(tk.Frame):
         #wpt_board.show()
         self.__focused_wpt = None
 
-    def genSelectAreaImage(self, w, h):
-        img = Image.new('RGBA', (w, h), (255,255,0, 128))  #yellow 
-        draw = ImageDraw.Draw(img)
-        xy = ((w,0), (w,20), (w-20,0))
-        draw.polygon(xy, fill='red') #right-upper green
-        del draw
-        return img
-
-    def checkSelectAreaSize(self):
-        w, h = self.__img.size
-        geo1 = self.map_ctrl.geo  #left-up 
-        geo2 = geo1.incPixcel(w, h, self.map_ctrl.level) #right-down
-        dx = geo2.twd97_x - geo1.twd97_x
-        dy = geo1.twd97_y - geo2.twd97_y
-        return dx >= conf.SELECT_AREA_W*1000 and dy >= conf.SELECT_AREA_H*1000
-
     def onImageSave(self):
         if self.__canvas_sel_area is not None:
             return
 
-        if not self.checkSelectAreaSize():
-            messagebox.showwarning('Cannot show select area', 'Please zoom out or resize the window to enlarge the map')
-            return
-
-        #set select area w/h
+        #get select area w/h
         level = self.map_ctrl.level
         geo1 = self.map_ctrl.geo  #upper-left
         geo2 = GeoPoint(twd67_x=geo1.twd67_x+1000*conf.SELECT_AREA_W, twd67_y=geo1.twd67_y-1000*conf.SELECT_AREA_H) #lower-down
         sel_w = geo2.px(level) - geo1.px(level)
         sel_h = geo2.py(level) - geo1.py(level)
 
-        canvas_w = self.disp_canvas.winfo_width()
-        canvas_h = self.disp_canvas.winfo_height()
-        canvas_center = (round(self.disp_canvas.winfo_width()/2), round(self.disp_canvas.winfo_height()/2))
-        pad_w = int((canvas_w-sel_w)/2)
-        pad_h = int((canvas_h-sel_h)/2)
-        button_w = 20
-        button_h = 20
+        #check size
+        if sel_w > self.__img.size[0] or sel_h > self.__img.size[1]:
+            messagebox.showwarning('Cannot show select area', 'Please zoom out or resize the window to enlarge the map')
+            return
 
-        #create select area
-        pimg = ImageTk.PhotoImage(self.genSelectAreaImage(sel_w, sel_h))
-        self.disp_canvas.sel_area_img = pimg #keep ref
-        sel_area = self.disp_canvas.create_image(canvas_center, image=pimg, anchor='center')
-        w = pad_w + sel_w
-        h = pad_h + sel_h
-        ok_button = self.disp_canvas.create_oval(w-button_w, h-button_h, w, h, fill='green')
-
-        #bind motion events
-        def onSelectAreaClick(e):
-            self.__sel_area_mousepos = (e.x, e.y)
-        def onSelectAreaRelease(e):
-            self.__sel_area_mousepos = None
-        def onSelectAreaMotion(e):
-            dx = e.x - self.__sel_area_mousepos[0]
-            dy = e.y - self.__sel_area_mousepos[1]
-            self.disp_canvas.move(self.__canvas_sel_area, dx, dy)
-            self.__sel_area_mousepos = (e.x, e.y)
-
-        self.disp_canvas.tag_bind(sel_area, "<Button-1>", onSelectAreaClick)
-        self.disp_canvas.tag_bind(sel_area, "<Button1-ButtonRelease>", onSelectAreaRelease)
-        self.disp_canvas.tag_bind(sel_area, "<Button1-Motion>", onSelectAreaMotion)
-
-        #rec
-        self.__canvas_sel_area = sel_area  #keep
+        self.__canvas_sel_area = AreaSelector(self.disp_canvas, size=(sel_w, sel_h)) 
 
     #}} Right click actions
 
