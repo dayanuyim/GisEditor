@@ -42,9 +42,7 @@ SPLIT_TIME_GAP = timedelta(hours=float(__config['split_time_gap']))
 SPLIT_DIST_GAP = float(__config['split_dist_gap']) #unit:km
 SELECT_AREA_W = float(__config['select_area_w'])
 SELECT_AREA_H = float(__config['select_area_h'])
-
-#constance
-OS = platform.system()
+SELECT_AREA_ALIGN = __config['select_area_align'] == 'y'
 
 #global variables
 Sym_rules = SymbolRules(SYM_RULE_CONF)

@@ -381,7 +381,7 @@ class DispBoard(tk.Frame):
             messagebox.showwarning('Cannot show select area', 'Please zoom out or resize the window to enlarge the map')
             return
 
-        #align twd67 grid
+        #pos limitor to align twd67
         def twd67PosLimitor(pos):
             level = self.map_ctrl.level
             ref_geo = self.map_ctrl.geo
@@ -391,8 +391,10 @@ class DispBoard(tk.Frame):
             y = round(sel_geo.twd67_y/1000)*1000
             limit_geo = GeoPoint(twd67_x=x, twd67_y=y)
             return limit_geo.diffPixel(sel_geo, level)
+        pos_limitor = twd67PosLimitor if conf.SELECT_AREA_ALIGN else None
 
-        self.__canvas_sel_area = AreaSelector(self.disp_canvas, size=(sel_w, sel_h), pos_limitor=twd67PosLimitor) 
+        #select area
+        self.__canvas_sel_area = AreaSelector(self.disp_canvas, size=(sel_w, sel_h), pos_limitor=pos_limitor) 
         if self.__canvas_sel_area.wait(self) == 'OK':
             #get fpath
             fpath = filedialog.asksaveasfilename(
