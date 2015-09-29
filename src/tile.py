@@ -244,10 +244,15 @@ class GeoPoint:
     def pixel(self, level):
         return (self.px(level), self.py(level))
 
-    def incPixcel(self, px, py, level):
+    def incPixel(self, px, py, level):
         px = self.px(level) + px
         py = self.py(level) + py
         return GeoPoint(px=px, py=py, level=level)
+
+    def diffPixel(self, geo, level):
+        dpx = self.px(level) - geo.px(level)
+        dpy = self.py(level) - geo.py(level)
+        return (dpx, dpy)
 
     #accesor TWD67 TM2 ==========
     @property

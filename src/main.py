@@ -374,8 +374,7 @@ class DispBoard(tk.Frame):
         level = self.map_ctrl.level
         geo1 = self.map_ctrl.geo  #upper-left
         geo2 = GeoPoint(twd67_x=geo1.twd67_x+1000*conf.SELECT_AREA_W, twd67_y=geo1.twd67_y-1000*conf.SELECT_AREA_H) #lower-down
-        sel_w = geo2.px(level) - geo1.px(level)
-        sel_h = geo2.py(level) - geo1.py(level)
+        sel_w, sel_h = geo2.diffPixel(geo1, level)
 
         #check size
         if sel_w > self.__img.size[0] or sel_h > self.__img.size[1]:
@@ -386,15 +385,12 @@ class DispBoard(tk.Frame):
         def twd67PosLimitor(pos):
             level = self.map_ctrl.level
             ref_geo = self.map_ctrl.geo
-            sel_geo = ref_geo.incPixcel(pos[0], pos[1], level)
+            sel_geo = ref_geo.incPixel(pos[0], pos[1], level)
             #limit to twd67
             x = round(sel_geo.twd67_x/1000)*1000
             y = round(sel_geo.twd67_y/1000)*1000
             limit_geo = GeoPoint(twd67_x=x, twd67_y=y)
-            #diff
-            dpx = limit_geo.px(level) - sel_geo.px(level)
-            dpy = limit_geo.py(level) - sel_geo.py(level)
-            return (dpx, dpy)
+            return limit_geo.diffPixel(sel_geo, level)
 
         self.__canvas_sel_area = AreaSelector(self.disp_canvas, size=(sel_w, sel_h), pos_limitor=twd67PosLimitor) 
         if self.__canvas_sel_area.wait(self) == 'OK':
@@ -402,18 +398,15 @@ class DispBoard(tk.Frame):
             fpath = filedialog.asksaveasfilename(
                     defaultextension=".png", filetypes=(("Portable Network Graphics", ".png"), ("All Files", "*.*")) )
             if fpath:
-                #in
+                out_level = 15
                 org_level = self.map_ctrl.level
                 w, h = self.__canvas_sel_area.size
                 x, y = self.__canvas_sel_area.pos
-                geo = self.map_ctrl.geo.incPixcel(x, y, org_level)
-                geo2 = geo.incPixcel(w, h, org_level)
-                print('select geo:', geo.twd67_x/1000, geo.twd67_y/1000)
-                #out
-                out_level = 15
-                dx = geo2.px(out_level) - geo.px(out_level)
-                dy = geo2.py(out_level) - geo.py(out_level)
-                #map
+                #bounding geo
+                geo = self.map_ctrl.geo.incPixel(x, y, org_level)
+                geo2 = geo.incPixel(w, h, org_level)
+                dx, dy = geo2.diffPixel(geo, out_level)
+                #get map
                 img = self.map_ctrl.getTileImage(dx, dy, geo=geo, level=out_level)
                 img.save(fpath, format='png')
 
@@ -595,7 +588,7 @@ class MapController:
 
 
     def shiftGeoPixel(self, px, py):
-        self.geo = self.geo.incPixcel(int(px), int(py), self.__level)
+        self.geo = self.geo.incPixel(int(px), int(py), self.__level)
 
     def addGpxLayer(self, gpx):
         self.gpx_layers.append(gpx)
