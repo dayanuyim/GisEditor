@@ -8,6 +8,7 @@ from sym import SymbolRules
 from datetime import timedelta
 from coord import CoordinateSystem
 
+#constance util
 def _tosymkey(sym):
     return sym.title()
 
@@ -18,29 +19,35 @@ def __readConfig(conf_path):
             k, v = line.rstrip().split('=', 1)
             conf[k] = v
     return conf
-__config = __readConfig('./giseditor.conf')
 
 #constance
+OS = platform.system()
+GISEDITOR_CONF = './giseditor.conf'
+
+#constance from conf
+__config = __readConfig(GISEDITOR_CONF)
+DEF_SYMS_CONF = __config['def_syms_conf']
+SYM_RULE_CONF = __config['sym_rule_conf']
 CACHE_DIR = __config['cache_dir']
 GPSBABEL_EXE = __config['gpsbabel_exe']
-TTF = __config['truetypefont']
-FONT_SIZE = int(__config['font_size'])
-IMG_FONT = ImageFont.truetype(TTF, FONT_SIZE) #global use font (Note: the operation is time wasting)
+IMG_FONT_SIZE = int(__config['img_font_size'])
+IMG_FONT = ImageFont.truetype(__config['img_font'], IMG_FONT_SIZE) #global use font (Note: the operation is time wasting)
 TZ = timedelta(hours=float(__config['tz']))
 ICON_DIR = __config['icon_dir']
 ICON_SIZE = int(__config['icon_size'])
 DEF_SYMBOL = _tosymkey(__config['def_symbol'])
-DEF_SYMS_CONF = __config['def_syms_conf']
-OS = platform.system()
 MAX_SUPP_LEVEL = int(__config['max_supp_level'])
 MIN_SUPP_LEVEL = int(__config['min_supp_level'])
 SPLIT_TIME_GAP = timedelta(hours=float(__config['split_time_gap']))
 SPLIT_DIST_GAP = float(__config['split_dist_gap']) #unit:km
-SELECT_AREA_W = 7.0
-SELECT_AREA_H = 5.0
+SELECT_AREA_W = float(__config['select_area_w'])
+SELECT_AREA_H = float(__config['select_area_h'])
+
+#constance
+OS = platform.system()
 
 #global variables
-Sym_rules = SymbolRules(__config['sym_rule_conf'])
+Sym_rules = SymbolRules(SYM_RULE_CONF)
 
 def getSymbol(name):
     rule = Sym_rules.getMatchRule(name)
