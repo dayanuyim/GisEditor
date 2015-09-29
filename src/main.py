@@ -398,7 +398,24 @@ class DispBoard(tk.Frame):
 
         self.__canvas_sel_area = AreaSelector(self.disp_canvas, size=(sel_w, sel_h), pos_limitor=twd67PosLimitor) 
         if self.__canvas_sel_area.wait(self) == 'OK':
-            print('select pos:', self.__canvas_sel_area.pos)
+            #get fpath
+            fpath = filedialog.asksaveasfilename(
+                    defaultextension=".png", filetypes=(("Portable Network Graphics", ".png"), ("All Files", "*.*")) )
+            if fpath:
+                #in
+                org_level = self.map_ctrl.level
+                w, h = self.__canvas_sel_area.size
+                x, y = self.__canvas_sel_area.pos
+                geo = self.map_ctrl.geo.incPixcel(x, y, org_level)
+                geo2 = geo.incPixcel(w, h, org_level)
+                print('select geo:', geo.twd67_x/1000, geo.twd67_y/1000)
+                #out
+                out_level = 15
+                dx = geo2.px(out_level) - geo.px(out_level)
+                dy = geo2.py(out_level) - geo.py(out_level)
+                #map
+                img = self.map_ctrl.getTileImage(dx, dy, geo=geo, level=out_level)
+                img.save(fpath, format='png')
 
         self.__canvas_sel_area = None
 
@@ -637,11 +654,14 @@ class MapController:
         print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: done")
         return img
 
-    def getTileImage(self, width, height, force=None):
+    def getTileImage(self, width, height, force=None, geo=None, level=None):
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: begin")
+        if geo is None: geo = self.geo
+        if level is None: level = self.level
+        px, py = geo.px(level), geo.py(level)
 
         #The image attributes with which we want to create a image compatible.
-        req_attr = ImageAttr(self.level, self.px, self.py, self.px + width, self.py + height)
+        req_attr = ImageAttr(level, px, py, px+width, py+height)
         img, attr = self.__genGpsMap(req_attr, force)
 
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  crop map")
