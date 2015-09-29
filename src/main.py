@@ -18,11 +18,11 @@ from threading import Thread, Lock, Condition
 #my modules
 import tile
 import conf
-from tile import  TileSystem, TileMap, GeoPoint
+from tile import  TileSystem, TileMap
 from gpx import GpsDocument, WayPoint
 from pic import PicDocument
 from sym import SymRuleType, SymRule
-from util import AreaSelector
+from util import AreaSelector, GeoPoint
 
 
 class DispBoard(tk.Frame):

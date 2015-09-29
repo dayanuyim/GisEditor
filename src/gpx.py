@@ -5,9 +5,10 @@
 import os
 from xml.etree import ElementTree as ET
 from datetime import datetime
-from tile import TileSystem, GeoPoint
 from PIL import Image
 import xml.dom.minidom
+from tile import TileSystem
+from util import GeoPoint
 
 class GpsDocument:
     @property

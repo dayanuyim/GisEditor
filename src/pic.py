@@ -3,7 +3,6 @@
 """ handle pic """
 
 from PIL import Image, ExifTags
-from tile import GeoPoint
 from gpx import WayPoint
 from datetime import datetime
 import conf
