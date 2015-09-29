@@ -24,7 +24,7 @@ def __readConfig(conf_path):
 OS = platform.system()
 GISEDITOR_CONF = './giseditor.conf'
 
-#constance from conf
+#read conf
 __config = __readConfig(GISEDITOR_CONF)
 DEF_SYMS_CONF = __config['def_syms_conf']
 SYM_RULE_CONF = __config['sym_rule_conf']
@@ -43,6 +43,28 @@ SPLIT_DIST_GAP = float(__config['split_dist_gap']) #unit:km
 SELECT_AREA_W = float(__config['select_area_w'])
 SELECT_AREA_H = float(__config['select_area_h'])
 SELECT_AREA_ALIGN = __config['select_area_align'] == 'y'
+
+#save conf
+def save(path=GISEDITOR_CONF):
+    with open(path, 'w') as f:
+        f.write("def_syms_conf=%s\n" % (DEF_SYMS_CONF,))
+        f.write("sym_rule_conf=%s\n" % (SYM_RULE_CONF,))
+        f.write("cache_dir=%s\n" % (CACHE_DIR,))
+        f.write("gpsbabel_exe=%s\n" % (GPSBABEL_EXE,))
+        #f.write("img_font=%s\n" % (IMG_FONT.getname(),))
+        f.write("img_font=%s\n" % (__config['img_font'],))  #workaround to get font name
+        f.write("img_font_size=%d\n" % (IMG_FONT_SIZE,))
+        f.write("tz=%f\n" % (TZ.total_seconds()/3600,))
+        f.write("icon_dir=%s\n" % (ICON_DIR,))
+        f.write("icon_size=%d\n" % (ICON_SIZE,))
+        f.write("def_symbol=%s\n" % (DEF_SYMBOL,))
+        f.write("max_supp_level=%d\n" % (MAX_SUPP_LEVEL,))
+        f.write("min_supp_level=%d\n" % (MIN_SUPP_LEVEL,))
+        f.write("split_time_gap=%f\n" % (SPLIT_TIME_GAP.total_seconds()/3600,))
+        f.write("split_dist_gap=%f\n" % (SPLIT_DIST_GAP,))
+        f.write("select_area_w=%f\n" % (SELECT_AREA_W,))
+        f.write("select_area_h=%f\n" % (SELECT_AREA_H,))
+        f.write("select_area_align=%s\n" % ('y' if SELECT_AREA_ALIGN else 'n',))
 
 #global variables
 Sym_rules = SymbolRules(SYM_RULE_CONF)
