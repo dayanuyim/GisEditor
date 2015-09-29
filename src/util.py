@@ -14,12 +14,13 @@ class AreaSelector:
     def pos(self):
         return self.__pos
 
-    def __init__(self, canvas, size=None, pos=None):
+    def __init__(self, canvas, size=None, pos=None, pos_limitor=None):
         self.__canvas = canvas
         self.__button_side = 20
         self.__cv_items = []
         self.__done = tk.BooleanVar(value=False)
         self.__state = None
+        self.__pos_limitor = pos_limitor
 
         canvas_w = canvas.winfo_width()
         canvas_h = canvas.winfo_height()
@@ -30,6 +31,9 @@ class AreaSelector:
         h = self.__size[1]
         #pos
         self.__pos = pos if pos is not None else (round((canvas_w-w)/2), round((canvas_h-h)/2))
+        if pos_limitor is not None:
+            dx, dy = pos_limitor(self.pos)
+            self.__pos = (self.pos[0]+dx, self.pos[1]+dy)
 
         #ceate items
         self.__cv_area = self.genAreaImage()
@@ -57,6 +61,7 @@ class AreaSelector:
             #canvas.tag_bind(item, "<Button1-ButtonRelease>", self.onSelectAreaRelease)
             #canvas.tag_bind(item, "<Button1-Motion>", self.onSelectAreaMotion)
 
+    #{{ interface
     def wait(self, parent):
         parent.wait_variable(self.__done)
         return self.__state
@@ -65,6 +70,23 @@ class AreaSelector:
         for item in self.__cv_items:
             self.__canvas.delete(item)
         self.__done.set(True)
+    #}} interface
+
+    #{{ general operations
+    def move(self, dx, dy):
+        #move
+        for item in self.__cv_items:
+            self.__canvas.move(item, dx, dy)
+        #update pos
+        cpos = self.__canvas.coords(self.__cv_area)
+        self.__pos = (int(cpos[0]), int(cpos[1]))
+
+    def limitPos(self):
+        if self.__pos_limitor is not None:
+            dx, dy = self.__pos_limitor(self.pos)
+            self.move(dx, dy)
+
+    #}} general operations
 
     #{{ events
     def onOkClick(self, e):
@@ -83,17 +105,14 @@ class AreaSelector:
         self.__mousepos = (e.x, e.y)
 
     def onSelectAreaRelease(self, e):
+        self.limitPos()
         self.__mousepos = None
 
     def onSelectAreaMotion(self, e):
         #move
         dx = e.x - self.__mousepos[0]
         dy = e.y - self.__mousepos[1]
-        for item in self.__cv_items:
-            self.__canvas.move(item, dx, dy)
-        #update
-        cpos = self.__canvas.coords(self.__cv_area)
-        self.__pos = (int(cpos[0]), int(cpos[1]))
+        self.move(dx, dy)
         self.__mousepos = (e.x, e.y)
 
     #}}

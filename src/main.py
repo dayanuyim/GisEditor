@@ -102,7 +102,11 @@ class DispBoard(tk.Frame):
         self.__wpt_menu = tk.Menu(self.disp_canvas, tearoff=0)
         self.__wpt_menu.add_command(label='Delete Wpt', underline=0, command=self.onWptDeleted)
 
-    #txt = "LatLon/97: (%f, %f), TM2/97: (%.3f, %.3f), TM2/67: (%.3f, %.3f)" % (geo.lat, geo.lon, x_tm2_97/1000, y_tm2_97/1000, x_tm2_67/1000, y_tm2_67/1000)
+    #release sources to exit
+    def exit(self):
+        if self.__canvas_sel_area is not None:
+            self.__canvas_sel_area.exit()
+
     def initMapInfo(self):
         font = 'Arialuni 12'
         bfont = font + ' bold'
@@ -378,9 +382,24 @@ class DispBoard(tk.Frame):
             messagebox.showwarning('Cannot show select area', 'Please zoom out or resize the window to enlarge the map')
             return
 
-        self.__canvas_sel_area = AreaSelector(self.disp_canvas, size=(sel_w, sel_h)) 
+        #align twd67 grid
+        def twd67PosLimitor(pos):
+            level = self.map_ctrl.level
+            ref_geo = self.map_ctrl.geo
+            sel_geo = ref_geo.incPixcel(pos[0], pos[1], level)
+            #limit to twd67
+            x = round(sel_geo.twd67_x/1000)*1000
+            y = round(sel_geo.twd67_y/1000)*1000
+            limit_geo = GeoPoint(twd67_x=x, twd67_y=y)
+            #diff
+            dpx = limit_geo.px(level) - sel_geo.px(level)
+            dpy = limit_geo.py(level) - sel_geo.py(level)
+            return (dpx, dpy)
+
+        self.__canvas_sel_area = AreaSelector(self.disp_canvas, size=(sel_w, sel_h), pos_limitor=twd67PosLimitor) 
         if self.__canvas_sel_area.wait(self) == 'OK':
             print('select pos:', self.__canvas_sel_area.pos)
+
         self.__canvas_sel_area = None
 
     #}} Right click actions
@@ -2185,6 +2204,7 @@ def isExit(disp_board):
 
 def onExit(root, disp_board):
     if isExit(disp_board):
+        disp_board.exit()
         root.destroy()
 
 if __name__ == '__main__':
