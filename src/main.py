@@ -379,6 +379,9 @@ class DispBoard(tk.Frame):
             return
 
         self.__canvas_sel_area = AreaSelector(self.disp_canvas, size=(sel_w, sel_h)) 
+        if self.__canvas_sel_area.wait(self) == 'OK':
+            print('select pos:', self.__canvas_sel_area.pos)
+        self.__canvas_sel_area = None
 
     #}} Right click actions
 
