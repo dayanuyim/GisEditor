@@ -373,7 +373,7 @@ class DispBoard(tk.Frame):
         #get select area w/h
         level = self.map_ctrl.level
         geo1 = self.map_ctrl.geo  #upper-left
-        geo2 = GeoPoint(twd67_x=geo1.twd67_x+1000*conf.SELECT_AREA_W, twd67_y=geo1.twd67_y-1000*conf.SELECT_AREA_H) #lower-down
+        geo2 = GeoPoint(twd67_x=geo1.twd67_x+1000*conf.SELECT_AREA_X, twd67_y=geo1.twd67_y-1000*conf.SELECT_AREA_Y) #lower-down
         sel_w, sel_h = geo2.diffPixel(geo1, level)
 
         #check size
@@ -381,20 +381,31 @@ class DispBoard(tk.Frame):
             messagebox.showwarning('Cannot show select area', 'Please zoom out or resize the window to enlarge the map')
             return
 
-        #pos limitor to align twd67
-        def twd67PosLimitor(pos):
+        #pos adjuster to align twd67
+        def twd67PosAdjuster(pos):
             level = self.map_ctrl.level
-            ref_geo = self.map_ctrl.geo
-            sel_geo = ref_geo.incPixel(pos[0], pos[1], level)
-            #limit to twd67
+            sel_geo = self.map_ctrl.geo.incPixel(pos[0], pos[1], level)
+            #adjust to twd67
             x = round(sel_geo.twd67_x/1000)*1000
             y = round(sel_geo.twd67_y/1000)*1000
-            limit_geo = GeoPoint(twd67_x=x, twd67_y=y)
-            return limit_geo.diffPixel(sel_geo, level)
-        pos_limitor = twd67PosLimitor if conf.SELECT_AREA_ALIGN else None
+            adjust_geo = GeoPoint(twd67_x=x, twd67_y=y)
+            return adjust_geo.diffPixel(sel_geo, level)
+
+        #convert Geo Diff to Pixel diff, x/y->w/h
+        def twd67GeoScaler(pos, xy):
+            level = self.map_ctrl.level
+            sel_geo = self.map_ctrl.geo.incPixel(pos[0], pos[1], level)
+            x = sel_geo.twd67_x + xy[0]*1000
+            y = sel_geo.twd67_y - xy[1]*1000
+            ext_geo = GeoPoint(twd67_x=x, twd67_y=y)
+            return ext_geo.diffPixel(sel_geo, level)
 
         #select area
-        self.__canvas_sel_area = AreaSelector(self.disp_canvas, size=(sel_w, sel_h), pos_limitor=pos_limitor) 
+        self.__canvas_sel_area = AreaSelector(self.disp_canvas,
+                size=(sel_w, sel_h),\
+                pos_adjuster=twd67PosAdjuster,\
+                geo_scaler=twd67GeoScaler,\
+            ) 
         if self.__canvas_sel_area.wait(self) == 'OK':
             #get fpath
             fpath = filedialog.asksaveasfilename(

@@ -40,8 +40,8 @@ MAX_SUPP_LEVEL = int(__config['max_supp_level'])
 MIN_SUPP_LEVEL = int(__config['min_supp_level'])
 SPLIT_TIME_GAP = timedelta(hours=float(__config['split_time_gap']))
 SPLIT_DIST_GAP = float(__config['split_dist_gap']) #unit:km
-SELECT_AREA_W = float(__config['select_area_w'])
-SELECT_AREA_H = float(__config['select_area_h'])
+SELECT_AREA_X = float(__config['select_area_x'])
+SELECT_AREA_Y = float(__config['select_area_y'])
 SELECT_AREA_ALIGN = __config['select_area_align'] == 'y'
 SELECT_AREA_FIXED = __config['select_area_fixed'] == 'y'
 SELECT_AREA_LEVEL = int(__config['select_area_level'])
@@ -64,8 +64,8 @@ def save(path=GISEDITOR_CONF):
         f.write("min_supp_level=%d\n" % (MIN_SUPP_LEVEL,))
         f.write("split_time_gap=%f\n" % (SPLIT_TIME_GAP.total_seconds()/3600,))
         f.write("split_dist_gap=%f\n" % (SPLIT_DIST_GAP,))
-        f.write("select_area_w=%f\n" % (SELECT_AREA_W,))
-        f.write("select_area_h=%f\n" % (SELECT_AREA_H,))
+        f.write("select_area_x=%f\n" % (SELECT_AREA_X,))
+        f.write("select_area_y=%f\n" % (SELECT_AREA_Y,))
         f.write("select_area_align=%s\n" % ('y' if SELECT_AREA_ALIGN else 'n',))
         f.write("select_area_fixed=%s\n" % ('y' if SELECT_AREA_FIXED else 'n',))
         f.write("select_area_level=%d\n" % (SELECT_AREA_LEVEL,))

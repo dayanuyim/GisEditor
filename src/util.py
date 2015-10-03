@@ -35,7 +35,7 @@ def getPrefCornerPos(widget, pos):
 class Dialog(tk.Toplevel):
     def __init__(self, master):
         super().__init__(master)
-        self._result = 'Cancel'
+        self._result = 'Unknown' #need subclass to set
 
         self.title('')
         self.resizable(0, 0)
@@ -73,83 +73,119 @@ class Dialog(tk.Toplevel):
         pos = (0,0) if pos is None else getPrefCornerPos(self, pos)
         self.geometry('+%d+%d' % pos)
 
+#The UI for the user to access conf
 class AreaSelectorSettings(Dialog):
     def __init__(self, master):
         super().__init__(master)
 
-        var_level = tk.IntVar(value=conf.SELECT_AREA_LEVEL)
-        var_align = tk.BooleanVar(value=conf.SELECT_AREA_ALIGN)
-        var_fixed = tk.BooleanVar(value=conf.SELECT_AREA_FIXED)
-        var_w = tk.DoubleVar(value=conf.SELECT_AREA_W)
-        var_h = tk.DoubleVar(value=conf.SELECT_AREA_H)
+        self.__size_widgets = []
+
+        #settings by conf
+        self.var_level = tk.IntVar(value=conf.SELECT_AREA_LEVEL)
+        self.var_align = tk.BooleanVar(value=conf.SELECT_AREA_ALIGN)
+        self.var_fixed = tk.BooleanVar(value=conf.SELECT_AREA_FIXED)
+        self.var_w = tk.DoubleVar(value=conf.SELECT_AREA_X)
+        self.var_h = tk.DoubleVar(value=conf.SELECT_AREA_Y)
         
+        #level
         row = 0
         f = tk.Frame(self)
         f.grid(row=row, column=0, sticky='w')
         tk.Label(f, text='level:', anchor='e').pack(side='left', expand=1, fill='both')
-        tk.Spinbox(f, from_=13, to=16, width=2, textvariable=var_level).pack(side='left', expand=1, fill='both')
+        tk.Spinbox(f, from_=13, to=16, width=2, textvariable=self.var_level).pack(side='left', expand=1, fill='both')
 
-        def cb2():
-            print('align', var_align.get())
+        #align
         row += 1
         f = tk.Frame(self)
         f.grid(row=row, column=0, sticky='w')
-        tk.Checkbutton(f, text='Align grid', variable=var_align, command=cb2)\
+        tk.Checkbutton(f, text='Align grid', variable=self.var_align)\
                 .pack(side='left', expand=1, fill='both')
 
-        def cb():
-            print('var_fixed', var_fixed.get())
+        #fixed
         row += 1
+        def onFixedChanged():
+            for w in self.__size_widgets:
+                s = 'normal' if self.var_fixed.get() else 'disabled'
+                w.config(state=s)
         f = tk.Frame(self)
         f.grid(row=row, column=0, sticky='w')
-        tk.Checkbutton(f, text='Fixed size', variable=var_fixed, command=cb)\
+        tk.Checkbutton(f, text='Fixed size', variable=self.var_fixed, command=onFixedChanged)\
                 .pack(side='left', expand=1, fill='both')
-        tk.Entry(f, textvariable=var_w, width=5).pack(side='left', expand=1, fill='both')
-        tk.Label(f, text='X').pack(side='left', expand=1, fill='both')
-        tk.Entry(f, textvariable=var_h, width=5).pack(side='left', expand=1, fill='both')
-
-        row += 1
-        tk.Button(self, text='Cancel', command=self.exit).grid(row=row, column=0, sticky='e')
-        tk.Button(self, text='OK', command=self.onOK).grid(row=row, column=1, sticky='w')
         
+        #size
+        w = tk.Entry(f, textvariable=self.var_w, width=5)
+        w.pack(side='left', expand=1, fill='both')
+        self.__size_widgets.append(w)
 
-    def onOK(self):
-        #save properties...
-        self._result = 'OK'
-        self.exit()
+        w = tk.Label(f, text='X')
+        w.pack(side='left', expand=1, fill='both')
+        self.__size_widgets.append(w)
+
+        w = tk.Entry(f, textvariable=self.var_h, width=5)
+        w.pack(side='left', expand=1, fill='both')
+        self.__size_widgets.append(w)
+
+    #override
+    def exit(self):
+        if self.isModified():
+            self.modify()
+            self._result = 'OK'
+        else:
+            self._result = 'Cancel'
+        super().exit()
+
+    def isModified(self):
+        return conf.SELECT_AREA_LEVEL != self.var_level.get() or\
+               conf.SELECT_AREA_ALIGN != self.var_align.get() or\
+               conf.SELECT_AREA_FIXED != self.var_fixed.get() or\
+               conf.SELECT_AREA_X != self.var_w.get() or\
+               conf.SELECT_AREA_Y != self.var_h.get()
+
+    def modify(self):
+        conf.SELECT_AREA_LEVEL = self.var_level.get()
+        conf.SELECT_AREA_ALIGN = self.var_align.get()
+        conf.SELECT_AREA_FIXED = self.var_fixed.get()
+        conf.SELECT_AREA_X = self.var_w.get()
+        conf.SELECT_AREA_Y = self.var_h.get()
+        conf.save()
 
 class AreaSelector:
     @property
     def size(self):
-        return self.__size
+        return self.__cv_area_img.width(), self.__cv_area_img.height()
 
     @property
     def pos(self):
-        return self.__pos
+        if self.__last_pos is not None:
+            return self.__last_pos
+        return self.__getpos()
 
-    def __init__(self, canvas, size=None, pos=None, pos_limitor=None):
+    def __init__(self, canvas, size=None, pos=None, pos_adjuster=None, geo_scaler=None):
         self.__canvas = canvas
         self.__button_side = 20
         self.__cv_items = []
         self.__done = tk.BooleanVar(value=False)
         self.__state = None
-        self.__pos_limitor = pos_limitor
+        self.__pos_adjuster = pos_adjuster
+        self.__geo_scaler = geo_scaler
+        self.__last_pos = None
 
         canvas_w = canvas.winfo_width()
         canvas_h = canvas.winfo_height()
 
         #size
-        self.__size = size if size is not None else (round(canvas_w/2), round(canvas_h/2))
-        w = self.__size[0]
-        h = self.__size[1]
+        if size is None:
+            size = (round(canvas_w/2), round(canvas_h/2))
+        w, h = size
         #pos
-        self.__pos = pos if pos is not None else (round((canvas_w-w)/2), round((canvas_h-h)/2))
-        if pos_limitor is not None:
-            dx, dy = pos_limitor(self.pos)
-            self.__pos = (self.pos[0]+dx, self.pos[1]+dy)
+        if pos is None:
+            pos = (round((canvas_w-w)/2), round((canvas_h-h)/2))
+
+        #size = 1, 1
+        #pos = 0, 0
 
         #ceate items
-        self.__cv_area = self.genAreaImage()
+        self.__cv_area = self.genArea(pos, size)
         self.__cv_items.append(self.__cv_area)
 
         self.__cv_ok = self.genOKButton()
@@ -169,10 +205,9 @@ class AreaSelector:
         canvas.tag_bind(self.__cv_ok, "<Button-1>", self.onOkClick)
         canvas.tag_bind(self.__cv_cancel, "<Button-1>", self.onCancelClick)
         canvas.tag_bind(self.__cv_setting, "<Button-1>", self.onSettingClick)
-        #for item in self.__cv_items:
-            #canvas.tag_bind(item, "<Button-1>", self.onSelectAreaClick)
-            #canvas.tag_bind(item, "<Button1-ButtonRelease>", self.onSelectAreaRelease)
-            #canvas.tag_bind(item, "<Button1-Motion>", self.onSelectAreaMotion)
+
+        #apply
+        self.applySettings()
 
     #{{ interface
     def wait(self, parent):
@@ -180,24 +215,58 @@ class AreaSelector:
         return self.__state
 
     def exit(self):
+        #rec the last pos
+        self.__last_pos = self.__getpos()
+        #delete item
         for item in self.__cv_items:
             self.__canvas.delete(item)
         self.__done.set(True)
     #}} interface
 
-    #{{ general operations
+    #{{ internal operations
+    def __getpos(self):
+        x, y = self.__canvas.coords(self.__cv_area)
+        return int(x), int(y)
+
     def move(self, dx, dy):
-        #move
         for item in self.__cv_items:
             self.__canvas.move(item, dx, dy)
-        #update pos
-        cpos = self.__canvas.coords(self.__cv_area)
-        self.__pos = (int(cpos[0]), int(cpos[1]))
 
-    def limitPos(self):
-        if self.__pos_limitor is not None:
-            dx, dy = self.__pos_limitor(self.pos)
+    def lift(self):
+        for item in self.__cv_items:
+            self.__canvas.tag_raise(item)
+
+    def resize(self, size):
+        #rec needed info before deleting
+        org_pos = self.pos
+        org_size = self.size
+        #delte old
+        self.__cv_items.remove(self.__cv_area)
+        self.__canvas.delete(self.__cv_area)
+        #gen new
+        self.__cv_area = self.genArea(org_pos, size)
+        #move&lift other items
+        dx = size[0] - org_size[0]
+        dy = size[1] - org_size[1]
+        self.move(dx, dy)
+        self.lift()
+        #add new
+        self.__cv_items.append(self.__cv_area)
+
+    def adjustPos(self):
+        if conf.SELECT_AREA_ALIGN and self.__pos_adjuster is not None:
+            dx, dy = self.__pos_adjuster(self.pos)
             self.move(dx, dy)
+
+    def scaleGeo(self):
+        if conf.SELECT_AREA_FIXED and self.__geo_scaler is not None:
+            geo_xy = (conf.SELECT_AREA_X, conf.SELECT_AREA_Y)
+            sz = self.__geo_scaler(self.pos, geo_xy)
+            self.resize(sz)
+    
+    def applySettings(self):
+        self.scaleGeo()
+        self.adjustPos()
 
     #}} general operations
 
@@ -212,16 +281,15 @@ class AreaSelector:
 
     def onSettingClick(self, e):
         settings = AreaSelectorSettings(self.__canvas)
-
         if settings.show((e.x_root, e.y_root)) == 'OK':
-            print('setting select area proeprties.')
+            self.applySettings()
 
     #bind motion events
     def onSelectAreaClick(self, e):
         self.__mousepos = (e.x, e.y)
 
     def onSelectAreaRelease(self, e):
-        self.limitPos()
+        self.adjustPos()
         self.__mousepos = None
 
     def onSelectAreaMotion(self, e):
@@ -234,20 +302,19 @@ class AreaSelector:
     #}}
 
     #{{ canvas items
-    def genAreaImage(self):
-        img = Image.new('RGBA', self.__size, (255,255,0, 128))  #yellow 
-        pimg = ImageTk.PhotoImage(img)
-        self.__cv_area_img = pimg   #keep refg
-        return self.__canvas.create_image(self.pos, image=pimg, anchor='nw')
+    def genArea(self, pos, size):
+        img = Image.new('RGBA', size, (255,255,0,128))  #yellow 
+        self.__cv_area_img = ImageTk.PhotoImage(img) #keep refg
+        return self.__canvas.create_image(pos, image=self.__cv_area_img, anchor='nw')
 
     def genOKButton(self, order=1):
-        x = self.pos[0] + self.__size[0] - self.__button_side*order #x of upper-left
+        x = self.pos[0] + self.size[0] - self.__button_side*order #x of upper-left
         y = self.pos[1]  #y of upper-left
         return self.__canvas.create_oval(x, y, x+self.__button_side, y+self.__button_side, fill='green')
 
     def genCancelButton(self, order=2):
         n = int(self.__button_side/4)
-        x = self.pos[0] + self.__size[0] - self.__button_side*order + 2*n  #x of center
+        x = self.pos[0] + self.size[0] - self.__button_side*order + 2*n  #x of center
         y = self.pos[1] + 2*n #y of center
         cross = ((0,n), (n,2*n), (2*n,n), (n,0), (2*n,-n), (n,-2*n), (0,-n), (-n,-2*n), (-2*n,-n), (-n,0), (-2*n,n), (-n, 2*n))
         cancel_cross = []
@@ -257,7 +324,7 @@ class AreaSelector:
 
     def genSettingButton(self, order=3):
         n = int(self.__button_side/2)
-        x = self.pos[0] + self.__size[0] - self.__button_side*order + n  #x of center
+        x = self.pos[0] + self.size[0] - self.__button_side*order + n  #x of center
         y = self.pos[1] + n #y of center
         return self.__canvas.create_text(x, y, font='Arialuni 16 bold', text='S', fill='#404040')
 
