@@ -43,6 +43,8 @@ SPLIT_DIST_GAP = float(__config['split_dist_gap']) #unit:km
 SELECT_AREA_W = float(__config['select_area_w'])
 SELECT_AREA_H = float(__config['select_area_h'])
 SELECT_AREA_ALIGN = __config['select_area_align'] == 'y'
+SELECT_AREA_FIXED = __config['select_area_fixed'] == 'y'
+SELECT_AREA_LEVEL = int(__config['select_area_level'])
 
 #save conf
 def save(path=GISEDITOR_CONF):
@@ -65,6 +67,8 @@ def save(path=GISEDITOR_CONF):
         f.write("select_area_w=%f\n" % (SELECT_AREA_W,))
         f.write("select_area_h=%f\n" % (SELECT_AREA_H,))
         f.write("select_area_align=%s\n" % ('y' if SELECT_AREA_ALIGN else 'n',))
+        f.write("select_area_fixed=%s\n" % ('y' if SELECT_AREA_FIXED else 'n',))
+        f.write("select_area_level=%d\n" % (SELECT_AREA_LEVEL,))
 
 #global variables
 Sym_rules = SymbolRules(SYM_RULE_CONF)

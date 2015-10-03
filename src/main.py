@@ -22,7 +22,7 @@ from tile import  TileSystem, TileMap
 from gpx import GpsDocument, WayPoint
 from pic import PicDocument
 from sym import SymRuleType, SymRule
-from util import AreaSelector, GeoPoint
+from util import AreaSelector, GeoPoint, getPrefCornerPos
 
 
 class DispBoard(tk.Frame):
@@ -2176,31 +2176,6 @@ def __readFiles(paths, gps_path, pic_path):
             pic_path.append(path)
         elif isGpsFile(path):
             gps_path.append(path)
-
-def getPrefCornerPos(widget, pos):
-    sw = widget.winfo_screenwidth()
-    sh = widget.winfo_screenheight()
-    ww = widget.winfo_width()
-    wh = widget.winfo_height()
-    if isinstance(widget, tk.Toplevel): wh += 30  #@@ height of title bar
-    x, y = pos
-
-    #print('screen:', (sw, sh), 'window:', (ww, wh), 'pos:', pos)
-    if ww > (sw-x):
-        if ww <= x:         #pop left
-            x -= ww
-        elif (sw-x) >= x:  #pop right, but adjust
-            x = max(0, sw-ww)
-        else:              #pop left, but adjust
-            x = 0
-    if wh > (sh-y):
-        if wh <= y:         #pop up
-            y -= wh
-        elif (sh-y) >= y:  #pop down, but adjust
-            y = max(0, sh-wh)
-        else:              #pop up, but adjust
-            y = 0
-    return (x, y)
 
 def isExit(disp_board):
 

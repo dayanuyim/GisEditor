@@ -7,6 +7,117 @@ import conf
 from tile import TileSystem
 from coord import CoordinateSystem
 
+def getPrefCornerPos(widget, pos):
+    sw = widget.winfo_screenwidth()
+    sh = widget.winfo_screenheight()
+    ww = widget.winfo_width()
+    wh = widget.winfo_height()
+    if isinstance(widget, tk.Toplevel): wh += 30  #@@ height of title bar
+    x, y = pos
+
+    #print('screen:', (sw, sh), 'window:', (ww, wh), 'pos:', pos)
+    if ww > (sw-x):
+        if ww <= x:         #pop left
+            x -= ww
+        elif (sw-x) >= x:  #pop right, but adjust
+            x = max(0, sw-ww)
+        else:              #pop left, but adjust
+            x = 0
+    if wh > (sh-y):
+        if wh <= y:         #pop up
+            y -= wh
+        elif (sh-y) >= y:  #pop down, but adjust
+            y = max(0, sh-wh)
+        else:              #pop up, but adjust
+            y = 0
+    return (x, y)
+
+class Dialog(tk.Toplevel):
+    def __init__(self, master):
+        super().__init__(master)
+        self._result = 'Cancel'
+
+        self.title('')
+        self.resizable(0, 0)
+        self.bind('<Escape>', lambda e: self.exit())
+        self.protocol('WM_DELETE_WINDOW', self.exit)
+
+        self.withdraw()  #for silent update
+        self.visible = tk.BooleanVar(value=False)
+
+        #update window size
+        self.update()  
+
+    def exit(self):
+        self.master.focus_set()
+        self.grab_release()
+        self.destroy()
+        self.visible.set(False)
+
+    def show(self, pos=None):
+        self.setPos(pos)
+
+        #UI
+        self.transient(self.master)  #remove max/min buttons
+        self.focus_set()  #prevent key-press sent back to parent
+        
+        self.deiconify() #show
+        self.visible.set(True)
+
+        self.grab_set()   #disalbe interact of parent
+        self.master.wait_variable(self.visible)
+
+        return self._result
+
+    def setPos(self, pos):
+        pos = (0,0) if pos is None else getPrefCornerPos(self, pos)
+        self.geometry('+%d+%d' % pos)
+
+class AreaSelectorSettings(Dialog):
+    def __init__(self, master):
+        super().__init__(master)
+
+        var_level = tk.IntVar(value=conf.SELECT_AREA_LEVEL)
+        var_align = tk.BooleanVar(value=conf.SELECT_AREA_ALIGN)
+        var_fixed = tk.BooleanVar(value=conf.SELECT_AREA_FIXED)
+        var_w = tk.DoubleVar(value=conf.SELECT_AREA_W)
+        var_h = tk.DoubleVar(value=conf.SELECT_AREA_H)
+        
+        row = 0
+        f = tk.Frame(self)
+        f.grid(row=row, column=0, sticky='w')
+        tk.Label(f, text='level:', anchor='e').pack(side='left', expand=1, fill='both')
+        tk.Spinbox(f, from_=13, to=16, width=2, textvariable=var_level).pack(side='left', expand=1, fill='both')
+
+        def cb2():
+            print('align', var_align.get())
+        row += 1
+        f = tk.Frame(self)
+        f.grid(row=row, column=0, sticky='w')
+        tk.Checkbutton(f, text='Align grid', variable=var_align, command=cb2)\
+                .pack(side='left', expand=1, fill='both')
+
+        def cb():
+            print('var_fixed', var_fixed.get())
+        row += 1
+        f = tk.Frame(self)
+        f.grid(row=row, column=0, sticky='w')
+        tk.Checkbutton(f, text='Fixed size', variable=var_fixed, command=cb)\
+                .pack(side='left', expand=1, fill='both')
+        tk.Entry(f, textvariable=var_w, width=5).pack(side='left', expand=1, fill='both')
+        tk.Label(f, text='X').pack(side='left', expand=1, fill='both')
+        tk.Entry(f, textvariable=var_h, width=5).pack(side='left', expand=1, fill='both')
+
+        row += 1
+        tk.Button(self, text='Cancel', command=self.exit).grid(row=row, column=0, sticky='e')
+        tk.Button(self, text='OK', command=self.onOK).grid(row=row, column=1, sticky='w')
+        
+
+    def onOK(self):
+        #save properties...
+        self._result = 'OK'
+        self.exit()
+
 class AreaSelector:
     @property
     def size(self):
@@ -100,7 +211,10 @@ class AreaSelector:
         self.exit()
 
     def onSettingClick(self, e):
-        print('setting')
+        settings = AreaSelectorSettings(self.__canvas)
+
+        if settings.show((e.x_root, e.y_root)) == 'OK':
+            print('setting select area proeprties.')
 
     #bind motion events
     def onSelectAreaClick(self, e):
