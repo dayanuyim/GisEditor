@@ -357,7 +357,7 @@ class AreaSelector:
     #{{ canvas items
     def genAreaPanel(self, pos, size):
         #area img
-        img = Image.new('RGBA', size, (255,255,0,128))  #yellow 
+        img = Image.new('RGBA', size, (255,255,0,96))  #yellow 
         img = ImageTk.PhotoImage(img) #to photo image
         #area item
         item = self.__canvas.create_image(pos, image=img, anchor='nw')
