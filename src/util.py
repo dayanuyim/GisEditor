@@ -91,7 +91,7 @@ class AreaSelectorSettings(Dialog):
         row = 0
         f = tk.Frame(self)
         f.grid(row=row, column=0, sticky='w')
-        tk.Label(f, text='level:', anchor='e').pack(side='left', expand=1, fill='both')
+        tk.Label(f, text='precision: level', anchor='e').pack(side='left', expand=1, fill='both')
         tk.Spinbox(f, from_=13, to=16, width=2, textvariable=self.var_level).pack(side='left', expand=1, fill='both')
 
         #align
@@ -168,14 +168,15 @@ class AreaSelector:
 
     def __init__(self, canvas, pos_adjuster=None, geo_scaler=None):
         self.__canvas = canvas
-        self.__button_side = 20
-        self.__cv_items = []
-        self.__done = tk.BooleanVar(value=False)
-        self.__state = None
         self.__pos_adjuster = pos_adjuster
         self.__geo_scaler = geo_scaler
+        self.__button_side = 20
+        self.__resizer_side = 15
+        self.__done = tk.BooleanVar(value=False)
+        self.__state = None
         self.__last_pos = None
         self.__except = None
+        self.__cv_items = []
 
         canvas_w = canvas.winfo_width()
         canvas_h = canvas.winfo_height()
@@ -189,7 +190,7 @@ class AreaSelector:
         pos = (round((canvas_w-w)/2), round((canvas_h-h)/2))
 
         #ceate items
-        self.__cv_area, self.__cv_area_img = self.genArea(pos, size)
+        self.__cv_area, self.__cv_area_img = self.genAreaPanel(pos, size)
         self.__cv_items.append(self.__cv_area)
 
         self.__cv_ok = self.genOKButton()
@@ -200,6 +201,8 @@ class AreaSelector:
 
         self.__cv_setting = self.genSettingButton()
         self.__cv_items.append(self.__cv_setting)
+
+        self.__cv_resizer = None
 
         #apply
         try:
@@ -245,6 +248,7 @@ class AreaSelector:
     def applySettings(self):
         self.scaleGeo()
         self.adjustPos()
+        self.checkResizer()
 
     def scaleGeo(self):
         sz = self.getFixedSize()
@@ -275,14 +279,29 @@ class AreaSelector:
         self.__canvas.delete(self.__cv_area)
         #gen new
         if pos is None: pos = orig_pos
-        self.__cv_area, self.__cv_area_img = self.genArea(pos, size)
-        #move&lift other items
+        self.__cv_area, self.__cv_area_img = self.genAreaPanel(pos, size)
+        #re-locate others
         dx = pos[0]-orig_pos[0] + size[0]-orig_size[0]
-        dy = pos[1]-orig_pos[1] + 0
-        self.move(dx, dy)
+        dy = pos[1]-orig_pos[1]
+        self.__canvas.move('button', dx, dy)
+        if self.__cv_resizer is not None:
+            dy += size[1]-orig_size[1]
+            self.__canvas.move(self.__cv_resizer, dx, dy)
         self.lift()
         #add new
         self.__cv_items.append(self.__cv_area)
+
+    def checkResizer(self):
+        #create
+        if not conf.SELECT_AREA_FIXED and self.__cv_resizer is None:
+            self.__cv_resizer = self.genResizer()
+            self.__cv_items.append(self.__cv_resizer)
+        #delete
+        if conf.SELECT_AREA_FIXED and self.__cv_resizer is not None:
+            self.__cv_items.remove(self.__cv_resizer)
+            self.__canvas.delete(self.__cv_resizer)
+            self.__cv_resizer = None
+
 
     #}} general operations
 
@@ -316,13 +335,27 @@ class AreaSelector:
         #move
         dx = e.x - self.__mousepos[0]
         dy = e.y - self.__mousepos[1]
-        self.move(dx, dy)
         self.__mousepos = (e.x, e.y)
+        self.move(dx, dy)
+
+
+    def onResizerClick(self, e):
+        self.__rs_mousepos = (e.x, e.y)
+
+    def onResizerRelease(self, e):
+        self.__rs_mousepos = None
+
+    def onResizerMotion(self, e):
+        w, h = self.size
+        w += e.x - self.__rs_mousepos[0]
+        h += e.y - self.__rs_mousepos[1]
+        self.__rs_mousepos = (e.x, e.y)
+        self.resize((w,h))
 
     #}}
 
     #{{ canvas items
-    def genArea(self, pos, size):
+    def genAreaPanel(self, pos, size):
         #area img
         img = Image.new('RGBA', size, (255,255,0,128))  #yellow 
         img = ImageTk.PhotoImage(img) #to photo image
@@ -336,10 +369,9 @@ class AreaSelector:
     def genOKButton(self, order=1):
         x = self.pos[0] + self.size[0] - self.__button_side*order #x of upper-left
         y = self.pos[1]  #y of upper-left
-        item = self.__canvas.create_oval(x, y, x+self.__button_side, y+self.__button_side, fill='green')
+        item = self.__canvas.create_oval(x, y, x+self.__button_side, y+self.__button_side, fill='green', tag='button')
         self.__canvas.tag_bind(item, "<Button-1>", self.onOkClick)
         return item
-
 
     def genCancelButton(self, order=2):
         n = int(self.__button_side/4)
@@ -349,7 +381,7 @@ class AreaSelector:
         cancel_cross = []
         for pt in cross:
             cancel_cross.append((pt[0]+x, pt[1]+y))
-        item = self.__canvas.create_polygon(cancel_cross, fill='red')
+        item = self.__canvas.create_polygon(cancel_cross, fill='red', tag='button')
         self.__canvas.tag_bind(item, "<Button-1>", self.onCancelClick)
         return item
 
@@ -357,10 +389,20 @@ class AreaSelector:
         n = int(self.__button_side/2)
         x = self.pos[0] + self.size[0] - self.__button_side*order + n  #x of center
         y = self.pos[1] + n #y of center
-        item = self.__canvas.create_text(x, y, font='Arialuni 16 bold', text='S', fill='#404040')
+        item = self.__canvas.create_text(x, y, font='Arialuni 16 bold', text='S', fill='#404040', tag='button')
         self.__canvas.tag_bind(item, "<Button-1>", self.onSettingClick)
         return item
 
+    def genResizer(self):
+        n = self.__resizer_side
+        x = self.pos[0] + self.size[0]
+        y = self.pos[1] + self.size[1]
+        rect_triangle = (x, y, x-n, y, x, y-n)
+        item = self.__canvas.create_polygon(rect_triangle, fill='green')
+        self.__canvas.tag_bind(item, "<Button-1>", self.onResizerClick)
+        self.__canvas.tag_bind(item, "<Button1-ButtonRelease>", self.onResizerRelease)
+        self.__canvas.tag_bind(item, "<Button1-Motion>", self.onResizerMotion)
+        return item
     #}}
 
 # The class represent a unique geographic point, and designed to be 'immutable'.
