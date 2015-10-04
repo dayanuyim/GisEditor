@@ -103,13 +103,13 @@ class AreaSelectorSettings(Dialog):
 
         #fixed
         row += 1
-        def onFixedChanged():
+        def checkSizeWidgets():
             for w in self.__size_widgets:
                 s = 'normal' if self.var_fixed.get() else 'disabled'
                 w.config(state=s)
         f = tk.Frame(self)
         f.grid(row=row, column=0, sticky='w')
-        tk.Checkbutton(f, text='Fixed size', variable=self.var_fixed, command=onFixedChanged)\
+        tk.Checkbutton(f, text='Fixed size', variable=self.var_fixed, command=checkSizeWidgets)\
                 .pack(side='left', expand=1, fill='both')
         
         #size
@@ -124,6 +124,9 @@ class AreaSelectorSettings(Dialog):
         w = tk.Entry(f, textvariable=self.var_h, width=5)
         w.pack(side='left', expand=1, fill='both')
         self.__size_widgets.append(w)
+
+        #init run
+        checkSizeWidgets() 
 
     #override
     def exit(self):
@@ -149,6 +152,9 @@ class AreaSelectorSettings(Dialog):
         conf.SELECT_AREA_Y = self.var_h.get()
         conf.save()
 
+class AreaSizeTooLarge(Exception):
+    pass
+
 class AreaSelector:
     @property
     def size(self):
@@ -160,7 +166,7 @@ class AreaSelector:
             return self.__last_pos
         return self.__getpos()
 
-    def __init__(self, canvas, size=None, pos=None, pos_adjuster=None, geo_scaler=None):
+    def __init__(self, canvas, pos_adjuster=None, geo_scaler=None):
         self.__canvas = canvas
         self.__button_side = 20
         self.__cv_items = []
@@ -169,23 +175,21 @@ class AreaSelector:
         self.__pos_adjuster = pos_adjuster
         self.__geo_scaler = geo_scaler
         self.__last_pos = None
+        self.__except = None
 
         canvas_w = canvas.winfo_width()
         canvas_h = canvas.winfo_height()
 
         #size
+        size = self.getFixedSize()
         if size is None:
             size = (round(canvas_w/2), round(canvas_h/2))
         w, h = size
         #pos
-        if pos is None:
-            pos = (round((canvas_w-w)/2), round((canvas_h-h)/2))
-
-        #size = 1, 1
-        #pos = 0, 0
+        pos = (round((canvas_w-w)/2), round((canvas_h-h)/2))
 
         #ceate items
-        self.__cv_area = self.genArea(pos, size)
+        self.__cv_area, self.__cv_area_img = self.genArea(pos, size)
         self.__cv_items.append(self.__cv_area)
 
         self.__cv_ok = self.genOKButton()
@@ -197,21 +201,18 @@ class AreaSelector:
         self.__cv_setting = self.genSettingButton()
         self.__cv_items.append(self.__cv_setting)
 
-        #bind
-        canvas.tag_bind(self.__cv_area, "<Button-1>", self.onSelectAreaClick)
-        canvas.tag_bind(self.__cv_area, "<Button1-ButtonRelease>", self.onSelectAreaRelease)
-        canvas.tag_bind(self.__cv_area, "<Button1-Motion>", self.onSelectAreaMotion)
-
-        canvas.tag_bind(self.__cv_ok, "<Button-1>", self.onOkClick)
-        canvas.tag_bind(self.__cv_cancel, "<Button-1>", self.onCancelClick)
-        canvas.tag_bind(self.__cv_setting, "<Button-1>", self.onSettingClick)
-
         #apply
-        self.applySettings()
+        try:
+            self.applySettings()
+        except AreaSizeTooLarge as ex:
+            self.exit()
+            raise ex
 
     #{{ interface
     def wait(self, parent):
         parent.wait_variable(self.__done)
+        if self.__except:
+            raise self.__except
         return self.__state
 
     def exit(self):
@@ -236,53 +237,72 @@ class AreaSelector:
         for item in self.__cv_items:
             self.__canvas.tag_raise(item)
 
-    def resize(self, size):
-        #rec needed info before deleting
-        org_pos = self.pos
-        org_size = self.size
-        #delte old
-        self.__cv_items.remove(self.__cv_area)
-        self.__canvas.delete(self.__cv_area)
-        #gen new
-        self.__cv_area = self.genArea(org_pos, size)
-        #move&lift other items
-        dx = size[0] - org_size[0]
-        dy = size[1] - org_size[1]
-        self.move(dx, dy)
-        self.lift()
-        #add new
-        self.__cv_items.append(self.__cv_area)
-
     def adjustPos(self):
         if conf.SELECT_AREA_ALIGN and self.__pos_adjuster is not None:
             dx, dy = self.__pos_adjuster(self.pos)
             self.move(dx, dy)
 
-    def scaleGeo(self):
-        if conf.SELECT_AREA_FIXED and self.__geo_scaler is not None:
-            geo_xy = (conf.SELECT_AREA_X, conf.SELECT_AREA_Y)
-            sz = self.__geo_scaler(self.pos, geo_xy)
-            self.resize(sz)
-    
     def applySettings(self):
         self.scaleGeo()
         self.adjustPos()
 
+    def scaleGeo(self):
+        sz = self.getFixedSize()
+        if sz is not None:
+            #chck size
+            w, h = sz
+            if w > self.__canvas.winfo_width() and h > self.__canvas.winfo_height():
+                raise AreaSizeTooLarge("The specified size is too large")
+            #pos
+            pos = max(0, self.pos[0]), max(0, self.pos[1]) #avoid no seeing after resize
+            #resize
+            self.resize(sz, pos)
+
+    def getFixedSize(self):
+        if conf.SELECT_AREA_FIXED and self.__geo_scaler is not None:
+            geo_xy = (conf.SELECT_AREA_X, conf.SELECT_AREA_Y)
+            return self.__geo_scaler(geo_xy)
+        return None
+    
+    def resize(self, size, pos=None):
+        if self.size == size:
+            return
+        #rec needed info before deleting
+        orig_pos = self.pos
+        orig_size = self.size
+        #delte old
+        self.__cv_items.remove(self.__cv_area)
+        self.__canvas.delete(self.__cv_area)
+        #gen new
+        if pos is None: pos = orig_pos
+        self.__cv_area, self.__cv_area_img = self.genArea(pos, size)
+        #move&lift other items
+        dx = pos[0]-orig_pos[0] + size[0]-orig_size[0]
+        dy = pos[1]-orig_pos[1] + 0
+        self.move(dx, dy)
+        self.lift()
+        #add new
+        self.__cv_items.append(self.__cv_area)
+
     #}} general operations
 
     #{{ events
-    def onOkClick(self, e):
+    def onOkClick(self, e=None):
         self.__state = 'OK'
         self.exit()
 
-    def onCancelClick(self, e):
+    def onCancelClick(self, e=None):
         self.__state = 'Cancel'
         self.exit()
 
     def onSettingClick(self, e):
         settings = AreaSelectorSettings(self.__canvas)
         if settings.show((e.x_root, e.y_root)) == 'OK':
-            self.applySettings()
+            try:
+                self.applySettings()
+            except AreaSizeTooLarge as ex:
+                self.__except = ex
+                self.exit()
 
     #bind motion events
     def onSelectAreaClick(self, e):
@@ -303,14 +323,23 @@ class AreaSelector:
 
     #{{ canvas items
     def genArea(self, pos, size):
+        #area img
         img = Image.new('RGBA', size, (255,255,0,128))  #yellow 
-        self.__cv_area_img = ImageTk.PhotoImage(img) #keep refg
-        return self.__canvas.create_image(pos, image=self.__cv_area_img, anchor='nw')
+        img = ImageTk.PhotoImage(img) #to photo image
+        #area item
+        item = self.__canvas.create_image(pos, image=img, anchor='nw')
+        self.__canvas.tag_bind(item, "<Button-1>", self.onSelectAreaClick)
+        self.__canvas.tag_bind(item, "<Button1-ButtonRelease>", self.onSelectAreaRelease)
+        self.__canvas.tag_bind(item, "<Button1-Motion>", self.onSelectAreaMotion)
+        return item, img
 
     def genOKButton(self, order=1):
         x = self.pos[0] + self.size[0] - self.__button_side*order #x of upper-left
         y = self.pos[1]  #y of upper-left
-        return self.__canvas.create_oval(x, y, x+self.__button_side, y+self.__button_side, fill='green')
+        item = self.__canvas.create_oval(x, y, x+self.__button_side, y+self.__button_side, fill='green')
+        self.__canvas.tag_bind(item, "<Button-1>", self.onOkClick)
+        return item
+
 
     def genCancelButton(self, order=2):
         n = int(self.__button_side/4)
@@ -320,13 +349,17 @@ class AreaSelector:
         cancel_cross = []
         for pt in cross:
             cancel_cross.append((pt[0]+x, pt[1]+y))
-        return self.__canvas.create_polygon(cancel_cross, fill='red')
+        item = self.__canvas.create_polygon(cancel_cross, fill='red')
+        self.__canvas.tag_bind(item, "<Button-1>", self.onCancelClick)
+        return item
 
     def genSettingButton(self, order=3):
         n = int(self.__button_side/2)
         x = self.pos[0] + self.size[0] - self.__button_side*order + n  #x of center
         y = self.pos[1] + n #y of center
-        return self.__canvas.create_text(x, y, font='Arialuni 16 bold', text='S', fill='#404040')
+        item = self.__canvas.create_text(x, y, font='Arialuni 16 bold', text='S', fill='#404040')
+        self.__canvas.tag_bind(item, "<Button-1>", self.onSettingClick)
+        return item
 
     #}}
 

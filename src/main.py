@@ -22,7 +22,7 @@ from tile import  TileSystem, TileMap
 from gpx import GpsDocument, WayPoint
 from pic import PicDocument
 from sym import SymRuleType, SymRule
-from util import AreaSelector, GeoPoint, getPrefCornerPos
+from util import GeoPoint, getPrefCornerPos, AreaSelector, AreaSizeTooLarge
 
 
 class DispBoard(tk.Frame):
@@ -370,17 +370,6 @@ class DispBoard(tk.Frame):
         if self.__canvas_sel_area is not None:
             return
 
-        #get select area w/h
-        level = self.map_ctrl.level
-        geo1 = self.map_ctrl.geo  #upper-left
-        geo2 = GeoPoint(twd67_x=geo1.twd67_x+1000*conf.SELECT_AREA_X, twd67_y=geo1.twd67_y-1000*conf.SELECT_AREA_Y) #lower-down
-        sel_w, sel_h = geo2.diffPixel(geo1, level)
-
-        #check size
-        if sel_w > self.__img.size[0] or sel_h > self.__img.size[1]:
-            messagebox.showwarning('Cannot show select area', 'Please zoom out or resize the window to enlarge the map')
-            return
-
         #pos adjuster to align twd67
         def twd67PosAdjuster(pos):
             level = self.map_ctrl.level
@@ -392,21 +381,28 @@ class DispBoard(tk.Frame):
             return adjust_geo.diffPixel(sel_geo, level)
 
         #convert Geo Diff to Pixel diff, x/y->w/h
-        def twd67GeoScaler(pos, xy):
+        def twd67GeoScaler(xy):
             level = self.map_ctrl.level
-            sel_geo = self.map_ctrl.geo.incPixel(pos[0], pos[1], level)
+            #sel_geo = self.map_ctrl.geo.incPixel(pos[0], pos[1], level)
+            sel_geo = self.map_ctrl.geo #use pos(0,0) as ref
             x = sel_geo.twd67_x + xy[0]*1000
             y = sel_geo.twd67_y - xy[1]*1000
             ext_geo = GeoPoint(twd67_x=x, twd67_y=y)
             return ext_geo.diffPixel(sel_geo, level)
 
         #select area
-        self.__canvas_sel_area = AreaSelector(self.disp_canvas,
-                size=(sel_w, sel_h),\
-                pos_adjuster=twd67PosAdjuster,\
-                geo_scaler=twd67GeoScaler,\
-            ) 
-        if self.__canvas_sel_area.wait(self) == 'OK':
+        try:
+            self.__canvas_sel_area = AreaSelector(self.disp_canvas,
+                    pos_adjuster=twd67PosAdjuster,
+                    geo_scaler=twd67GeoScaler
+                ) 
+            result = self.__canvas_sel_area.wait(self)
+        except AreaSizeTooLarge as e:
+            messagebox.showwarning(e.args, 'Please zoom out or resize the window to enlarge the map')
+            return
+
+        #output
+        if result == 'OK':
             #get fpath
             fpath = filedialog.asksaveasfilename(
                     defaultextension=".png", filetypes=(("Portable Network Graphics", ".png"), ("All Files", "*.*")) )
