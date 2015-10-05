@@ -390,36 +390,38 @@ class DispBoard(tk.Frame):
             ext_geo = GeoPoint(twd67_x=x, twd67_y=y)
             return ext_geo.diffPixel(sel_geo, level)
 
-        #select area
         try:
+            #select area
             self.__canvas_sel_area = AreaSelector(self.disp_canvas,
                     pos_adjuster=twd67PosAdjuster,
                     geo_scaler=twd67GeoScaler
                 ) 
-            result = self.__canvas_sel_area.wait(self)
-        except AreaSizeTooLarge as e:
-            messagebox.showwarning(e.args, 'Please zoom out or resize the window to enlarge the map')
-            return
+            if self.__canvas_sel_area.wait(self) != 'OK':
+                return
 
-        #output
-        if result == 'OK':
             #get fpath
             fpath = filedialog.asksaveasfilename(
                     defaultextension=".png", filetypes=(("Portable Network Graphics", ".png"), ("All Files", "*.*")) )
-            if fpath:
-                out_level = 15
-                org_level = self.map_ctrl.level
-                w, h = self.__canvas_sel_area.size
-                x, y = self.__canvas_sel_area.pos
-                #bounding geo
-                geo = self.map_ctrl.geo.incPixel(x, y, org_level)
-                geo2 = geo.incPixel(w, h, org_level)
-                dx, dy = geo2.diffPixel(geo, out_level)
-                #get map
-                img = self.map_ctrl.getTileImage(dx, dy, geo=geo, level=out_level)
-                img.save(fpath, format='png')
+            if not fpath:
+                return
 
-        self.__canvas_sel_area = None
+            #output
+            out_level = conf.SELECT_AREA_LEVEL
+            org_level = self.map_ctrl.level
+            w, h = self.__canvas_sel_area.size
+            x, y = self.__canvas_sel_area.pos
+            #bounding geo
+            sel_geo = self.map_ctrl.geo.incPixel(x, y, org_level)  #upper-left
+            ext_geo = sel_geo.incPixel(w, h, org_level)            #lower-right
+            dx, dy = ext_geo.diffPixel(sel_geo, out_level)
+            #get map
+            img = self.map_ctrl.getTileImage(dx, dy, geo=sel_geo, level=out_level)
+            img.save(fpath, format='png')
+
+        except AreaSizeTooLarge as e:
+            messagebox.showwarning(e.args, 'Please zoom out or resize the window to enlarge the map')
+        finally:
+            self.__canvas_sel_area = None
 
     #}} Right click actions
 

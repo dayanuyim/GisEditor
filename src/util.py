@@ -162,9 +162,10 @@ class AreaSelector:
 
     @property
     def pos(self):
-        if self.__last_pos is not None:
+        if self.__done.get():
             return self.__last_pos
-        return self.__getpos()
+        else:
+            return self.__getpos()
 
     def __init__(self, canvas, pos_adjuster=None, geo_scaler=None):
         self.__canvas = canvas
