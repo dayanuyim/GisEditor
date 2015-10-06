@@ -2168,25 +2168,26 @@ def isPicFile(path):
         return True
     return False
 
-def readFiles(paths):
+def readPathes(pathes):
     gps_path = []
     pic_path = []
-    __readFiles(paths, gps_path, pic_path)
+    for path in pathes:
+        __readPath(path, gps_path, pic_path)
     gps_path.sort()
     pic_path.sort()
     return gps_path, pic_path
     
-def __readFiles(paths, gps_path, pic_path):
-    for path in paths:
-        if not path:
-            continue
-        if os.path.isdir(path):
-            subpaths = [os.path.join(path, f) for f in os.listdir(path)]
-            __readFiles(subpaths, gps_path, pic_path)
-        elif isPicFile(path):
-            pic_path.append(path)
-        elif isGpsFile(path):
-            gps_path.append(path)
+def __readPath(path, gps_path, pic_path):
+    if not path:
+        return
+    if os.path.isdir(path):
+        for f in os.listdir(path):
+            subpath = os.path.join(path, f)
+            __readPath(subpath, gps_path, pic_path)
+    elif isPicFile(path):
+        pic_path.append(path)
+    elif isGpsFile(path):
+        gps_path.append(path)
 
 def isExit(disp_board):
 
@@ -2221,7 +2222,7 @@ if __name__ == '__main__':
     root.protocol('WM_DELETE_WINDOW', lambda: onExit(root, disp_board))
 
     #add files
-    gps_path, pic_path = readFiles(sys.argv[1:])
+    gps_path, pic_path = readPathes(sys.argv[1:])
     for path in gps_path:
         disp_board.addGpx(getGpsDocument(path))
     for path in pic_path:
