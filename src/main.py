@@ -2178,6 +2178,8 @@ def readFiles(paths):
     
 def __readFiles(paths, gps_path, pic_path):
     for path in paths:
+        if not path:
+            continue
         if os.path.isdir(path):
             subpaths = [os.path.join(path, f) for f in os.listdir(path)]
             __readFiles(subpaths, gps_path, pic_path)
