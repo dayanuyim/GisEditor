@@ -2209,11 +2209,20 @@ def onExit(root, disp_board):
         disp_board.exit()
         root.destroy()
 
+def getTitleText():
+    txt = "GisEditor"
+    if len(sys.argv) > 1:
+        txt += " - "
+        for arg in sys.argv[1:]:
+            txt += path.basename(arg)
+            txt += ' '
+    return txt
+
 if __name__ == '__main__':
     #create window
     root = tk.Tk()
     pmw.initialise(root)
-    root.title("PicGisEditor")
+    root.title(getTitleText())
     root.geometry('950x700+200+0')
 
     pad_ = 2
