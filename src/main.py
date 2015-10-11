@@ -260,9 +260,16 @@ class DispBoard(tk.Frame):
 
     #{{ Right click actions
     def onGpxSave(self):
-        fpath = filedialog.asksaveasfilename(defaultextension=".gpx", filetypes=(("GPS Excahnge Format", ".gpx"), ("All Files", "*.*")) )
-        if fpath is None or fpath == "":
+        global Pref_save_dir
+        fpath = filedialog.asksaveasfilename(
+                defaultextension=".gpx",
+                filetypes=(("GPS Excahnge Format", ".gpx"), ("All Files", "*.*")),
+                initialdir=Pref_save_dir)
+        if not fpath:
             return False
+
+        #no preferred saving dir after user specified
+        Pref_save_dir = None  
 
         #gen gpx faile
         doc = GpsDocument()
@@ -400,10 +407,16 @@ class DispBoard(tk.Frame):
                 return
 
             #get fpath
+            global Pref_save_dir
             fpath = filedialog.asksaveasfilename(
-                    defaultextension=".png", filetypes=(("Portable Network Graphics", ".png"), ("All Files", "*.*")) )
+                    defaultextension=".png",
+                    filetypes=(("Portable Network Graphics", ".png"), ("All Files", "*.*")),
+                    initialdir=Pref_save_dir)
             if not fpath:
                 return
+
+            #no preferred saving dir after user specified
+            Pref_save_dir = None  
 
             #output
             out_level = conf.SELECT_AREA_LEVEL
@@ -2218,12 +2231,29 @@ def getTitleText():
             txt += ' '
     return txt
 
+def getPrefSaveDir():
+    if len(sys.argv) <= 1:
+        return None
+    
+    #prefer gpx file
+    for arg in sys.argv[1:]:
+        if arg.endswith('.gpx'):
+            return os.path.dirname(arg)
+
+    return os.path.dirname(argv[2])
+
+Pref_save_dir = None
+
 if __name__ == '__main__':
+    global Pref_save_dir
+
     #create window
     root = tk.Tk()
     pmw.initialise(root)
     root.title(getTitleText())
     root.geometry('950x700+200+0')
+
+    Pref_save_dir = getPrefSaveDir()
 
     pad_ = 2
     disp_board = DispBoard(root)
