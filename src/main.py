@@ -2245,26 +2245,29 @@ def getPrefSaveDir():
 Pref_save_dir = None
 
 if __name__ == '__main__':
-    #create window
-    root = tk.Tk()
-    pmw.initialise(root)
-    root.title(getTitleText())
-    root.geometry('950x700+200+0')
+    try:
+        #create window
+        root = tk.Tk()
+        pmw.initialise(root)
+        root.title(getTitleText())
+        root.geometry('950x700+200+0')
 
-    Pref_save_dir = getPrefSaveDir()
+        Pref_save_dir = getPrefSaveDir()
 
-    pad_ = 2
-    disp_board = DispBoard(root)
-    disp_board.pack(side='right', anchor='se', expand=1, fill='both', padx=pad_, pady=pad_)
-    root.protocol('WM_DELETE_WINDOW', lambda: onExit(root, disp_board))
+        pad_ = 2
+        disp_board = DispBoard(root)
+        disp_board.pack(side='right', anchor='se', expand=1, fill='both', padx=pad_, pady=pad_)
+        root.protocol('WM_DELETE_WINDOW', lambda: onExit(root, disp_board))
 
-    #add files
-    gps_path, pic_path = readPathes(sys.argv[1:])
-    for path in gps_path:
-        disp_board.addGpx(getGpsDocument(path))
-    for path in pic_path:
-        disp_board.addWpt(getPicDocument(path))
+        #add files
+        gps_path, pic_path = readPathes(sys.argv[1:])
+        for path in gps_path:
+            disp_board.addGpx(getGpsDocument(path))
+        for path in pic_path:
+            disp_board.addWpt(getPicDocument(path))
 
-    #disp_board.initDisp()
-    root.mainloop()
+        #disp_board.initDisp()
+        root.mainloop()
+    except Exception as ex:
+        messagebox.showwarning('Error to exit', ex.args)
 
