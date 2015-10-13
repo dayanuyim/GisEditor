@@ -2240,13 +2240,11 @@ def getPrefSaveDir():
         if arg.endswith('.gpx'):
             return os.path.dirname(arg)
 
-    return os.path.dirname(argv[2])
+    return os.path.dirname(sys.argv[2])
 
 Pref_save_dir = None
 
 if __name__ == '__main__':
-    global Pref_save_dir
-
     #create window
     root = tk.Tk()
     pmw.initialise(root)
