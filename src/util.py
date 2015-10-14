@@ -158,7 +158,7 @@ class AreaSizeTooLarge(Exception):
 class AreaSelector:
     @property
     def size(self):
-        return self.__cv_area_img.width(), self.__cv_area_img.height()
+        return self.__cv_panel_img.width(), self.__cv_panel_img.height()
 
     @property
     def pos(self):
@@ -177,7 +177,6 @@ class AreaSelector:
         self.__state = None
         self.__last_pos = None
         self.__except = None
-        self.__cv_items = []
         self.__panel_color = 'yellow'
 
         canvas_w = canvas.winfo_width()
@@ -192,22 +191,11 @@ class AreaSelector:
         pos = (round((canvas_w-w)/2), round((canvas_h-h)/2))
 
         #ceate items
-        self.__cv_area, self.__cv_area_img = self.genAreaPanel(pos, size)
-        self.__cv_items.append(self.__cv_area)
-
-        borders = self.genAreaBorders(pos, size)
-        self.__cv_items.extend(borders)
-
-        self.__cv_ok = self.genOKButton()
-        self.__cv_items.append(self.__cv_ok)
-
-        self.__cv_cancel = self.genCancelButton()
-        self.__cv_items.append(self.__cv_cancel)
-
-        self.__cv_setting = self.genSettingButton()
-        self.__cv_items.append(self.__cv_setting)
-
-        self.__cv_resizer = None
+        panel, self.__cv_panel_img = self.genAreaPanel(pos, size)
+        self.genAreaBorders(pos, size)
+        self.genOKButton()
+        self.genCancelButton()
+        self.genSettingButton()
 
         #apply
         try:
@@ -227,19 +215,18 @@ class AreaSelector:
         #rec the last pos
         self.__last_pos = self.__getpos()
         #delete item
-        for item in self.__cv_items:
-            self.__canvas.delete(item)  #delete ALL but map
+        self.__canvas.delete('AS')  #delete objects of 'AreaSelector'
         self.__done.set(True)
     #}} interface
 
     #{{ internal operations
     def __getpos(self):
-        x, y = self.__canvas.coords(self.__cv_area)
+        panel = self.__canvas.find_withtag('panel')
+        x, y = self.__canvas.coords(panel)
         return int(x), int(y)
 
     def move(self, dx, dy):
-        for item in self.__cv_items:
-            self.__canvas.move(item, dx, dy)
+        self.__canvas.move('AS', dx, dy)
 
     def lift(self):
         self.__canvas.tag_raise('button')
@@ -276,39 +263,34 @@ class AreaSelector:
     def resize(self, size, pos=None):
         if self.size == size:
             return
-        #rec needed info before deleting
+        #bookkeeper
         orig_pos = self.pos
         orig_size = self.size
-        #delte old
-        self.__canvas.delete(self.__cv_area)
-        self.__canvas.delete('border')
-        self.__cv_items.remove(self.__cv_area)
-        #self.__cv_items.remove borders....
-        #gen new
-        if pos is None: pos = orig_pos
-        self.__cv_area, self.__cv_area_img = self.genAreaPanel(pos, size)
-        self.__cv_items.extend(self.genAreaBorders(pos, size))
-        #re-locate others
+        if pos is None:
+            pos = orig_pos
         dx = pos[0]-orig_pos[0]
         dy = pos[1]-orig_pos[1]
         dw = size[0]-orig_size[0]
         dh = size[1]-orig_size[1]
+        #delte old
+        self.__canvas.delete('panel')
+        self.__canvas.delete('border')
+        #gen new
+        panel, self.__cv_panel_img = self.genAreaPanel(pos, size)
+        self.genAreaBorders(pos, size)
+        #re-locate others
         self.__canvas.move('button', dx+dw, dy)
         self.__canvas.move('resizer', dx+dw, dy+dh)
         self.lift()
-        #add new
-        self.__cv_items.append(self.__cv_area)
 
     def checkResizer(self):
-        #create
-        if not conf.SELECT_AREA_FIXED and self.__cv_resizer is None:
-            self.__cv_resizer = self.genResizer()
-            self.__cv_items.append(self.__cv_resizer)
-        #delete
-        if conf.SELECT_AREA_FIXED and self.__cv_resizer is not None:
-            self.__cv_items.remove(self.__cv_resizer)
-            self.__canvas.delete(self.__cv_resizer)
-            self.__cv_resizer = None
+        resizer = self.__canvas.find_withtag('resizer')
+        if conf.SELECT_AREA_FIXED:
+            if resizer:
+                self.__canvas.delete(resizer)
+        else:
+            if not resizer:
+                self.genResizer()
 
 
     #}} general operations
@@ -323,8 +305,8 @@ class AreaSelector:
         self.exit()
 
     def onSettingClick(self, e):
-        settings = AreaSelectorSettings(self.__canvas)
-        if settings.show((e.x_root, e.y_root)) == 'OK':
+        setting = AreaSelectorSettings(self.__canvas)
+        if setting.show((e.x_root, e.y_root)) == 'OK':
             try:
                 self.applySettings()
             except AreaSizeTooLarge as ex:
@@ -374,7 +356,7 @@ class AreaSelector:
         img = Image.new('RGBA', size, (r, g, b, 96))  #transparent
         img = ImageTk.PhotoImage(img) #to photo image
         #area item
-        item = self.__canvas.create_image(pos, image=img, anchor='nw')
+        item = self.__canvas.create_image(pos, image=img, anchor='nw', tag=('AS', 'panel'))
         self.__canvas.tag_bind(item, "<Button-1>", self.onSelectAreaClick)
         self.__canvas.tag_bind(item, "<Button1-ButtonRelease>", self.onSelectAreaRelease)
         self.__canvas.tag_bind(item, "<Button1-Motion>", self.onSelectAreaMotion)
@@ -386,10 +368,10 @@ class AreaSelector:
         w, h = size
         color = self.__panel_color
         #gen
-        top = self.__canvas.create_line((x,y,x+w,y), width=n, fill=color, tag=('border','top'))
-        bottom = self.__canvas.create_line((x,y+h,x+w,y+h), width=n, fill=color, tag=('border','bottom'))
-        left = self.__canvas.create_line((x,y,x,y+h), width=n, fill=color, tag=('border','left'))
-        right = self.__canvas.create_line((x+w,y,x+w,y+h), width=n, fill=color, tag=('border', 'right'))
+        top = self.__canvas.create_line((x,y,x+w,y), width=n, fill=color, tag=('AS', 'border','top'))
+        bottom = self.__canvas.create_line((x,y+h,x+w,y+h), width=n, fill=color, tag=('AS', 'border','bottom'))
+        left = self.__canvas.create_line((x,y,x,y+h), width=n, fill=color, tag=('AS', 'border','left'))
+        right = self.__canvas.create_line((x+w,y,x+w,y+h), width=n, fill=color, tag=('AS', 'border', 'right'))
         #bind
         def setCursor(cursor):
             self.__canvas['cursor'] = cursor
@@ -408,7 +390,7 @@ class AreaSelector:
         n = self.__button_side
         x = self.pos[0] + self.size[0] - self.__button_side*order #x of upper-left
         y = self.pos[1]  #y of upper-left
-        item = self.__canvas.create_oval(x, y, x+n, y+n, fill='green', activefill='lime green', tag='button')
+        item = self.__canvas.create_oval(x, y, x+n, y+n, fill='green', activefill='lime green', tag=('AS','button', 'ok'))
         self.__canvas.tag_bind(item, "<Button-1>", self.onOkClick)
         return item
 
@@ -420,7 +402,7 @@ class AreaSelector:
         cancel_cross = []
         for pt in cross:
             cancel_cross.append((pt[0]+x, pt[1]+y))
-        item = self.__canvas.create_polygon(cancel_cross, fill='red3', activefill='red', tag='button')
+        item = self.__canvas.create_polygon(cancel_cross, fill='red3', activefill='red', tag=('AS','button', 'cancel'))
         self.__canvas.tag_bind(item, "<Button-1>", self.onCancelClick)
         return item
 
@@ -428,7 +410,8 @@ class AreaSelector:
         n = int(self.__button_side/2)
         x = self.pos[0] + self.size[0] - self.__button_side*order + n  #x of center
         y = self.pos[1] + n #y of center
-        item = self.__canvas.create_text(x, y, text='S', font='Arialuni 16 bold', fill='gray25', activefill='gray40', tag='button')
+        item = self.__canvas.create_text(x, y, text='S', font= 'Arialuni 16 bold', fill='gray25', activefill='gray40', 
+                tag=('AS','button', 'setting'))
         self.__canvas.tag_bind(item, "<Button-1>", self.onSettingClick)
         return item
 
@@ -437,7 +420,7 @@ class AreaSelector:
         x = self.pos[0] + self.size[0]
         y = self.pos[1] + self.size[1]
         rect_triangle = (x, y, x-n, y, x, y-n)
-        item = self.__canvas.create_polygon(rect_triangle, fill='green', activefill='lime', tag='resizer')
+        item = self.__canvas.create_polygon(rect_triangle, fill='green', activefill='lime', tag=('AS','resizer'))
         self.__canvas.tag_bind(item, "<Enter>", self.onResizerEnter)
         self.__canvas.tag_bind(item, "<Leave>", self.onResizerLeave)
         self.__canvas.tag_bind(item, "<Button-1>", self.onResizerClick)
