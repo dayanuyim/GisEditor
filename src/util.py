@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import tkinter as tk
-from PIL import Image, ImageTk, ImageDraw
+from PIL import Image, ImageTk, ImageDraw, ImageColor
 #my modules
 import conf
 from tile import TileSystem
@@ -178,6 +178,7 @@ class AreaSelector:
         self.__last_pos = None
         self.__except = None
         self.__cv_items = []
+        self.__panel_color = 'yellow'
 
         canvas_w = canvas.winfo_width()
         canvas_h = canvas.winfo_height()
@@ -193,6 +194,9 @@ class AreaSelector:
         #ceate items
         self.__cv_area, self.__cv_area_img = self.genAreaPanel(pos, size)
         self.__cv_items.append(self.__cv_area)
+
+        borders = self.genAreaBorders(pos, size)
+        self.__cv_items.extend(borders)
 
         self.__cv_ok = self.genOKButton()
         self.__cv_items.append(self.__cv_ok)
@@ -224,7 +228,7 @@ class AreaSelector:
         self.__last_pos = self.__getpos()
         #delete item
         for item in self.__cv_items:
-            self.__canvas.delete(item)
+            self.__canvas.delete(item)  #delete ALL but map
         self.__done.set(True)
     #}} interface
 
@@ -238,8 +242,8 @@ class AreaSelector:
             self.__canvas.move(item, dx, dy)
 
     def lift(self):
-        for item in self.__cv_items:
-            self.__canvas.tag_raise(item)
+        self.__canvas.tag_raise('button')
+        self.__canvas.tag_raise('resizer')
 
     def adjustPos(self):
         if conf.SELECT_AREA_ALIGN and self.__pos_adjuster is not None:
@@ -276,18 +280,21 @@ class AreaSelector:
         orig_pos = self.pos
         orig_size = self.size
         #delte old
-        self.__cv_items.remove(self.__cv_area)
         self.__canvas.delete(self.__cv_area)
+        self.__canvas.delete('border')
+        self.__cv_items.remove(self.__cv_area)
+        #self.__cv_items.remove borders....
         #gen new
         if pos is None: pos = orig_pos
         self.__cv_area, self.__cv_area_img = self.genAreaPanel(pos, size)
+        self.__cv_items.extend(self.genAreaBorders(pos, size))
         #re-locate others
-        dx = pos[0]-orig_pos[0] + size[0]-orig_size[0]
+        dx = pos[0]-orig_pos[0]
         dy = pos[1]-orig_pos[1]
-        self.__canvas.move('button', dx, dy)
-        if self.__cv_resizer is not None:
-            dy += size[1]-orig_size[1]
-            self.__canvas.move(self.__cv_resizer, dx, dy)
+        dw = size[0]-orig_size[0]
+        dh = size[1]-orig_size[1]
+        self.__canvas.move('button', dx+dw, dy)
+        self.__canvas.move('resizer', dx+dw, dy+dh)
         self.lift()
         #add new
         self.__cv_items.append(self.__cv_area)
@@ -363,7 +370,8 @@ class AreaSelector:
     #{{ canvas items
     def genAreaPanel(self, pos, size):
         #area img
-        img = Image.new('RGBA', size, (255,255,0,96))  #yellow 
+        r, g, b = ImageColor.getrgb(self.__panel_color)
+        img = Image.new('RGBA', size, (r, g, b, 96))  #transparent
         img = ImageTk.PhotoImage(img) #to photo image
         #area item
         item = self.__canvas.create_image(pos, image=img, anchor='nw')
@@ -371,6 +379,30 @@ class AreaSelector:
         self.__canvas.tag_bind(item, "<Button1-ButtonRelease>", self.onSelectAreaRelease)
         self.__canvas.tag_bind(item, "<Button1-Motion>", self.onSelectAreaMotion)
         return item, img
+
+    def genAreaBorders(self, pos, size):
+        n = 2
+        x, y = pos
+        w, h = size
+        color = self.__panel_color
+        #gen
+        top = self.__canvas.create_line((x,y,x+w,y), width=n, fill=color, tag=('border','top'))
+        bottom = self.__canvas.create_line((x,y+h,x+w,y+h), width=n, fill=color, tag=('border','bottom'))
+        left = self.__canvas.create_line((x,y,x,y+h), width=n, fill=color, tag=('border','left'))
+        right = self.__canvas.create_line((x+w,y,x+w,y+h), width=n, fill=color, tag=('border', 'right'))
+        #bind
+        def setCursor(cursor):
+            self.__canvas['cursor'] = cursor
+        self.__canvas.tag_bind(top, "<Enter>", lambda e: setCursor('top_side'))
+        self.__canvas.tag_bind(top, "<Leave>", lambda e: setCursor(''))
+        self.__canvas.tag_bind(bottom, "<Enter>", lambda e: setCursor('bottom_side'))
+        self.__canvas.tag_bind(bottom, "<Leave>", lambda e: setCursor(''))
+        self.__canvas.tag_bind(left, "<Enter>", lambda e: setCursor('left_side'))
+        self.__canvas.tag_bind(left, "<Leave>", lambda e: setCursor(''))
+        self.__canvas.tag_bind(right, "<Enter>", lambda e: setCursor('right_side'))
+        self.__canvas.tag_bind(right, "<Leave>", lambda e: setCursor(''))
+
+        return top, bottom, left, right
 
     def genOKButton(self, order=1):
         n = self.__button_side
@@ -405,7 +437,7 @@ class AreaSelector:
         x = self.pos[0] + self.size[0]
         y = self.pos[1] + self.size[1]
         rect_triangle = (x, y, x-n, y, x, y-n)
-        item = self.__canvas.create_polygon(rect_triangle, fill='green', activefill='lime')
+        item = self.__canvas.create_polygon(rect_triangle, fill='green', activefill='lime', tag='resizer')
         self.__canvas.tag_bind(item, "<Enter>", self.onResizerEnter)
         self.__canvas.tag_bind(item, "<Leave>", self.onResizerLeave)
         self.__canvas.tag_bind(item, "<Button-1>", self.onResizerClick)
