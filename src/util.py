@@ -376,19 +376,41 @@ class AreaSelector:
         bottom = self.__canvas.create_line((x,y+h,x+w,y+h), width=n, fill=color, tag=('AS', 'border','bottom'))
         left = self.__canvas.create_line((x,y,x,y+h), width=n, fill=color, tag=('AS', 'border','left'))
         right = self.__canvas.create_line((x+w,y,x+w,y+h), width=n, fill=color, tag=('AS', 'border', 'right'))
+
         #bind
-        def setCursor(cursor):
-            self.__canvas['cursor'] = cursor
-        self.__canvas.tag_bind(top, "<Enter>", lambda e: setCursor('top_side'))
-        self.__canvas.tag_bind(top, "<Leave>", lambda e: setCursor(''))
-        self.__canvas.tag_bind(bottom, "<Enter>", lambda e: setCursor('bottom_side'))
-        self.__canvas.tag_bind(bottom, "<Leave>", lambda e: setCursor(''))
-        self.__canvas.tag_bind(left, "<Enter>", lambda e: setCursor('left_side'))
-        self.__canvas.tag_bind(left, "<Leave>", lambda e: setCursor(''))
-        self.__canvas.tag_bind(right, "<Enter>", lambda e: setCursor('right_side'))
-        self.__canvas.tag_bind(right, "<Leave>", lambda e: setCursor(''))
+        def resizeNull(dx, dy):
+            pass
+        def resizeBottom(dx, dy):
+            print('resize bottom')
+            w, h = self.size
+            h += dy
+            self.resize((w,h))
+
+        self.bindResizeEvents(top, 'top_side', resizeNull)
+        self.bindResizeEvents(bottom, 'bottom_side', resizeBottom)
+        self.bindResizeEvents(left, 'left_side', resizeNull)
+        self.bindResizeEvents(right, 'right_side', resizeNull)
 
         return top, bottom, left, right
+
+    def bindResizeEvents(self, item, cursor, cb):
+        def setCursor(c):
+            self.__canvas['cursor'] = c
+        def onClick(e):
+            self.__border_mpos = (e.x, e.y)
+        def onClickRelease(e):
+            self.__border_mpos = None
+        def onClickMotion(e):
+            x, y = self.__border_mpos
+            dx, dy = e.x-x, e.y-y
+            self.__border_mpos = (e.x, e.y)
+            cb(dx, dy)
+
+        self.__canvas.tag_bind(item, "<Enter>", lambda e: setCursor(cursor))
+        self.__canvas.tag_bind(item, "<Leave>", lambda e: setCursor(''))
+        self.__canvas.tag_bind(item, "<Button-1>", onClick)
+        self.__canvas.tag_bind(item, "<Button1-ButtonRelease>", onClickRelease)
+        self.__canvas.tag_bind(item, "<Button1-Motion>", onClickMotion)
 
     def genOKButton(self, order=1):
         n = self.__button_side
