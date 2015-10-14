@@ -261,7 +261,9 @@ class AreaSelector:
         return None
     
     def resize(self, size, pos=None):
-        if self.size == size:
+        if self.size == size or \
+           size[0] <= self.__button_side*len(self.__canvas.find_withtag('button')) or \
+           size[1] <= self.__button_side+self.__resizer_side:
             return
         #bookkeeper
         orig_pos = self.pos
@@ -353,7 +355,9 @@ class AreaSelector:
     def genAreaPanel(self, pos, size):
         #area img
         r, g, b = ImageColor.getrgb(self.__panel_color)
-        img = Image.new('RGBA', size, (r, g, b, 96))  #transparent
+        w = max(1, size[0])
+        h = max(1, size[1])
+        img = Image.new('RGBA', (w,h), (r, g, b, 96))  #transparent
         img = ImageTk.PhotoImage(img) #to photo image
         #area item
         item = self.__canvas.create_image(pos, image=img, anchor='nw', tag=('AS', 'panel'))
