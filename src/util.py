@@ -339,6 +339,11 @@ class AreaSelector:
         self.__mousepos = (e.x, e.y)
         self.move(dx, dy)
 
+    def onResizerEnter(self, e):
+        self.__canvas['cursor'] = 'bottom_right_corner'
+
+    def onResizerLeave(self, e):
+        self.__canvas['cursor'] = '' #default
 
     def onResizerClick(self, e):
         self.__rs_mousepos = (e.x, e.y)
@@ -401,6 +406,8 @@ class AreaSelector:
         y = self.pos[1] + self.size[1]
         rect_triangle = (x, y, x-n, y, x, y-n)
         item = self.__canvas.create_polygon(rect_triangle, fill='green', activefill='lime')
+        self.__canvas.tag_bind(item, "<Enter>", self.onResizerEnter)
+        self.__canvas.tag_bind(item, "<Leave>", self.onResizerLeave)
         self.__canvas.tag_bind(item, "<Button-1>", self.onResizerClick)
         self.__canvas.tag_bind(item, "<Button1-ButtonRelease>", self.onResizerRelease)
         self.__canvas.tag_bind(item, "<Button1-Motion>", self.onResizerMotion)
