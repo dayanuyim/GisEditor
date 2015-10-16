@@ -300,10 +300,12 @@ class AreaSelector:
         img = ImageTk.PhotoImage(img) #to photo image
         #area item
         item = self.__canvas.create_image(pos, image=img, anchor='nw', tag=('AS',name))
+        #bind
         bindCanvasDragEvents(self.__canvas, item, self.onMove, cursor='hand1')
         bindWidgetKeyMoveEvents(self.__canvas, self.onMove,
             lambda e, dx, dy: self.onResize('ctrl-arrow', e, dx, dy),
             lambda e, dx, dy: self.onResize('shift-arrow', e, dx, dy))
+        self.__canvas.tag_bind(item, '<Button1-ButtonRelease>', lambda e: self.adjustPos(), add='+')
         #side effect to keep ref
         self.__cv_panel_img = img
 
