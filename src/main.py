@@ -18,6 +18,7 @@ from threading import Thread, Lock, Condition
 #my modules
 import tile
 import conf
+import util
 from tile import  TileSystem, TileMap
 from gpx import GpsDocument, WayPoint
 from pic import PicDocument
@@ -2271,4 +2272,3 @@ if __name__ == '__main__':
         root.mainloop()
     except Exception as ex:
         messagebox.showwarning('Error to exit', ex.args)
-

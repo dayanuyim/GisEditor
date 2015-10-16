@@ -1,11 +1,26 @@
 #!/usr/bin/env python3
-
+import os
+import platform
+import Xlib.display as display
+import Xlib.X as X
 import tkinter as tk
 from PIL import Image, ImageTk, ImageDraw, ImageColor
+
 #my modules
 import conf
 from tile import TileSystem
 from coord import CoordinateSystem
+
+def autorepeat(enabled):
+    if platform.system() == 'Linux':
+        #mode = X.AutoRepeatModeOn if enabled else X.AutoRepeatModeOff
+        #d = display.Display()    
+        #d.change_keyboard_control(auto_repeat_mode=mode)
+        #x = d.get_keyboard_control()    
+        if enabled:
+            os.system('xset r on')
+        else:
+            os.system('xset r off')
 
 def getPrefCornerPos(widget, pos):
     sw = widget.winfo_screenwidth()
@@ -39,13 +54,15 @@ def equalsLine(coords, coords2):
     dy2 = coords2[3] - coords2[1]
     return dx == dx2 and dy == dy2
 
-def bindCanvasDragEvents(canvas, item, cb, cursor='', enter_cb=None, leave_cb=None):
+def bindCanvasDragEvents(canvas, item, cb, cursor='', enter_cb=None, leave_cb=None, release_cb=None):
     def setCursor(c):
         canvas['cursor'] = c
     def onClick(e):
         canvas.__canvas_mpos = (e.x, e.y)
     def onClickRelease(e):
         canvas.__canvas_mpos = None
+        if release_cb:
+            release_cb(e)
     def onClickMotion(e):
         x, y = canvas.__canvas_mpos
         dx, dy = e.x-x, e.y-y
@@ -301,11 +318,11 @@ class AreaSelector:
         #area item
         item = self.__canvas.create_image(pos, image=img, anchor='nw', tag=('AS',name))
         #bind
-        bindCanvasDragEvents(self.__canvas, item, self.onMove, cursor='hand1')
+        bindCanvasDragEvents(self.__canvas, item, self.onMove, cursor='hand2',
+            release_cb=lambda e: self.adjustPos())
         bindWidgetKeyMoveEvents(self.__canvas, self.onMove,
             lambda e, dx, dy: self.onResize('ctrl-arrow', e, dx, dy),
             lambda e, dx, dy: self.onResize('shift-arrow', e, dx, dy))
-        self.__canvas.tag_bind(item, '<Button1-ButtonRelease>', lambda e: self.adjustPos(), add='+')
         #side effect to keep ref
         self.__cv_panel_img = img
 
@@ -346,10 +363,12 @@ class AreaSelector:
             if not conf.SELECT_AREA_FIXED:
                 self.__canvas['cursor'] = ''
 
-        on_resize = lambda e, dx, dy: self.onResize(name, e, dx, dy)
-
         border = self.__canvas.create_line(coords, width=2, fill=color, tag=('AS', gpname, name))
-        bindCanvasDragEvents(self.__canvas, border, on_resize, enter_cb=onBorderEnter, leave_cb=onBorderLeave)
+        bindCanvasDragEvents(self.__canvas, border,
+            lambda e, dx, dy: self.onResize(name, e, dx, dy),
+            enter_cb=onBorderEnter,
+            leave_cb=onBorderLeave,
+            release_cb=lambda e: self.adjustPos())
 
     def genOKButton(self, order=1):
         n = self.__button_side
@@ -496,13 +515,13 @@ class AreaSelector:
             if name == 'top' or e.keysym == 'Up':
                 self.resize((w,h-dy), (x,y+dy))
             elif name == 'bottom' or e.keysym == 'Down':
-                self.resize((w,h+dy), (x,y))
+                self.resize((w,h+dy))
             elif name == 'left' or e.keysym == 'Left':
                 self.resize((w-dx,h), (x+dx,y))
             elif name == 'right' or e.keysym == 'Right':
-                self.resize((w+dx,h), (x,y))
+                self.resize((w+dx,h))
             elif name == 'resizer':
-                self.resize((w+dx,h+dx), (x,y))
+                self.resize((w+dx,h+dx))
             else:
                 raise ValueError("Unknown border '%s' to resize" % (name_,))
 
