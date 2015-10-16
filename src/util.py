@@ -353,25 +353,6 @@ class AreaSelector:
         self.__mousepos = (e.x, e.y)
         self.move(dx, dy)
 
-    def onResizerEnter(self, e):
-        self.__canvas['cursor'] = 'bottom_right_corner'
-
-    def onResizerLeave(self, e):
-        self.__canvas['cursor'] = '' #default
-
-    def onResizerClick(self, e):
-        self.__rs_mousepos = (e.x, e.y)
-
-    def onResizerRelease(self, e):
-        self.__rs_mousepos = None
-
-    def onResizerMotion(self, e):
-        w, h = self.size
-        w += e.x - self.__rs_mousepos[0]
-        h += e.y - self.__rs_mousepos[1]
-        self.__rs_mousepos = (e.x, e.y)
-        self.resize((w,h))
-
     #}}
 
     #{{ canvas items
@@ -488,16 +469,17 @@ class AreaSelector:
         self.__canvas.tag_bind(item, "<Button-1>", self.onSettingClick)
 
     def genResizer(self):
+        def onResizerMotion(item, dx, dy):
+            w, h = self.size
+            sz = w+dx, h+dy
+            self.resize(sz)
+
         n = self.__resizer_side
         x = self.pos[0] + self.size[0]
         y = self.pos[1] + self.size[1]
         rect_triangle = (x, y, x-n, y, x, y-n)
-        item = self.__canvas.create_polygon(rect_triangle, fill='green', activefill='lime', tag=('AS','resizer'))
-        self.__canvas.tag_bind(item, "<Enter>", self.onResizerEnter)
-        self.__canvas.tag_bind(item, "<Leave>", self.onResizerLeave)
-        self.__canvas.tag_bind(item, "<Button-1>", self.onResizerClick)
-        self.__canvas.tag_bind(item, "<Button1-ButtonRelease>", self.onResizerRelease)
-        self.__canvas.tag_bind(item, "<Button1-Motion>", self.onResizerMotion)
+        resizer = self.__canvas.create_polygon(rect_triangle, fill='green', activefill='lime', tag=('AS','resizer'))
+        bindCanvasDragEvents(self.__canvas, resizer, 'bottom_right_corner', onResizerMotion)
     #}}
 
 # The class represent a unique geographic point, and designed to be 'immutable'.
