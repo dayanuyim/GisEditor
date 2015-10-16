@@ -82,7 +82,7 @@ class Dialog(tk.Toplevel):
         self.visible = tk.BooleanVar(value=False)
 
         #update window size
-        self.update()  
+        self.update()
 
     def exit(self):
         self.master.focus_set()
@@ -96,7 +96,7 @@ class Dialog(tk.Toplevel):
         #UI
         self.transient(self.master)  #remove max/min buttons
         self.focus_set()  #prevent key-press sent back to parent
-        
+
         self.deiconify() #show
         self.visible.set(True)
 
@@ -122,7 +122,7 @@ class AreaSelectorSettings(Dialog):
         self.var_fixed = tk.BooleanVar(value=conf.SELECT_AREA_FIXED)
         self.var_w = tk.DoubleVar(value=conf.SELECT_AREA_X)
         self.var_h = tk.DoubleVar(value=conf.SELECT_AREA_Y)
-        
+
         #level
         row = 0
         f = tk.Frame(self)
@@ -147,7 +147,7 @@ class AreaSelectorSettings(Dialog):
         f.grid(row=row, column=0, sticky='w')
         tk.Checkbutton(f, text='Fixed size', variable=self.var_fixed, command=checkSizeWidgets)\
                 .pack(side='left', expand=1, fill='both')
-        
+
         #size
         w = tk.Entry(f, textvariable=self.var_w, width=5)
         w.pack(side='left', expand=1, fill='both')
@@ -162,7 +162,7 @@ class AreaSelectorSettings(Dialog):
         self.__size_widgets.append(w)
 
         #init run
-        checkSizeWidgets() 
+        checkSizeWidgets()
 
     #override
     def exit(self):
@@ -227,7 +227,7 @@ class AreaSelector:
         pos = (round((canvas_w-w)/2), round((canvas_h-h)/2))
 
         #ceate items
-        self.genAreaPanel(pos, size)
+        self.makeAreaPanel(pos, size)
         self.makeAreaBorders(pos, size)
         self.genOKButton()
         self.genCancelButton()
@@ -254,6 +254,125 @@ class AreaSelector:
         self.__canvas.delete('AS')  #delete objects of 'AreaSelector'
         self.__done.set(True)
     #}} interface
+
+    @staticmethod
+    def bindWidgetKeyMoveEvents(w, cb):
+        def onKeyMove(e, dx, dy):
+            cb(e, dx, dy)
+
+        w.bind('<Up>', lambda e: cb(e, 0, -1))
+        w.bind('<Down>', lambda e: cb(e, 0, 1))
+        w.bind('<Left>', lambda e: cb(e, -1, 0))
+        w.bind('<Right>', lambda e: cb(e, 1, 0))
+
+
+    #{{ canvas items
+    def makeAreaPanel(self, pos, size):
+        self.__makeAreaPanel('panel', pos, size)
+
+    def __makeAreaPanel(self, name, pos, size):
+        #if exist and the same
+        item = self.__canvas.find_withtag(name)
+        if item and self.size == size:
+            dx = pos[0] - self.pos[0]
+            dy = pos[1] - self.pos[1]
+            self.__canvas.move(name, dx, dy)
+            return
+        self.__canvas.delete(name)
+        self.__genPanel(name, pos, size)
+
+    def __genPanel(self, name, pos, size):
+        #area img
+        r, g, b = ImageColor.getrgb(self.__panel_color)
+        w = max(1, size[0])
+        h = max(1, size[1])
+        img = Image.new('RGBA', (w,h), (r, g, b, 96))  #transparent
+        img = ImageTk.PhotoImage(img) #to photo image
+        #area item
+        item = self.__canvas.create_image(pos, image=img, anchor='nw', tag=('AS',name))
+        bindCanvasDragEvents(self.__canvas, item, lambda e, dx, dy: self.move(dx, dy), cursor='hand1')
+        #self.bindWidgetKeyMoveEvents(self.__canvas
+        #side effect to keep ref
+        self.__cv_panel_img = img
+
+    def makeAreaBorders(self, pos, size):
+        gpname = 'border'
+        x, y = pos
+        w, h = size
+        #gen
+        self.__makeBorder(gpname, 'top',    (x,y,x+w,y))
+        self.__makeBorder(gpname, 'bottom', (x,y+h,x+w,y+h))
+        self.__makeBorder(gpname, 'left',   (x,y,x,y+h))
+        self.__makeBorder(gpname, 'right',  (x+w,y,x+w,y+h))
+
+    def __makeBorder(self, gpname, name, coords):
+        #if exist and the same
+        item = self.__canvas.find_withtag(name)
+        if item:
+            orig_coords = self.__canvas.coords(item)
+            if equalsLine(orig_coords, coords):
+                #print("resizing border '%s' by moving" % (name,))
+                dx = coords[0] - orig_coords[0]
+                dy = coords[1] - orig_coords[1]
+                self.__canvas.move(item, dx, dy) #just move
+                return
+
+        self.__canvas.delete(name)   #delete old
+        self.__genBorder(gpname, name, coords)  #gen new
+
+    def __genBorder(self, gpname, name, coords):
+        color = self.__panel_color
+        cursor = name + '_side'
+
+        def onBorderEnter(e):
+            if not conf.SELECT_AREA_FIXED:
+                self.__canvas['cursor'] = cursor
+
+        def onBorderLeave(e):
+            if not conf.SELECT_AREA_FIXED:
+                self.__canvas['cursor'] = ''
+
+        on_resize = lambda e, dx, dy: self.onResize(name, e, dx, dy)
+
+        border = self.__canvas.create_line(coords, width=2, fill=color, tag=('AS', gpname, name))
+        bindCanvasDragEvents(self.__canvas, border, on_resize, enter_cb=onBorderEnter, leave_cb=onBorderLeave)
+
+    def genOKButton(self, order=1):
+        n = self.__button_side
+        x = self.pos[0] + self.size[0] - self.__button_side*order #x of upper-left
+        y = self.pos[1]  #y of upper-left
+        item = self.__canvas.create_oval(x, y, x+n, y+n, fill='green', activefill='lime green', tag=('AS','button', 'ok'))
+        self.__canvas.tag_bind(item, "<Button-1>", self.onOkClick)
+
+    def genCancelButton(self, order=2):
+        n = int(self.__button_side/4)
+        x = self.pos[0] + self.size[0] - self.__button_side*order + 2*n  #x of center
+        y = self.pos[1] + 2*n #y of center
+        cross = ((0,n), (n,2*n), (2*n,n), (n,0), (2*n,-n), (n,-2*n), (0,-n), (-n,-2*n), (-2*n,-n), (-n,0), (-2*n,n), (-n, 2*n))
+        cancel_cross = []
+        for pt in cross:
+            cancel_cross.append((pt[0]+x, pt[1]+y))
+        item = self.__canvas.create_polygon(cancel_cross, fill='red3', activefill='red', tag=('AS','button', 'cancel'))
+        self.__canvas.tag_bind(item, "<Button-1>", self.onCancelClick)
+
+    def genSettingButton(self, order=3):
+        n = int(self.__button_side/2)
+        x = self.pos[0] + self.size[0] - self.__button_side*order + n  #x of center
+        y = self.pos[1] + n #y of center
+        item = self.__canvas.create_text(x, y, text='S', font= 'Arialuni 16 bold', fill='gray25', activefill='gray40',
+                tag=('AS','button', 'setting'))
+        self.__canvas.tag_bind(item, "<Button-1>", self.onSettingClick)
+
+    def genResizer(self):
+        n = self.__resizer_side
+        x = self.pos[0] + self.size[0]
+        y = self.pos[1] + self.size[1]
+        rect_triangle = (x, y, x-n, y, x, y-n)
+        resizer = self.__canvas.create_polygon(rect_triangle, fill='green', activefill='lime', tag=('AS','resizer'))
+
+        on_resize = lambda e, dx, dy: self.onResize('resizer', e, dx, dy)
+        bindCanvasDragEvents(self.__canvas, resizer, on_resize, 'bottom_right_corner')
+    #}}
 
     #{{ internal operations
     def __getpos(self):
@@ -295,7 +414,7 @@ class AreaSelector:
             geo_xy = (conf.SELECT_AREA_X, conf.SELECT_AREA_Y)
             return self.__geo_scaler(geo_xy)
         return None
-    
+
     def resize(self, size, pos=None):
         if self.size == size or \
            size[0] <= self.__button_side*len(self.__canvas.find_withtag('button')) or \
@@ -311,7 +430,7 @@ class AreaSelector:
         dw = size[0]-orig_size[0]
         dh = size[1]-orig_size[1]
         #resize panel/borders
-        self.resizeAreaPanel(pos, size)
+        self.makeAreaPanel(pos, size)
         self.makeAreaBorders(pos, size)
         #re-locate others
         self.__canvas.move('button', dx+dw, dy)
@@ -348,85 +467,6 @@ class AreaSelector:
                 self.__except = ex
                 self.exit()
 
-    #}}
-
-    @staticmethod
-    def bindWidgetKeyMoveEvents(w, cb):
-        def onKeyMove(dx, dy):
-            cb(w, dx, dy)
-
-        w.bind('<Up>', lambda e: onKeyMove(0, -1))
-        w.bind('<Down>', lambda e: onKeyMove(0, -1))
-        w.bind('<Left>', lambda e: onKeyMove(0, -1))
-        w.bind('<Right>', lambda e: onKeyMove(0, -1))
-
-
-
-    #{{ canvas items
-    def genAreaPanel(self, pos, size):
-        #area img
-        r, g, b = ImageColor.getrgb(self.__panel_color)
-        w = max(1, size[0])
-        h = max(1, size[1])
-        img = Image.new('RGBA', (w,h), (r, g, b, 96))  #transparent
-        img = ImageTk.PhotoImage(img) #to photo image
-        #area item
-        item = self.__canvas.create_image(pos, image=img, anchor='nw', tag=('AS', 'panel'))
-        bindCanvasDragEvents(self.__canvas, item, lambda e, dx, dy: self.move(dx, dy), cursor='hand1')
-        #self.bindWidgetKeyMoveEvents(self.__canvas
-        #side effect to keep ref
-        self.__cv_panel_img = img
-
-    def resizeAreaPanel(self, pos, size):
-        self.__canvas.delete('panel')
-        self.genAreaPanel(pos, size)
-
-    def makeAreaBorders(self, pos, size):
-        gen_or_resize = self.__genBorder if not self.__canvas.find_withtag('border') else self.__resizeBorder
-        x, y = pos
-        w, h = size
-        #gen
-        gen_or_resize('top',    (x,y,x+w,y))
-        gen_or_resize('bottom', (x,y+h,x+w,y+h))
-        gen_or_resize('left',   (x,y,x,y+h))
-        gen_or_resize('right',  (x+w,y,x+w,y+h))
-
-    #deprecated
-    def genAreaBorders(self, pos, size):
-        x, y = pos
-        w, h = size
-        #gen
-        self.__genBorder('top',    (x,y,x+w,y))
-        self.__genBorder('bottom', (x,y+h,x+w,y+h))
-        self.__genBorder('left',   (x,y,x,y+h))
-        self.__genBorder('right',  (x+w,y,x+w,y+h))
-
-    #deprecated
-    def resizeAreaBorders(self, pos, size):
-        x, y = pos
-        w, h = size
-        self.__resizeBorder('top',    (x,y,x+w,y))
-        self.__resizeBorder('bottom', (x,y+h,x+w,y+h))
-        self.__resizeBorder('left',   (x,y,x,y+h))
-        self.__resizeBorder('right',  (x+w,y,x+w,y+h))
-
-    def __genBorder(self, name, coords):
-        color = self.__panel_color
-        cursor = name + '_side'
-
-        def onBorderEnter(e):
-            if not conf.SELECT_AREA_FIXED:
-                self.__canvas['cursor'] = cursor
-        
-        def onBorderLeave(e):
-            if not conf.SELECT_AREA_FIXED:
-                self.__canvas['cursor'] = ''
-
-        on_resize = lambda e, dx, dy: self.onResize(name, e, dx, dy)
-
-        border = self.__canvas.create_line(coords, width=2, fill=color, tag=('AS', 'border', name))
-        bindCanvasDragEvents(self.__canvas, border, on_resize, enter_cb=onBorderEnter, leave_cb=onBorderLeave)
-    
     def onResize(self, name, e, dx, dy):
         if not conf.SELECT_AREA_FIXED:
             #print('...resizing', name_)
@@ -445,56 +485,8 @@ class AreaSelector:
             else:
                 raise ValueError("Unknown border '%s' to resize" % (name_,))
 
-    def __resizeBorder(self, name, coords):
-        border = self.__canvas.find_withtag(name)
-        if border:
-            orig_coords = self.__canvas.coords(border)
-            if equalsLine(orig_coords, coords):
-                #print("resizing border '%s' by moving" % (name,))
-                dx = coords[0] - orig_coords[0]
-                dy = coords[1] - orig_coords[1]
-                self.__canvas.move(border, dx, dy) #just move
-                return
-
-        self.__canvas.delete(name)   #delete old
-        self.__genBorder(name, coords)  #gen new
-
-    def genOKButton(self, order=1):
-        n = self.__button_side
-        x = self.pos[0] + self.size[0] - self.__button_side*order #x of upper-left
-        y = self.pos[1]  #y of upper-left
-        item = self.__canvas.create_oval(x, y, x+n, y+n, fill='green', activefill='lime green', tag=('AS','button', 'ok'))
-        self.__canvas.tag_bind(item, "<Button-1>", self.onOkClick)
-
-    def genCancelButton(self, order=2):
-        n = int(self.__button_side/4)
-        x = self.pos[0] + self.size[0] - self.__button_side*order + 2*n  #x of center
-        y = self.pos[1] + 2*n #y of center
-        cross = ((0,n), (n,2*n), (2*n,n), (n,0), (2*n,-n), (n,-2*n), (0,-n), (-n,-2*n), (-2*n,-n), (-n,0), (-2*n,n), (-n, 2*n))
-        cancel_cross = []
-        for pt in cross:
-            cancel_cross.append((pt[0]+x, pt[1]+y))
-        item = self.__canvas.create_polygon(cancel_cross, fill='red3', activefill='red', tag=('AS','button', 'cancel'))
-        self.__canvas.tag_bind(item, "<Button-1>", self.onCancelClick)
-
-    def genSettingButton(self, order=3):
-        n = int(self.__button_side/2)
-        x = self.pos[0] + self.size[0] - self.__button_side*order + n  #x of center
-        y = self.pos[1] + n #y of center
-        item = self.__canvas.create_text(x, y, text='S', font= 'Arialuni 16 bold', fill='gray25', activefill='gray40', 
-                tag=('AS','button', 'setting'))
-        self.__canvas.tag_bind(item, "<Button-1>", self.onSettingClick)
-
-    def genResizer(self):
-        n = self.__resizer_side
-        x = self.pos[0] + self.size[0]
-        y = self.pos[1] + self.size[1]
-        rect_triangle = (x, y, x-n, y, x, y-n)
-        resizer = self.__canvas.create_polygon(rect_triangle, fill='green', activefill='lime', tag=('AS','resizer'))
-
-        on_resize = lambda e, dx, dy: self.onResize('resizer', e, dx, dy)
-        bindCanvasDragEvents(self.__canvas, resizer, on_resize, 'bottom_right_corner')
     #}}
+
 
 # The class represent a unique geographic point, and designed to be 'immutable'.
 # 'level' is the 'granularity' needed to init px/py and access px/py.
@@ -546,7 +538,7 @@ class GeoPoint:
         if self.__twd67_x is None or self.__twd67_y is None:
             self.__checkWGS84Latlon()
             self.__twd67_x, self.__twd67_y = CoordinateSystem.TWD97_LatLonToTWD67_TM2(self.__lat, self.__lon)
-    
+
     def __checkTWD97TM2(self):
         if self.__twd97_x is None or self.__twd97_y is None:
             self.__checkWGS84Latlon()
