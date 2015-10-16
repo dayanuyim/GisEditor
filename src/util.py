@@ -39,7 +39,7 @@ def equalsLine(coords, coords2):
     dy2 = coords2[3] - coords2[1]
     return dx == dx2 and dy == dy2
 
-def bindCanvasDragEvents(canvas, item, cursor, cb):
+def bindCanvasDragEvents(canvas, item, cb, cursor='', enter_cb=None, leave_cb=None):
     def setCursor(c):
         canvas['cursor'] = c
     def onClick(e):
@@ -52,11 +52,21 @@ def bindCanvasDragEvents(canvas, item, cursor, cb):
         canvas.__canvas_mpos = (e.x, e.y)
         cb(item, dx, dy)
 
-    canvas.tag_bind(item, "<Enter>", lambda e: setCursor(cursor))
-    canvas.tag_bind(item, "<Leave>", lambda e: setCursor(''))
+    if enter_cb is None: enter_cb = lambda e: setCursor(cursor)
+    if leave_cb is None: leave_cb = lambda e: setCursor('')
+
+    canvas.tag_bind(item, "<Enter>", enter_cb)
+    canvas.tag_bind(item, "<Leave>", leave_cb)
     canvas.tag_bind(item, "<Button-1>", onClick)
     canvas.tag_bind(item, "<Button1-ButtonRelease>", onClickRelease)
     canvas.tag_bind(item, "<Button1-Motion>", onClickMotion)
+
+def unbindCanvasDragEvents(canvas, item):
+    canvas.tag_unbind(item, "<Enter>")
+    canvas.tag_unbind(item, "<Leave>")
+    canvas.tag_unbind(item, "<Button-1>")
+    canvas.tag_unbind(item, "<Button1-ButtonRelease>")
+    canvas.tag_unbind(item, "<Button1-Motion>")
 
 class Dialog(tk.Toplevel):
     def __init__(self, master):
@@ -406,27 +416,36 @@ class AreaSelector:
         self.__resizeBorder('right',  (x+w,y,x+w,y+h))
 
     def __genBorder(self, name, coords):
-        def onBorderResize(item, dx, dy):
-            #print('...resizing', name_)
-            x, y = self.pos
-            w, h = self.size
-            tags = self.__canvas.gettags(item)
-            if 'top' in tags:
-                self.resize((w,h-dy), (x,y+dy))
-            elif 'bottom' in tags:
-                self.resize((w,h+dy), (x,y))
-            elif 'left' in tags:
-                self.resize((w-dx,h), (x+dx,y))
-            elif 'right' in tags:
-                self.resize((w+dx,h), (x,y))
-            else:
-                raise ValueError("Unknown border '%s' to resize" % (name_,))
-
         color = self.__panel_color
         cursor = name + '_side'
 
+        def onBorderResize(item, dx, dy):
+            if not conf.SELECT_AREA_FIXED:
+                #print('...resizing', name_)
+                x, y = self.pos
+                w, h = self.size
+                tags = self.__canvas.gettags(item)
+                if 'top' in tags:
+                    self.resize((w,h-dy), (x,y+dy))
+                elif 'bottom' in tags:
+                    self.resize((w,h+dy), (x,y))
+                elif 'left' in tags:
+                    self.resize((w-dx,h), (x+dx,y))
+                elif 'right' in tags:
+                    self.resize((w+dx,h), (x,y))
+                else:
+                    raise ValueError("Unknown border '%s' to resize" % (name_,))
+
+        def onBorderEnter(e):
+            if not conf.SELECT_AREA_FIXED:
+                self.__canvas['cursor'] = cursor
+        
+        def onBorderLeave(e):
+            if not conf.SELECT_AREA_FIXED:
+                self.__canvas['cursor'] = ''
+
         border = self.__canvas.create_line(coords, width=2, fill=color, tag=('AS', 'border', name))
-        bindCanvasDragEvents(self.__canvas, border, cursor, onBorderResize)
+        bindCanvasDragEvents(self.__canvas, border, onBorderResize, enter_cb=onBorderEnter, leave_cb=onBorderLeave)
     
     def __resizeBorder(self, name, coords):
         border = self.__canvas.find_withtag(name)
@@ -479,7 +498,7 @@ class AreaSelector:
         y = self.pos[1] + self.size[1]
         rect_triangle = (x, y, x-n, y, x, y-n)
         resizer = self.__canvas.create_polygon(rect_triangle, fill='green', activefill='lime', tag=('AS','resizer'))
-        bindCanvasDragEvents(self.__canvas, resizer, 'bottom_right_corner', onResizerMotion)
+        bindCanvasDragEvents(self.__canvas, resizer, onResizerMotion, 'bottom_right_corner')
     #}}
 
 # The class represent a unique geographic point, and designed to be 'immutable'.
