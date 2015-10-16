@@ -348,21 +348,6 @@ class AreaSelector:
                 self.__except = ex
                 self.exit()
 
-    #bind motion events
-    def onSelectAreaClick(self, e):
-        self.__mousepos = (e.x, e.y)
-
-    def onSelectAreaRelease(self, e):
-        self.adjustPos()
-        self.__mousepos = None
-
-    def onSelectAreaMotion(self, e):
-        #move
-        dx = e.x - self.__mousepos[0]
-        dy = e.y - self.__mousepos[1]
-        self.__mousepos = (e.x, e.y)
-        self.move(dx, dy)
-
     #}}
 
     #{{ canvas items
@@ -375,10 +360,7 @@ class AreaSelector:
         img = ImageTk.PhotoImage(img) #to photo image
         #area item
         item = self.__canvas.create_image(pos, image=img, anchor='nw', tag=('AS', 'panel'))
-        #bind
-        self.__canvas.tag_bind(item, "<Button-1>", self.onSelectAreaClick)
-        self.__canvas.tag_bind(item, "<Button1-ButtonRelease>", self.onSelectAreaRelease)
-        self.__canvas.tag_bind(item, "<Button1-Motion>", self.onSelectAreaMotion)
+        bindCanvasDragEvents(self.__canvas, item, lambda i, dx, dy: self.move(dx, dy), cursor='hand1')
         #side effect to keep ref
         self.__cv_panel_img = img
 
