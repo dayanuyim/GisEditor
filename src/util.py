@@ -39,6 +39,25 @@ def equalsLine(coords, coords2):
     dy2 = coords2[3] - coords2[1]
     return dx == dx2 and dy == dy2
 
+def bindCanvasDragEvents(canvas, item, cursor, cb):
+    def setCursor(c):
+        canvas['cursor'] = c
+    def onClick(e):
+        canvas.__canvas_mpos = (e.x, e.y)
+    def onClickRelease(e):
+        canvas.__canvas_mpos = None
+    def onClickMotion(e):
+        x, y = canvas.__canvas_mpos
+        dx, dy = e.x-x, e.y-y
+        canvas.__canvas_mpos = (e.x, e.y)
+        cb(item, dx, dy)
+
+    canvas.tag_bind(item, "<Enter>", lambda e: setCursor(cursor))
+    canvas.tag_bind(item, "<Leave>", lambda e: setCursor(''))
+    canvas.tag_bind(item, "<Button-1>", onClick)
+    canvas.tag_bind(item, "<Button1-ButtonRelease>", onClickRelease)
+    canvas.tag_bind(item, "<Button1-Motion>", onClickMotion)
+
 class Dialog(tk.Toplevel):
     def __init__(self, master):
         super().__init__(master)
@@ -406,17 +425,18 @@ class AreaSelector:
         self.__resizeBorder('right',  (x+w,y,x+w,y+h))
 
     def __genBorder(self, name, coords):
-        def onBorderResize(name_, dx, dy):
+        def onBorderResize(item, dx, dy):
             #print('...resizing', name_)
             x, y = self.pos
             w, h = self.size
-            if name_ == 'top':
+            tags = self.__canvas.gettags(item)
+            if 'top' in tags:
                 self.resize((w,h-dy), (x,y+dy))
-            elif name_ == 'bottom':
+            elif 'bottom' in tags:
                 self.resize((w,h+dy), (x,y))
-            elif name_ == 'left':
+            elif 'left' in tags:
                 self.resize((w-dx,h), (x+dx,y))
-            elif name_ == 'right':
+            elif 'right' in tags:
                 self.resize((w+dx,h), (x,y))
             else:
                 raise ValueError("Unknown border '%s' to resize" % (name_,))
@@ -425,27 +445,8 @@ class AreaSelector:
         cursor = name + '_side'
 
         border = self.__canvas.create_line(coords, width=2, fill=color, tag=('AS', 'border', name))
-        self.__bindResizeEvents(border, cursor, lambda dx, dy: onBorderResize(name, dx, dy))
+        bindCanvasDragEvents(self.__canvas, border, cursor, onBorderResize)
     
-    def __bindResizeEvents(self, item, cursor, cb):
-        def setCursor(c):
-            self.__canvas['cursor'] = c
-        def onClick(e):
-            self.__border_mpos = (e.x, e.y)
-        def onClickRelease(e):
-            self.__border_mpos = None
-        def onClickMotion(e):
-            x, y = self.__border_mpos
-            dx, dy = e.x-x, e.y-y
-            self.__border_mpos = (e.x, e.y)
-            cb(dx, dy)
-
-        self.__canvas.tag_bind(item, "<Enter>", lambda e: setCursor(cursor))
-        self.__canvas.tag_bind(item, "<Leave>", lambda e: setCursor(''))
-        self.__canvas.tag_bind(item, "<Button-1>", onClick)
-        self.__canvas.tag_bind(item, "<Button1-ButtonRelease>", onClickRelease)
-        self.__canvas.tag_bind(item, "<Button1-Motion>", onClickMotion)
-
     def __resizeBorder(self, name, coords):
         border = self.__canvas.find_withtag(name)
         if border:
