@@ -4,6 +4,7 @@ import platform
 import Xlib.display as display
 import Xlib.X as X
 import tkinter as tk
+from threading import Timer
 from PIL import Image, ImageTk, ImageDraw, ImageColor
 
 #my modules
@@ -85,24 +86,47 @@ def unbindCanvasDragEvents(canvas, item):
     canvas.tag_unbind(item, "<Button1-ButtonRelease>")
     canvas.tag_unbind(item, "<Button1-Motion>")
 
-def bindWidgetKeyMoveEvents(w, cb=None, ctrl_cb=None, shift_cb=None):
+#if 'autorepeat' is enabled, KeyRelease will be triggered even if the key is NOT physically released.
+#using timer to trigger the release event only if we think the key is actually released.
+def bindWidgetKeyMoveEvents(w, cb=None, ctrl_cb=None, shift_cb=None, release_cb=None, release_delay=0.3):
+    def onKeyPress(cb_, e, dx, dy):
+        if release_cb:
+            #cancel the recent release event, if press time is closed to relase time
+            if w.__move_key_release_timer and (e.time - w.__move_key_release_time)/1000 < release_delay:
+                w.__move_key_release_timer.cancel()
+
+        cb_(e, dx, dy)
+
+    def onKeyRelease(e):
+        w.__move_key_release_time = e.time
+        w.__move_key_release_timer = Timer(release_delay, release_cb, (e,))
+        w.__move_key_release_timer.start()
+
     if cb:
-        w.bind('<Up>', lambda e: cb(e, 0, -1))
-        w.bind('<Down>', lambda e: cb(e, 0, 1))
-        w.bind('<Left>', lambda e: cb(e, -1, 0))
-        w.bind('<Right>', lambda e: cb(e, 1, 0))
+        w.bind('<Up>', lambda e: onKeyPress(cb, e, 0, -1))
+        w.bind('<Down>', lambda e: onKeyPress(cb, e, 0, 1))
+        w.bind('<Left>', lambda e: onKeyPress(cb, e, -1, 0))
+        w.bind('<Right>', lambda e: onKeyPress(cb, e, 1, 0))
 
     if ctrl_cb:
-        w.bind('<Control-Up>', lambda e: ctrl_cb(e, 0, -1))
-        w.bind('<Control-Down>', lambda e: ctrl_cb(e, 0, 1))
-        w.bind('<Control-Left>', lambda e: ctrl_cb(e, -1, 0))
-        w.bind('<Control-Right>', lambda e: ctrl_cb(e, 1, 0))
+        w.bind('<Control-Up>', lambda e: onKeyPress(ctrl_cb, e, 0, -1))
+        w.bind('<Control-Down>', lambda e: onKeyPress(ctrl_cb, e, 0, 1))
+        w.bind('<Control-Left>', lambda e: onKeyPress(ctrl_cb, e, -1, 0))
+        w.bind('<Control-Right>', lambda e: onKeyPress(ctrl_cb, e, 1, 0))
 
     if shift_cb:
-        w.bind('<Shift-Up>', lambda e: shift_cb(e, 0, -1))
-        w.bind('<Shift-Down>', lambda e: shift_cb(e, 0, 1))
-        w.bind('<Shift-Left>', lambda e: shift_cb(e, -1, 0))
-        w.bind('<Shift-Right>', lambda e: shift_cb(e, 1, 0))
+        w.bind('<Shift-Up>', lambda e: onKeyPress(shift_cb, e, 0, -1))
+        w.bind('<Shift-Down>', lambda e: onKeyPress(shift_cb, e, 0, 1))
+        w.bind('<Shift-Left>', lambda e: onKeyPress(shift_cb, e, -1, 0))
+        w.bind('<Shift-Right>', lambda e: onKeyPress(shift_cb, e, 1, 0))
+
+    if release_cb:
+        w.__move_key_release_timer = None
+        w.__move_key_release_time = 0
+        w.bind('<KeyRelease-Up>', onKeyRelease)
+        w.bind('<KeyRelease-Down>', onKeyRelease)
+        w.bind('<KeyRelease-Left>', onKeyRelease)
+        w.bind('<KeyRelease-Right>', onKeyRelease)
 
 
 class Dialog(tk.Toplevel):
@@ -322,7 +346,8 @@ class AreaSelector:
             release_cb=lambda e: self.adjustPos())
         bindWidgetKeyMoveEvents(self.__canvas, self.onMove,
             lambda e, dx, dy: self.onResize('ctrl-arrow', e, dx, dy),
-            lambda e, dx, dy: self.onResize('shift-arrow', e, dx, dy))
+            lambda e, dx, dy: self.onResize('shift-arrow', e, dx, dy),
+            lambda e: self.adjustPos())
         #side effect to keep ref
         self.__cv_panel_img = img
 
