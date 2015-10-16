@@ -68,6 +68,26 @@ def unbindCanvasDragEvents(canvas, item):
     canvas.tag_unbind(item, "<Button1-ButtonRelease>")
     canvas.tag_unbind(item, "<Button1-Motion>")
 
+def bindWidgetKeyMoveEvents(w, cb=None, ctrl_cb=None, shift_cb=None):
+    if cb:
+        w.bind('<Up>', lambda e: cb(e, 0, -1))
+        w.bind('<Down>', lambda e: cb(e, 0, 1))
+        w.bind('<Left>', lambda e: cb(e, -1, 0))
+        w.bind('<Right>', lambda e: cb(e, 1, 0))
+
+    if ctrl_cb:
+        w.bind('<Control-Up>', lambda e: ctrl_cb(e, 0, -1))
+        w.bind('<Control-Down>', lambda e: ctrl_cb(e, 0, 1))
+        w.bind('<Control-Left>', lambda e: ctrl_cb(e, -1, 0))
+        w.bind('<Control-Right>', lambda e: ctrl_cb(e, 1, 0))
+
+    if shift_cb:
+        w.bind('<Shift-Up>', lambda e: shift_cb(e, 0, -1))
+        w.bind('<Shift-Down>', lambda e: shift_cb(e, 0, 1))
+        w.bind('<Shift-Left>', lambda e: shift_cb(e, -1, 0))
+        w.bind('<Shift-Right>', lambda e: shift_cb(e, 1, 0))
+
+
 class Dialog(tk.Toplevel):
     def __init__(self, master):
         super().__init__(master)
@@ -255,16 +275,6 @@ class AreaSelector:
         self.__done.set(True)
     #}} interface
 
-    @staticmethod
-    def bindWidgetKeyMoveEvents(w, cb):
-        def onKeyMove(e, dx, dy):
-            cb(e, dx, dy)
-
-        w.bind('<Up>', lambda e: cb(e, 0, -1))
-        w.bind('<Down>', lambda e: cb(e, 0, 1))
-        w.bind('<Left>', lambda e: cb(e, -1, 0))
-        w.bind('<Right>', lambda e: cb(e, 1, 0))
-
 
     #{{ canvas items
     def makeAreaPanel(self, pos, size):
@@ -290,8 +300,10 @@ class AreaSelector:
         img = ImageTk.PhotoImage(img) #to photo image
         #area item
         item = self.__canvas.create_image(pos, image=img, anchor='nw', tag=('AS',name))
-        bindCanvasDragEvents(self.__canvas, item, lambda e, dx, dy: self.move(dx, dy), cursor='hand1')
-        #self.bindWidgetKeyMoveEvents(self.__canvas
+        bindCanvasDragEvents(self.__canvas, item, self.onMove, cursor='hand1')
+        bindWidgetKeyMoveEvents(self.__canvas, self.onMove,
+            lambda e, dx, dy: self.onResize('ctrl-arrow', e, dx, dy),
+            lambda e, dx, dy: self.onResize('shift-arrow', e, dx, dy))
         #side effect to keep ref
         self.__cv_panel_img = img
 
@@ -467,18 +479,25 @@ class AreaSelector:
                 self.__except = ex
                 self.exit()
 
+    def onMove(self, e, dx, dy):
+        self.move(dx, dy)
+
     def onResize(self, name, e, dx, dy):
         if not conf.SELECT_AREA_FIXED:
-            #print('...resizing', name_)
+            SHIFT, CTRL = 1, 4
+
             x, y = self.pos
             w, h = self.size
-            if name == 'top':
+            if e.state & SHIFT:  #reverse direction
+                dx, dy = -dx, -dy
+
+            if name == 'top' or e.keysym == 'Up':
                 self.resize((w,h-dy), (x,y+dy))
-            elif name == 'bottom':
+            elif name == 'bottom' or e.keysym == 'Down':
                 self.resize((w,h+dy), (x,y))
-            elif name == 'left':
+            elif name == 'left' or e.keysym == 'Left':
                 self.resize((w-dx,h), (x+dx,y))
-            elif name == 'right':
+            elif name == 'right' or e.keysym == 'Right':
                 self.resize((w+dx,h), (x,y))
             elif name == 'resizer':
                 self.resize((w+dx,h+dx), (x,y))

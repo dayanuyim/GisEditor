@@ -239,8 +239,9 @@ class DispBoard(tk.Frame):
         else:
             messagebox.showwarning('Level Over Limit', 'The level should between %d ~ %d' % (conf.MIN_SUPP_LEVEL, conf.MAX_SUPP_LEVEL))
 
-    def onClickDown(self, event, flag):
-        self.__mouse_down_pos = (event.x, event.y)
+    def onClickDown(self, e, flag):
+        e.widget.focus_set() #to grap key events
+        self.__mouse_down_pos = (e.x, e.y)
 
         geo = self.__focused_geo
         wpt = self.__focused_wpt
@@ -253,10 +254,10 @@ class DispBoard(tk.Frame):
             if flag == 'left':
                 self.onEditWpt(mode='single', wpt=wpt)
             elif flag == 'right':
-                self.__wpt_menu.post(event.x_root, event.y_root)  #right menu for wpt
+                self.__wpt_menu.post(e.x_root, e.y_root)  #right menu for wpt
         #general right menu
         elif flag == 'right':
-                self.__rclick_menu.post(event.x_root, event.y_root)  #right menu
+                self.__rclick_menu.post(e.x_root, e.y_root)  #right menu
 
     #{{ Right click actions
     def onGpxSave(self):
