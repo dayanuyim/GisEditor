@@ -546,7 +546,7 @@ class AreaSelector:
             elif name == 'right' or e.keysym == 'Right':
                 self.resize((w+dx,h))
             elif name == 'resizer':
-                self.resize((w+dx,h+dx))
+                self.resize((w+dx,h+dy))
             else:
                 raise ValueError("Unknown border '%s' to resize" % (name_,))
 
