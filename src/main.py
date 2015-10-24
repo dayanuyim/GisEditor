@@ -103,11 +103,6 @@ class DispBoard(tk.Frame):
         self.__wpt_menu = tk.Menu(self.disp_canvas, tearoff=0)
         self.__wpt_menu.add_command(label='Delete Wpt', underline=0, command=self.onWptDeleted)
 
-    #release sources to exit
-    def exit(self):
-        if self.__canvas_sel_area is not None:
-            self.__canvas_sel_area.exit()
-
     def initMapInfo(self):
         font = 'Arialuni 12'
         bfont = font + ' bold'
@@ -120,16 +115,16 @@ class DispBoard(tk.Frame):
         info_mapname['text'] = self.map_ctrl.tile_map.getMapName()
 
         #level
-        self.__info_level = self.genInfoWidget(frame, font, 'Level', 2, self.onSetLevel)
+        self.__info_level = self.__genInfoWidget(frame, font, 'Level', 2, self.onSetLevel)
 
         #pos
-        self.__info_67tm2 = self.genInfoWidget(frame, font, 'TM2/67', 16, self.onSetPos)
-        self.__info_97tm2 = self.genInfoWidget(frame, font, 'TM2/97', 16, self.onSetPos)
-        self.__info_97latlon = self.genInfoWidget(frame, font, 'LatLon/97', 20, self.onSetPos)
+        self.__info_67tm2 = self.__genInfoWidget(frame, font, 'TM2/67', 16, self.onSetPos)
+        self.__info_97tm2 = self.__genInfoWidget(frame, font, 'TM2/97', 16, self.onSetPos)
+        self.__info_97latlon = self.__genInfoWidget(frame, font, 'LatLon/97', 20, self.onSetPos)
 
         return frame
 
-    def genInfoWidget(self, frame, font, title, width, cb=None):
+    def __genInfoWidget(self, frame, font, title, width, cb=None):
         bfont = font + ' bold'
 
         label = tk.Label(frame, font=bfont, text=title)
@@ -145,7 +140,23 @@ class DispBoard(tk.Frame):
 
         return entry
 
+    #{{{ operations
+    def inSaveMode(self):
+        return self.__canvas_sel_area is not None
+
+    #release sources to exit
+    def exit(self):
+        if self.inSaveMode():
+            self.__canvas_sel_area.exit()
+
+    #}}} operations
+
+    
+    #{{{ Events
     def onSetLevel(self, e):
+        if self.inSaveMode():
+            return
+
         if e.widget == self.__info_level:
             try:
                 level = int(e.widget.get())
@@ -227,6 +238,9 @@ class DispBoard(tk.Frame):
         return None
         
     def onMouseWheel(self, event, delta):
+        if self.inSaveMode():
+            return
+
         ctrl = self.map_ctrl
         level = ctrl.level + (1 if delta > 0 else -1)
 
@@ -376,7 +390,7 @@ class DispBoard(tk.Frame):
         self.__focused_wpt = None
 
     def onImageSave(self):
-        if self.__canvas_sel_area is not None:
+        if self.inSaveMode():
             return
 
         #pos adjuster to align twd67
@@ -446,8 +460,7 @@ class DispBoard(tk.Frame):
         self.resetMap(force=alter)
 
     def onClickMotion(self, event):
-        #disable when 'image save' mode
-        if self.__canvas_sel_area is not None:
+        if self.inSaveMode():
             return
 
         if self.__mouse_down_pos is not None:
@@ -462,8 +475,7 @@ class DispBoard(tk.Frame):
             self.__mouse_down_pos = (event.x, event.y)
 
     def onMotion(self, event):
-        #disable when 'image save' mode
-        if self.__canvas_sel_area is not None:
+        if self.inSaveMode():
             return
 
         #draw point
