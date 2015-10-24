@@ -24,9 +24,10 @@ def __readConfig(conf_path):
 OS = platform.system()
 SRC_DIR = os.path.dirname(os.path.abspath(__file__))
 HOME_DIR = os.path.abspath(os.path.join(SRC_DIR, ".."))
-GISEDITOR_CONF = os.path.join(HOME_DIR, 'giseditor.conf')
-DEF_SYMS_CONF = os.path.join(HOME_DIR, 'def_syms.conf')
-SYM_RULE_CONF = os.path.join(HOME_DIR, 'sym_rule.conf')
+CONF_DIR = os.path.join(HOME_DIR, 'conf')
+GISEDITOR_CONF = os.path.join(CONF_DIR, 'giseditor.conf')
+DEF_SYMS_CONF = os.path.join(CONF_DIR, 'def_syms.conf')
+SYM_RULE_CONF = os.path.join(CONF_DIR, 'sym_rule.conf')
 ICON_DIR = os.path.join(HOME_DIR, 'icon')
 
 #read conf
