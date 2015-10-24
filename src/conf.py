@@ -22,18 +22,20 @@ def __readConfig(conf_path):
 
 #constance
 OS = platform.system()
-GISEDITOR_CONF = './giseditor.conf'
+SRC_DIR = os.path.dirname(os.path.abspath(__file__))
+HOME_DIR = os.path.abspath(os.path.join(SRC_DIR, ".."))
+GISEDITOR_CONF = os.path.join(HOME_DIR, 'giseditor.conf')
+DEF_SYMS_CONF = os.path.join(HOME_DIR, 'def_syms.conf')
+SYM_RULE_CONF = os.path.join(HOME_DIR, 'sym_rule.conf')
+ICON_DIR = os.path.join(HOME_DIR, 'icon')
 
 #read conf
 __config = __readConfig(GISEDITOR_CONF)
-DEF_SYMS_CONF = __config['def_syms_conf']
-SYM_RULE_CONF = __config['sym_rule_conf']
 CACHE_DIR = __config['cache_dir']
 GPSBABEL_EXE = __config['gpsbabel_exe']
 IMG_FONT_SIZE = int(__config['img_font_size'])
 IMG_FONT = ImageFont.truetype(__config['img_font'], IMG_FONT_SIZE) #global use font (Note: the operation is time wasting)
 TZ = timedelta(hours=float(__config['tz']))
-ICON_DIR = __config['icon_dir']
 ICON_SIZE = int(__config['icon_size'])
 DEF_SYMBOL = _tosymkey(__config['def_symbol'])
 MAX_SUPP_LEVEL = int(__config['max_supp_level'])
@@ -49,15 +51,12 @@ SELECT_AREA_LEVEL = int(__config['select_area_level'])
 #save conf
 def save(path=GISEDITOR_CONF):
     with open(path, 'w') as f:
-        f.write("def_syms_conf=%s\n" % (DEF_SYMS_CONF,))
-        f.write("sym_rule_conf=%s\n" % (SYM_RULE_CONF,))
         f.write("cache_dir=%s\n" % (CACHE_DIR,))
         f.write("gpsbabel_exe=%s\n" % (GPSBABEL_EXE,))
         #f.write("img_font=%s\n" % (IMG_FONT.getname(),))
         f.write("img_font=%s\n" % (__config['img_font'],))  #workaround to get font name
         f.write("img_font_size=%d\n" % (IMG_FONT_SIZE,))
         f.write("tz=%f\n" % (TZ.total_seconds()/3600,))
-        f.write("icon_dir=%s\n" % (ICON_DIR,))
         f.write("icon_size=%d\n" % (ICON_SIZE,))
         f.write("def_symbol=%s\n" % (DEF_SYMBOL,))
         f.write("max_supp_level=%d\n" % (MAX_SUPP_LEVEL,))

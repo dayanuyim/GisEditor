@@ -2148,8 +2148,8 @@ def getGpsDocument(path):
             gpx_string = toGpxString(path)
             gpx.load(filestring=gpx_string)
         return gpx
-    except:
-        print("no support type '%s' for %s" % (ext, path))
+    except Exception as ex:
+        print("Error to open '%s': %s" % (path, ex.args))
         return None
 
 def getPicDocument(path):
