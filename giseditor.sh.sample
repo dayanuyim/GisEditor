@@ -1,4 +1,0 @@
-#!/bin/bash
-
-cd ~/Projects/GisEditor
-python3 src/main.py "$*"
