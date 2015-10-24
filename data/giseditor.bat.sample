@@ -1,5 +1,3 @@
-C:
-cd C:\Users\dayanuyim\Projects\PicGisEditor
 python C:\Users\dayanuyim\Projects\PicGisEditor\src\main.py %*
 
 @IF %ERRORLEVEL% NEQ 0 pause
