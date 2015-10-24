@@ -550,6 +550,9 @@ class DispBoard(tk.Frame):
             elif e.width != disp.image.width() or e.height != disp.image.height():
                 self.setMapInfo()
                 self.resetMap()
+            # raise AS, if any
+            if self.inSaveMode():
+                self.disp_canvas.tag_raise('AS')
 
     def resetMap(self, geo=None, w=None, h=None, force=None):
         if w is None: w = self.disp_canvas.winfo_width()
