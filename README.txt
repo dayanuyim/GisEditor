@@ -36,8 +36,8 @@
         - map chache dir
         - gpsbabel dir
 
-    f. set file association
-        - set loader/giseditor.sh
+    f. symbol link to main.py
+        - ln -s <GisEditor_HOME>/src/main.py ~/bin/giseditor
    
 Reference
 [1] http://stackoverflow.com/questions/8915296/python-image-library-fails-with-message-decoder-jpeg-not-available-pil
