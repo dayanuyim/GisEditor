@@ -276,16 +276,9 @@ class DispBoard(tk.Frame):
 
     #{{ Right click actions
     def onGpxSave(self):
-        global Pref_save_dir
-        fpath = filedialog.asksaveasfilename(
-                defaultextension=".gpx",
-                filetypes=(("GPS Excahnge Format", ".gpx"), ("All Files", "*.*")),
-                initialdir=Pref_save_dir)
+        fpath = asksaveasfilename(".gpx",(("GPS Excahnge Format", ".gpx"), ("All Files", "*.*")))
         if not fpath:
             return False
-
-        #no preferred saving dir after user specified
-        Pref_save_dir = None  
 
         #gen gpx faile
         doc = GpsDocument()
@@ -297,6 +290,7 @@ class DispBoard(tk.Frame):
         self.__alter_time = None
 
         return True
+
 
     def onAddWpt(self):
         geo = self.__focused_geo
@@ -423,16 +417,9 @@ class DispBoard(tk.Frame):
                 return
 
             #get fpath
-            global Pref_save_dir
-            fpath = filedialog.asksaveasfilename(
-                    defaultextension=".png",
-                    filetypes=(("Portable Network Graphics", ".png"), ("All Files", "*.*")),
-                    initialdir=Pref_save_dir)
+            fpath = asksaveasfilename(".png", (("Portable Network Graphics", ".png"), ("All Files", "*.*")))
             if not fpath:
-                return
-
-            #no preferred saving dir after user specified
-            Pref_save_dir = None  
+                return False
 
             #output
             out_level = conf.SELECT_AREA_LEVEL
@@ -2262,6 +2249,25 @@ def getPrefSaveDir():
     return os.path.dirname(files[0])
 
 Pref_save_dir = None
+
+def asksaveasfilename(def_ext, types):
+    global Pref_save_dir
+
+    #no init dir if not exist
+    if Pref_save_dir and not os.path.exists(Pref_save_dir):
+        Pref_save_dir = None
+        
+    try:
+        fpath = filedialog.asksaveasfilename(
+                defaultextension=def_ext,
+                filetypes=types,
+                initialdir=Pref_save_dir)
+        if fpath:
+            Pref_save_dir = None  #no init dir after successful saving
+        return fpath
+    except Exception as ex:
+        Pref_save_dir = None  #no init dir if exception
+        raise ex
 
 if __name__ == '__main__':
     try:
