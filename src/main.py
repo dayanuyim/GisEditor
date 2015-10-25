@@ -2249,15 +2249,17 @@ def getTitleText():
     return txt
 
 def getPrefSaveDir():
-    if len(sys.argv) <= 1:
+    files = sys.argv[1:]
+
+    if not len(files):
         return None
     
     #prefer gpx file
-    for arg in sys.argv[1:]:
-        if arg.endswith('.gpx'):
-            return os.path.dirname(arg)
+    for f in files:
+        if f.endswith('.gpx'):
+            return os.path.dirname(f)
 
-    return os.path.dirname(sys.argv[2])
+    return os.path.dirname(files[0])
 
 Pref_save_dir = None
 
