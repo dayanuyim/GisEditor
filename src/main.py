@@ -447,8 +447,8 @@ class DispBoard(tk.Frame):
             img = self.map_ctrl.getTileImage(dx, dy, geo=sel_geo, level=out_level)
             img.save(fpath, format='png')
 
-        except AreaSizeTooLarge as e:
-            messagebox.showwarning(e.args, 'Please zoom out or resize the window to enlarge the map')
+        except AreaSizeTooLarge as ex:
+            messagebox.showwarning(str(ex), 'Please zoom out or resize the window to enlarge the map')
         finally:
             self.__canvas_sel_area = None
 
@@ -2164,7 +2164,7 @@ def getGpsDocument(path):
             gpx.load(filestring=gpx_string)
         return gpx
     except Exception as ex:
-        print("Error to open '%s': %s" % (path, ex.args))
+        print("Error to open '%s': %s" % (path, str(ex)))
         return None
 
 def getPicDocument(path):
@@ -2288,4 +2288,4 @@ if __name__ == '__main__':
         #disp_board.initDisp()
         root.mainloop()
     except Exception as ex:
-        messagebox.showwarning('Error to exit', ex.args)
+        messagebox.showwarning('Startup failed', str(ex))
