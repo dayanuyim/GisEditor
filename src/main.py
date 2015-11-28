@@ -19,6 +19,7 @@ from threading import Thread, Lock, Condition
 import tile
 import conf
 import util
+import ui
 from tile import  TileSystem, TileMap
 from gpx import GpsDocument, WayPoint
 from pic import PicDocument
@@ -26,7 +27,7 @@ from sym import SymRuleType, SymRule
 from util import GeoPoint, getPrefCornerPos, AreaSelector, AreaSizeTooLarge
 
 
-class DispBoard(tk.Frame):
+class MapBoard(tk.Frame):
     @property
     def is_alter(self): return self.__alter_time is not None
 
@@ -90,7 +91,10 @@ class DispBoard(tk.Frame):
         self.__rclick_menu.add_command(label='Toggle wpt name', underline=0, command=self.onToggleWptNmae)
         self.__rclick_menu.add_command(label='Apply symbol rules', underline=0, command=self.onApplySymbolRule)
         self.__rclick_menu.add_separator()
-        self.__rclick_menu.add_command(label='Edit tracks...', underline=5, command=self.onEditTrk)
+        edit_trk_menu = tk.Menu(self.__rclick_menu, tearoff=0)
+        edit_trk_menu.add_command(label='Edit 1-by-1', underline=5, command=lambda:self.onEditTrk(mode='single'))
+        edit_trk_menu.add_command(label='Edit in list', underline=5, command=lambda:self.onEditTrk(mode='list'))
+        self.__rclick_menu.add_cascade(label='Edit tracks...', menu=edit_trk_menu)
         split_trk_menu = tk.Menu(self.__rclick_menu, tearoff=0)
         split_trk_menu.add_command(label='By day', command=lambda:self.onSplitTrk(self.trkDiffDay))
         split_trk_menu.add_command(label='By time gap', command=lambda:self.onSplitTrk(self.trkTimeGap))
@@ -338,9 +342,12 @@ class DispBoard(tk.Frame):
         if is_alter:
             self.setAlter('wpt')
 
-    def onEditTrk(self, trk=None):
+    def onEditTrk(self, mode, trk=None):
         trk_list = self.map_ctrl.getAllTrks()
-        trk_board = TrkBoard(self, trk_list, trk)
+        if mode == 'single':
+            trk_board = TrkSingleBoard(self, trk_list, trk)
+        else:
+            trk_board = TrkListBoard(self, trk_list, trk)
         #trk_board.addAlteredHandler(self.setAlter)
         #trk_board.show()
 
@@ -377,7 +384,12 @@ class DispBoard(tk.Frame):
 
     def onEditWpt(self, mode, wpt=None):
         wpt_list = self.map_ctrl.getAllWpts()
-        wpt_board = WptBoard.factory(mode, self, wpt_list, wpt)
+        if mode == 'single':
+            wpt_board =  WptSingleBoard(self, wpt_list, wpt)
+        elif mode == 'list':
+            wpt_board =  WptListBoard(self, wpt_list, wpt)
+        else:
+            raise ValueError("WptBoade only supports mode: 'single' and 'list'")
         #print('after wptboard')
         #wpt_board.addAlteredHandler(self.setAlter)
         #wpt_board.show()
@@ -1012,15 +1024,6 @@ class ImageAttr:
             return self
 
 class WptBoard(tk.Toplevel):
-    @staticmethod
-    def factory(mode, master, wpt_list, wpt=None):
-        if mode == 'single':
-            return WptSingleBoard(master, wpt_list, wpt)
-        elif mode == 'list':
-            return WptListBoard(master, wpt_list, wpt)
-        else:
-            raise ValueError("WptBoade only supports mode: 'single' and 'list'")
-
     @property
     def is_changed(self): return self._is_changed
 
@@ -1408,7 +1411,10 @@ class WptListBoard(WptBoard):
 
 
 
-class TrkBoard(tk.Toplevel):
+class TrkListBoard(ui.ListShowBoard):
+    pass
+
+class TrkSingleBoard(tk.Toplevel):
     @property
     def is_changed(self): return self._is_changed
 
@@ -2280,7 +2286,7 @@ if __name__ == '__main__':
         Pref_save_dir = getPrefSaveDir()
 
         pad_ = 2
-        disp_board = DispBoard(root)
+        disp_board = MapBoard(root)
         disp_board.pack(side='right', anchor='se', expand=1, fill='both', padx=pad_, pady=pad_)
         root.protocol('WM_DELETE_WINDOW', lambda: onExit(root, disp_board))
 
