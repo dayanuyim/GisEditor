@@ -19,7 +19,6 @@ from threading import Thread, Lock, Condition
 import tile
 import conf
 import util
-import ui
 from tile import  TileSystem, TileMap
 from gpx import GpsDocument, WayPoint
 from pic import PicDocument
@@ -1410,9 +1409,6 @@ class WptListBoard(WptBoard):
         self._curr_wpt = wpt
 
 
-
-class TrkListBoard(ui.ListShowBoard):
-    pass
 
 class TrkSingleBoard(tk.Toplevel):
     @property
