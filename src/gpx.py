@@ -303,11 +303,13 @@ class GpsDocument:
             trkpt.set("lat", str(pt.lat))
             trkpt.set("lon", str(pt.lon))
 
-            ele = ET.SubElement(trkpt, "ele");
-            ele.text = str(pt.ele)
+            if pt.ele:
+                ele = ET.SubElement(trkpt, "ele");
+                ele.text = str(pt.ele)
 
-            time = ET.SubElement(trkpt, "time");
-            time.text = pt.time.strftime("%Y-%m-%dT%H:%M:%SZ");
+            if pt.time:
+                time = ET.SubElement(trkpt, "time");
+                time.text = pt.time.strftime("%Y-%m-%dT%H:%M:%SZ");
 
     def sortWpt(self, name=None, time=None):
         if name is not None:
