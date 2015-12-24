@@ -1,0 +1,16 @@
+[Desktop Entry]
+Name=Giseditor
+GenericName=GIS Editor
+Comment=Edit GIS files
+Comment[en_CA]=Edit GIS files
+Comment[en_GB]=Edit GIS files
+Comment[zh_CN]=编辑GIS文件
+Comment[zh_TW]=編輯GIS檔案
+TryExec=giseditor
+Exec=giseditor %F
+Terminal=false
+Type=Application
+Icon=giseditor
+Categories=Utility;
+StartupNotify=true
+MimeType=application/xml;application/octet-stream;image/jpeg;
