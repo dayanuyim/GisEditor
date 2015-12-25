@@ -19,7 +19,7 @@ from threading import Thread, Lock, Condition
 import tile
 import conf
 import util
-from tile import  TileSystem, TileMap
+from tile import TileSystem
 from gpx import GpsDocument, WayPoint
 from pic import PicDocument
 from sym import SymRuleType, SymRule
@@ -115,7 +115,7 @@ class MapBoard(tk.Frame):
         #title
         info_mapname = tk.Label(frame, font=bfont, bg='lightgray')
         info_mapname.pack(side='left', expand=0, anchor='nw')
-        info_mapname['text'] = self.map_ctrl.tile_map.getMapName()
+        info_mapname['text'] = self.map_ctrl.tile_map.title
 
         #level
         self.__info_level = self.__genInfoWidget(frame, font, 'Level', 2, self.onSetLevel)
@@ -800,7 +800,7 @@ class MapController:
 
     def __pasteTile(self, img, xy, level, tx, ty):
         try:
-            tile = self.__tile_map.getTileByTileXY(level, tx, ty)
+            tile = self.__tile_map.getTileByTileXY_(level, tx, ty)
         except:
             print("load map error: (level=%d, tx=%d, ty=%d)" % (level, tx, ty))
             tile = getTextImag('load map error', (256,256))
