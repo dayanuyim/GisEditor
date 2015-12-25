@@ -103,8 +103,8 @@ class MapBoard(tk.Frame):
         self.__rclick_menu.add_command(label='Save to image...', underline=0, command=self.onImageSave)
 
         #wpt menu
-        self.__wpt_menu = tk.Menu(self.disp_canvas, tearoff=0)
-        self.__wpt_menu.add_command(label='Delete Wpt', underline=0, command=self.onWptDeleted)
+        self.__wpt_rclick_menu = tk.Menu(self.disp_canvas, tearoff=0)
+        self.__wpt_rclick_menu.add_command(label='Delete Wpt', underline=0, command=self.onWptDeleted)
 
     def initMapInfo(self):
         font = 'Arialuni 12'
@@ -272,10 +272,15 @@ class MapBoard(tk.Frame):
             if flag == 'left':
                 self.onEditWpt(mode='single', wpt=wpt)
             elif flag == 'right':
-                self.__wpt_menu.post(e.x_root, e.y_root)  #right menu for wpt
+                self.__wpt_rclick_menu.post(e.x_root, e.y_root)  #right menu for wpt
         #general right menu
         elif flag == 'right':
-                self.__rclick_menu.post(e.x_root, e.y_root)  #right menu
+            self.__rclick_menu.post(e.x_root, e.y_root)  #right menu
+        #unpost, if any
+        else:
+            self.__rclick_menu.unpost()
+            self.__wpt_rclick_menu.unpost()
+
 
     #{{ Right click actions
     def onGpxSave(self):
