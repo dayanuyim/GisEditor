@@ -113,7 +113,11 @@ class __TileMap:
         self.__img_repo = {}
         self.__is_closed = False
 
-        #download tiles
+        #download helpers
+        self.__workers_cv = Condition()
+        self.__workers_lock = Lock()
+        self.__workers = []
+        self.__MAX_WORKS = 3
         self.__req_lock = Lock()
         self.__req_cv = Condition()
         self.__req_queue = OrderedDict()
@@ -159,17 +163,51 @@ class __TileMap:
         with urllib.request.urlopen(url) as response, open(file_path, 'wb') as out_file:
             shutil.copyfileobj(response, out_file)
 
-    #add tile reuqest
-    def __downloadTileSafe(self, name, url):
+    #The therad to download
+    def __doDownloadJob(self, name, level, x, y, cb):
+        #do download
+        result_ok = False
         try:
+            url = self.url_template % (level, x, y)
             path = os.path.join(self.__cache_dir, name)
+            print('DL', url)
             with urllib.request.urlopen(url) as response, open(path, 'wb') as out_file:
                 shutil.copyfileobj(response, out_file)
                 #Todo: read iamge from buffer, putting it to cache repo
-                #Todo: nofify download OK!!
+            result_ok = True
         except Exception as ex:
             print('Error to download %s: %s' % (url, str(ex)))
 
+        #remove from worker
+        self.__workers_lock.acquire()
+        self.__workers = [w for w in self.__workers if w.name != name]
+        self.__workers_lock.release()
+        with self.__workers_cv:
+            self.__workers_cv.notify()
+
+        #notify when done
+        print('DL %s [FINISH][%s]' % (url, 'SUCCESS' if result_ok else 'FAILED'))
+        if result_ok and cb:
+            cb(level, x, y)
+
+    #wait an available worker and deliver the download job.
+    def __deliverDownload(self, name, level, x, y, cb):
+        def has_worker():
+            return len(self.__workers) < self.__MAX_WORKS
+
+        if not has_worker():
+            with self.__workers_cv:
+                self.__workers_cv.wait_for(has_worker)
+            
+        if not self.__is_closed:
+            job = lambda: self.__doDownloadJob(name, level, x, y, cb)
+            worker = Thread(name=name, target=job)
+            self.__workers_lock.acquire()
+            self.__workers.append(worker)
+            self.__workers_lock.release()
+            worker.start()
+
+    #The thread to handle all download requests
     def __tileDownloader(self):
         def has_events():
             return self.__is_closed or len(self.__req_queue)
@@ -188,26 +226,21 @@ class __TileMap:
             if len(self.__req_queue) == 0:
                 self.__req_lock.release()
             else:
-                name, url = self.__req_queue.popitem(last=False) #FIFO
+                name, (level, x, y, cb) = self.__req_queue.popitem() #LIFO
                 self.__req_lock.release()
-                #download
-                self.__downloadTileSafe(name, url)
-                #cb = lambda: self.__downloadTileSafe(name, url)
-                #Thread(target=cb).start()
+                self.__deliverDownload(name, level, x, y, cb)  #wait a worker to download
             
-    def __requestTile(self, level, x, y, name):
-        url = self.url_template % (level, x, y)
-
+    def __requestTile(self, name, level, x, y, cb):
         self.__req_lock.acquire()
         if name in self.__req_queue:
             self.__req_lock.release()
         else:
-            self.__req_queue[name] = url   #add request
+            self.__req_queue[name] = (level, x, y, cb)   #add request
             self.__req_lock.release()
             with self.__req_cv:
                 self.__req_cv.notify()    #notify
 
-    def __getTile(self, level, x, y):
+    def __getTile(self, level, x, y, auto_req=True, cb=None):
         #check level
         if level > self.level_max or level < self.level_min:
             raise ValueError("level is out of range")
@@ -226,7 +259,8 @@ class __TileMap:
             return img
 
         #async request
-        self.__requestTile(level, x, y, name)
+        if auto_req:
+            self.__requestTile(name, level, x, y, cb)
         return None
 
     def __genFakeTile(self, level, x, y):
@@ -235,7 +269,7 @@ class __TileMap:
 
         #gen fake by zome out of level-1
         if level > self.level_min:
-            img = self.__getTile(level-1, int(x/2), int(y/2))
+            img = self.__getTile(level-1, int(x/2), int(y/2), False)
             if img:
                 half_side = int(side/2)
                 px = 0 if x%2 == 0 else half_side
@@ -247,10 +281,10 @@ class __TileMap:
         #gen fake by zome in of level+1
         if level < self.level_max:
             img = Image.new("RGBA", (2*side, 2*side), bg)
-            tl = self.__getTile(level+1, 2*x,   2*y)
-            tr = self.__getTile(level+1, 2*x+1, 2*y)
-            bl = self.__getTile(level+1, 2*x,   2*y+1)
-            br = self.__getTile(level+1, 2*x+1, 2*y+1)
+            tl = self.__getTile(level+1, 2*x,   2*y, False)
+            tr = self.__getTile(level+1, 2*x+1, 2*y, False)
+            bl = self.__getTile(level+1, 2*x,   2*y+1, False)
+            br = self.__getTile(level+1, 2*x+1, 2*y+1, False)
 
             if tl: img.paste(tl, (0, 0))
             if tr: img.paste(tr, (side, 0))
@@ -262,8 +296,8 @@ class __TileMap:
         img = Image.new("RGBA", (side, side), bg)
         return img
 
-    def getTileByTileXY_(self, level, x, y, allow_fake=True):
-        img = self.__getTile(level, x, y)
+    def getTileByTileXY_(self, level, x, y, cb=None, allow_fake=True):
+        img = self.__getTile(level, x, y, True, cb)
         if img:
             img.is_fake = False
             return img
@@ -320,19 +354,18 @@ if __name__ == '__main__':
     x, y = TileSystem.getTileXYByLatLon(24.988625, 121.313181, 14)
     print(x, y) #13713, 7016
 
+    def get_tile_cb(level, x, y):
+        print(x,y, 'in level', level, 'is download ok');
+
     tm = getTM25Kv3TileMap('test/tile/noop')
-    print('to get img')
-    tile = tm.getTileByTileXY_(14, x, y)
-    print('got tile')
+    tile = tm.getTileByTileXY_(14, x, y, get_tile_cb)
     showim(tile, 'noop')
     while tile.is_fake:
         time.sleep(3)
-        print('get tile again')
         tile = tm.getTileByTileXY_(14, x, y)
-        print('got tile got')
         showim(tile, 'noop')
     print('here')
-    #tm.close()
+    tm.close()
 
     #tm = getTM25Kv3TileMap('test/tile/normal')
     #showim(tm.getTileByTileXY_(14, x, y), 'normal')

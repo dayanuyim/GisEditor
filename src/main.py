@@ -566,7 +566,7 @@ class MapBoard(tk.Frame):
             self.map_ctrl.geo = geo
             self.map_ctrl.shiftGeoPixel(-w/2, -h/2)
 
-        self.__img = self.map_ctrl.getTileImage(w, h, force)  #buffer the image
+        self.__img = self.map_ctrl.getTileImage(w, h, force, cb=self.resetMap)  #buffer the image
         self.__setMap(self.__img)
 
     def restore(self):
@@ -616,12 +616,15 @@ class MapController:
         self.__level = 14
 
         #image
+        self.__cache_gpsmap = None
         self.__cache_basemap = None
         self.__cache_attr = None
         self.extra_p = 128
         self.pt_size = 3
         self.__font = conf.IMG_FONT
         self.hide_txt = False
+
+        self.__dirty_map_info = None
 
         #layer
         self.__pseudo_gpx = GpsDocument()  #to hold waypoints which not read from gpx
@@ -706,22 +709,28 @@ class MapController:
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw coord")
         self.__drawTM2Coord(img, req_attr)
 
+        #rec attr/cb or update later
+        self.__dirty_map_info = (req_attr, cb) if img.is_fake and cb else None
+
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: done")
         return img
 
     #def __isCacheValid(self, cache_img):
         #return self.__parent.alter_time is None or cache_img.time > self.__parent.alter_time
 
-    def __isCacheContains(self, img_attr):
-        return self.__cache_attr is not None and self.__cache_attr.containsImgae(img_attr)
+    def __isCacheValid(self, cache_img, req_attr):
+        cache_attr = self.__cache_attr
+        return cache_img and not cache_img.is_fake and \
+               cache_attr and cache_attr.containsImgae(req_attr)
 
     def __genGpsMap(self, req_attr, force=None):
-        if force not in ('all', 'gps', 'trk', 'wpt') and self.__isCacheContains(req_attr):
+        if force not in ('all', 'gps', 'trk', 'wpt') and self.__isCacheValid(self.__cache_gpsmap, req_attr):
             #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  get gps map from cache")
             return (self.__cache_gpsmap, self.__cache_attr)
 
         img, attr = self.__genBaseMap(req_attr)
         self.__cache_gpsmap = img.copy()   #copy as cache
+        self.__cache_gpsmap.is_fake = img.is_fake
 
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw trk")
         self.__drawTrk(self.__cache_gpsmap, attr)
@@ -731,7 +740,7 @@ class MapController:
         return self.__cache_gpsmap, attr
 
     def __genBaseMap(self, req_attr):
-        if self.__isCacheContains(req_attr):
+        if self.__isCacheValid(self.__cache_basemap, req_attr):
             return (self.__cache_basemap, self.__cache_attr)
 
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  gen base map")
@@ -763,19 +772,39 @@ class MapController:
             h = (attr.low_py - attr.up_py) >> (-s)
 
         #Image.NEAREST, Image.BILINEAR, Image.BICUBIC, or Image.LANCZOS 
-        img = img.resize((w,h), Image.BILINEAR)
+        zoom_img = img.resize((w,h), Image.BILINEAR)
+        zoom_img.is_fake = img.is_fake
 
         #the attr of resized image
-        attr = attr.zoomToLevel(level)
+        zoom_attr = attr.zoomToLevel(level)
 
-        return (img, attr)
+        return (zoom_img, zoom_attr)
+
+    #return tile no. of left, right, upper, lower
+    def __tileRangeOfAttr(self, img_attr, extra_p=0):
+        (t_left, t_upper) = TileSystem.getTileXYByPixcelXY(img_attr.left_px - extra_p, img_attr.up_py - extra_p)
+        (t_right, t_lower) = TileSystem.getTileXYByPixcelXY(img_attr.right_px + extra_p, img_attr.low_py + extra_p)
+        return (t_left, t_right, t_upper, t_lower)
+
+    def __updateDirtyMap(self, level, x, y):
+        print('Update dirty map')
+
+        def tileInAttr(level, x, y, attr):
+            if level == attr.level:
+                t_left, t_right, t_upper, t_lower = box = self.__tileRangeOfAttr(attr, self.extra_p)
+                return (t_left <= x and x <= t_right) and (t_upper <= y and y <= t_lower)
+            return False
+
+        if self.__dirty_map_info:
+            attr, cb = self.__dirty_map_info
+            if tileInAttr(level, x, y, attr):
+                print('Update dirty map...OK')
+                cb()
 
     #todo: make the function threading
     def __genTileMap(self, img_attr, extra_p):
         #get tile x, y.
-        (t_left, t_upper) = TileSystem.getTileXYByPixcelXY(img_attr.left_px - extra_p, img_attr.up_py - extra_p)
-        (t_right, t_lower) = TileSystem.getTileXYByPixcelXY(img_attr.right_px + extra_p, img_attr.low_py + extra_p)
-
+        t_left, t_right, t_upper, t_lower = self.__tileRangeOfAttr(img_attr, extra_p)
         tx_num = t_right - t_left +1
         ty_num = t_lower - t_upper +1
 
@@ -786,7 +815,7 @@ class MapController:
         self.__paste_count = tx_num*ty_num
         for x in range(tx_num):
             for y in range(ty_num):
-                tile = self.__tile_map.getTileByTileXY_(img_attr.level, t_left +x, t_upper +y)
+                tile = self.__tile_map.getTileByTileXY_(img_attr.level, t_left +x, t_upper +y, self.__updateDirtyMap)
                 if tile.is_fake:
                     disp_img.is_fake = True
                 disp_img.paste(tile, (x*256, y*256))
@@ -924,7 +953,9 @@ class MapController:
         up    = dst_attr.up_py - src_attr.up_py
         right = dst_attr.right_px - src_attr.left_px
         low   = dst_attr.low_py - src_attr.up_py
-        return img.crop((left, up, right, low))
+        img2 = img.crop((left, up, right, low))
+        img2.is_fake = img.is_fake
+        return img2
 
     def __drawTM2Coord(self, img, attr):
 
