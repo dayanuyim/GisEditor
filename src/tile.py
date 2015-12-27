@@ -107,9 +107,6 @@ class __TileMap:
 
         #gen cache dir
         self.__cache_dir = cache_dir if cache_dir else './cache' 
-        if not os.path.exists(self.__cache_dir):
-            os.makedirs(self.__cache_dir)
-
         self.__img_repo = {}
         self.__is_closed = False
 
@@ -124,6 +121,12 @@ class __TileMap:
         self.__downloader = Thread(target=self.__tileDownloader)
 
     def start(self):
+        #create cache dirs
+        for level in range(self.level_min, self.level_max+1):
+            level_dir = os.path.join(self.__cache_dir, self.map_id, str(level))
+            if not os.path.exists(level_dir):
+                os.makedirs(level_dir)
+        #start download thread
         self.__downloader.start()
 
     def close(self):
@@ -134,21 +137,28 @@ class __TileMap:
     def isSupportedLevel(self, level):
         return self.level_min <= level and level <= self.level_max
 
-    def genTileName(self, level, x, y):
-        return "%s-%d-%d-%d.jpg" % (self.map_id, level, x, y)
+    def genTileId(self, level, x, y):
+        return "%s-%d-%d-%d" % (self.map_id, level, x, y)
+
+    def genTilePath(self, level, x, y):
+        name = "%d-%d.jpg" % (x, y)
+        return os.path.join(self.__cache_dir, self.map_id, str(level), name)
+
+    def genTileUrl(self, level, x, y):
+        return self.url_template % (level, x, y)
 
     #get tile in sync
     def getTileByTileXY(self, level, x, y):
-        name = self.genTileName(level, x, y)
+        id = self.genTileId(level, x, y)
 
-        img = self.__img_repo.get(name)
+        img = self.__img_repo.get(id)
         if img is None:
             img = self.__readTile(level, x, y)
-            self.__img_repo[name] = img
+            self.__img_repo[id] = img
         return img
 
     def __readTile(self, level, x, y):
-        path = "%s/%s" % (self.__cache_dir, self.genTileName(level, x, y))
+        path = self.genTilePath(level, x, y)
         #print("File", path)
 
         if not os.path.exists(path):
@@ -156,7 +166,7 @@ class __TileMap:
         return Image.open(path)
 
     def __downloadTile(self, level, x, y, file_path):
-        url = self.url_template % (level, x, y)
+        url = self.genTileUrl(level, x, y)
         print("DL", url)
 
         #urllib.request.urlretrieve(url, file_path)
@@ -164,12 +174,12 @@ class __TileMap:
             shutil.copyfileobj(response, out_file)
 
     #The therad to download
-    def __doDownloadJob(self, name, level, x, y, cb):
+    def __doDownloadJob(self, id, level, x, y, cb):
         #do download
         result_ok = False
         try:
-            url = self.url_template % (level, x, y)
-            path = os.path.join(self.__cache_dir, name)
+            url = self.genTileUrl(level, x, y)
+            path = self.genTilePath(level, x, y)
             print('DL', url)
             with urllib.request.urlopen(url) as response, open(path, 'wb') as out_file:
                 shutil.copyfileobj(response, out_file)
@@ -178,20 +188,37 @@ class __TileMap:
         except Exception as ex:
             print('Error to download %s: %s' % (url, str(ex)))
 
+        #premature exit
+        if self.__is_closed:
+            return
+
         #remove from worker
         self.__workers_lock.acquire()
-        self.__workers = [w for w in self.__workers if w.name != name]
+        self.__workers = [w for w in self.__workers if w.name != id]
         self.__workers_lock.release()
         with self.__workers_cv:
             self.__workers_cv.notify()
 
-        #notify when done
         print('DL %s [FINISH][%s]' % (url, 'SUCCESS' if result_ok else 'FAILED'))
+
+        #notify when done
         if result_ok and cb:
-            cb(level, x, y)
+            try:
+                cb(level, x, y)
+            except Exception as ex:
+                print('Inovke cb of download tile error:', str(ex))
+
+        #save file
+        if result_ok:
+            try:
+                pass
+                #make dir
+                #copy file
+            except Exception as ex:
+                print('Error to save tile file', str(ex))
 
     #wait an available worker and deliver the download job.
-    def __deliverDownload(self, name, level, x, y, cb):
+    def __deliverDownload(self, id, level, x, y, cb):
         def has_worker():
             return len(self.__workers) < self.__MAX_WORKS
 
@@ -200,8 +227,8 @@ class __TileMap:
                 self.__workers_cv.wait_for(has_worker)
             
         if not self.__is_closed:
-            job = lambda: self.__doDownloadJob(name, level, x, y, cb)
-            worker = Thread(name=name, target=job)
+            job = lambda: self.__doDownloadJob(id, level, x, y, cb)
+            worker = Thread(name=id, target=job)
             self.__workers_lock.acquire()
             self.__workers.append(worker)
             self.__workers_lock.release()
@@ -226,16 +253,16 @@ class __TileMap:
             if len(self.__req_queue) == 0:
                 self.__req_lock.release()
             else:
-                name, (level, x, y, cb) = self.__req_queue.popitem() #LIFO
+                id, (level, x, y, cb) = self.__req_queue.popitem() #LIFO
                 self.__req_lock.release()
-                self.__deliverDownload(name, level, x, y, cb)  #wait a worker to download
+                self.__deliverDownload(id, level, x, y, cb)  #wait a worker to download
             
-    def __requestTile(self, name, level, x, y, cb):
+    def __requestTile(self, id, level, x, y, cb):
         self.__req_lock.acquire()
-        if name in self.__req_queue:
+        if id in self.__req_queue:
             self.__req_lock.release()
         else:
-            self.__req_queue[name] = (level, x, y, cb)   #add request
+            self.__req_queue[id] = (level, x, y, cb)   #add request
             self.__req_lock.release()
             with self.__req_cv:
                 self.__req_cv.notify()    #notify
@@ -246,21 +273,21 @@ class __TileMap:
             raise ValueError("level is out of range")
 
         #from cache
-        name = self.genTileName(level, x, y)
-        img = self.__img_repo.get(name)
+        id = self.genTileId(level, x, y)
+        img = self.__img_repo.get(id)
         if img:
             return img;
 
         #from disk
-        path = os.path.join(self.__cache_dir, name)
+        path = self.genTilePath(level, x, y)
         if os.path.exists(path):
             img = Image.open(path)
-            self.__img_repo[name] = img
+            self.__img_repo[id] = img
             return img
 
         #async request
         if auto_req:
-            self.__requestTile(name, level, x, y, cb)
+            self.__requestTile(id, level, x, y, cb)
         return None
 
     def __genFakeTile(self, level, x, y):
