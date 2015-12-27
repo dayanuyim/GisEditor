@@ -151,6 +151,7 @@ class MapBoard(tk.Frame):
     def exit(self):
         if self.inSaveMode():
             self.__canvas_sel_area.exit()
+        self.map_ctrl.close()
 
     #}}} operations
 
@@ -615,9 +616,6 @@ class MapController:
         self.__level = 14
 
         #image
-        self.__paste_lock = Lock()
-        self.__paste_cv = Condition()
-        self.__paste_count = 0
         self.__cache_basemap = None
         self.__cache_attr = None
         self.extra_p = 128
@@ -630,6 +628,8 @@ class MapController:
         self.gpx_layers = []
         self.gpx_layers.append(self.__pseudo_gpx)
 
+    def close(self):
+        self.__tile_map.close()
 
     def shiftGeoPixel(self, px, py):
         self.geo = self.geo.incPixel(int(px), int(py), self.__level)
@@ -691,7 +691,7 @@ class MapController:
         print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: done")
         return img
 
-    def getTileImage(self, width, height, force=None, geo=None, level=None):
+    def getTileImage(self, width, height, force=None, geo=None, level=None, cb=None):
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: begin")
         if geo is None: geo = self.geo
         if level is None: level = self.level
@@ -782,44 +782,20 @@ class MapController:
         #gen image
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "paste tile...")
         disp_img = Image.new("RGBA", (tx_num*256, ty_num*256))
+        disp_img.is_fake = False
         self.__paste_count = tx_num*ty_num
         for x in range(tx_num):
             for y in range(ty_num):
-                #tile = self.__tile_map.getTileByTileXY(img_attr.level, t_left +x, t_upper +y)
-                #disp_img.paste(tile, (x*256, y*256))
-                cb = lambda: self.__pasteTile(disp_img, (x*256, y*256), img_attr.level, t_left+x, t_upper+y)
-                th = Thread(target=cb)
-                th.start()
-        self.__waitPasteTile()
+                tile = self.__tile_map.getTileByTileXY_(img_attr.level, t_left +x, t_upper +y)
+                if tile.is_fake:
+                    disp_img.is_fake = True
+                disp_img.paste(tile, (x*256, y*256))
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "paste tile...done")
 
         #reset img_attr
         disp_attr = ImageAttr(img_attr.level, t_left*256, t_upper*256, (t_right+1)*256 -1, (t_lower+1)*256 -1)
 
         return  (disp_img, disp_attr)
-
-    def __pasteTile(self, img, xy, level, tx, ty):
-        try:
-            tile = self.__tile_map.getTileByTileXY_(level, tx, ty)
-        except:
-            print("load map error: (level=%d, tx=%d, ty=%d)" % (level, tx, ty))
-            tile = getTextImag('load map error', (256,256))
-
-        self.__paste_lock.acquire()
-        img.paste(tile, xy)
-        self.__paste_count -= 1
-        self.__paste_lock.release()
-
-        if self.__isPasteTitleDone():
-            with self.__paste_cv:
-                self.__paste_cv.notify()
-
-    def __isPasteTitleDone(self):
-        return self.__paste_count == 0
-
-    def __waitPasteTile(self):
-        with self.__paste_cv:
-            self.__paste_cv.wait_for(self.__isPasteTitleDone)
 
     def __drawTrk(self, img, img_attr):
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw gpx...")

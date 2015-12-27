@@ -11,7 +11,9 @@ import shutil
 from os import listdir
 from os.path import isdir, isfile, exists
 from PIL import Image, ImageTk, ImageDraw, ImageTk
+from threading import Thread, Lock, Condition
 from math import tan, sin, cos, radians, degrees
+from collections import OrderedDict
 
 class TileSystem:
     EARTH_RADIUS = 6378137
@@ -109,6 +111,21 @@ class __TileMap:
             os.makedirs(self.__cache_dir)
 
         self.__img_repo = {}
+        self.__is_closed = False
+
+        #download tiles
+        self.__req_lock = Lock()
+        self.__req_cv = Condition()
+        self.__req_queue = OrderedDict()
+        self.__downloader = Thread(target=self.__tileDownloader)
+
+    def start(self):
+        self.__downloader.start()
+
+    def close(self):
+        self.__is_closed = True
+        with self.__req_cv:
+            self.__req_cv.notify() #wakeup the thread 'TileDownloader'
 
     def isSupportedLevel(self, level):
         return self.level_min <= level and level <= self.level_max
@@ -116,11 +133,7 @@ class __TileMap:
     def genTileName(self, level, x, y):
         return "%s-%d-%d-%d.jpg" % (self.map_id, level, x, y)
 
-    #return Image object
-    #def getTileByLonLat(self, level, longitude, latitude):
-        #(x, y) = TileSystem.getTileXYByLatLon(latitude, longitude, level)
-        #return self.getTileByTileXY(level, x, y)
-
+    #get tile in sync
     def getTileByTileXY(self, level, x, y):
         name = self.genTileName(level, x, y)
 
@@ -146,8 +159,53 @@ class __TileMap:
         with urllib.request.urlopen(url) as response, open(file_path, 'wb') as out_file:
             shutil.copyfileobj(response, out_file)
 
-    def __tryDownloadTile(self, level, x, y, file_path):
-        pass
+    #add tile reuqest
+    def __downloadTileSafe(self, name, url):
+        try:
+            path = os.path.join(self.__cache_dir, name)
+            with urllib.request.urlopen(url) as response, open(path, 'wb') as out_file:
+                shutil.copyfileobj(response, out_file)
+                #Todo: read iamge from buffer, putting it to cache repo
+                #Todo: nofify download OK!!
+        except Exception as ex:
+            print('Error to download %s: %s' % (url, str(ex)))
+
+    def __tileDownloader(self):
+        def has_events():
+            return self.__is_closed or len(self.__req_queue)
+
+        while not self.__is_closed:
+            #wait for events
+            with self.__req_cv:
+                self.__req_cv.wait_for(has_events)
+
+            #closed
+            if self.__is_closed:
+                break
+
+            #check queue
+            self.__req_lock.acquire()
+            if len(self.__req_queue) == 0:
+                self.__req_lock.release()
+            else:
+                name, url = self.__req_queue.popitem(last=False) #FIFO
+                self.__req_lock.release()
+                #download
+                self.__downloadTileSafe(name, url)
+                #cb = lambda: self.__downloadTileSafe(name, url)
+                #Thread(target=cb).start()
+            
+    def __requestTile(self, level, x, y, name):
+        url = self.url_template % (level, x, y)
+
+        self.__req_lock.acquire()
+        if name in self.__req_queue:
+            self.__req_lock.release()
+        else:
+            self.__req_queue[name] = url   #add request
+            self.__req_lock.release()
+            with self.__req_cv:
+                self.__req_cv.notify()    #notify
 
     def __getTile(self, level, x, y):
         #check level
@@ -168,7 +226,7 @@ class __TileMap:
             return img
 
         #async request
-        self.__tryDownloadTile(level, x, y, path)
+        self.__requestTile(level, x, y, name)
         return None
 
     def __genFakeTile(self, level, x, y):
@@ -206,14 +264,16 @@ class __TileMap:
 
     def getTileByTileXY_(self, level, x, y, allow_fake=True):
         img = self.__getTile(level, x, y)
-        if img or not allow_fake:
+        if img:
+            img.is_fake = False
             return img
 
-        #if allow_fake:
-        img = self.__genFakeTile(level, x, y)
-        img.is_fake = True
-        return img
+        if allow_fake:
+            img = self.__genFakeTile(level, x, y)
+            img.is_fake = True
+            return img
 
+        return None
 
 def getTM25Kv3TileMap(cache_dir):
     tm = __TileMap(cache_dir=cache_dir)
@@ -225,6 +285,7 @@ def getTM25Kv3TileMap(cache_dir):
     tm.level_min = 7
     tm.level_max = 16
     tm.tile_side = 256
+    tm.start()
     return tm
 
 def getTM25Kv4TileMap(cache_dir):
@@ -237,9 +298,12 @@ def getTM25Kv4TileMap(cache_dir):
     tm.level_min = 5
     tm.level_max = 17
     tm.tile_side = 256
+    tm.start()
     return tm
 
 if __name__ == '__main__':
+    import time
+
     root = tk.Tk()
     def showim(img, title):
         top = tk.Toplevel(root)
@@ -251,26 +315,38 @@ if __name__ == '__main__':
             label.pack(expand=1, fill='both')
         else:
             print('oops, img is none')
+        top.update()
 
     x, y = TileSystem.getTileXYByLatLon(24.988625, 121.313181, 14)
     print(x, y) #13713, 7016
 
     tm = getTM25Kv3TileMap('test/tile/noop')
-    showim(tm.getTileByTileXY_(14, x, y), 'noop')
+    print('to get img')
+    tile = tm.getTileByTileXY_(14, x, y)
+    print('got tile')
+    showim(tile, 'noop')
+    while tile.is_fake:
+        time.sleep(3)
+        print('get tile again')
+        tile = tm.getTileByTileXY_(14, x, y)
+        print('got tile got')
+        showim(tile, 'noop')
+    print('here')
+    #tm.close()
 
-    tm = getTM25Kv3TileMap('test/tile/normal')
-    showim(tm.getTileByTileXY_(14, x, y), 'normal')
+    #tm = getTM25Kv3TileMap('test/tile/normal')
+    #showim(tm.getTileByTileXY_(14, x, y), 'normal')
 
-    tm = getTM25Kv3TileMap('test/tile/magnify')
-    showim(tm.getTileByTileXY_(14, x, y), 'magnify')
+    #tm = getTM25Kv3TileMap('test/tile/magnify')
+    #showim(tm.getTileByTileXY_(14, x, y), 'magnify')
 
-    tm = getTM25Kv3TileMap('test/tile/minify')
-    showim(tm.getTileByTileXY_(14, x, y), 'minify')
+    #tm = getTM25Kv3TileMap('test/tile/minify')
+    #showim(tm.getTileByTileXY_(14, x, y), 'minify')
 
-    tm = getTM25Kv3TileMap('test/tile/minify_part')
-    showim(tm.getTileByTileXY_(14, x, y), 'magnify')
+    #tm = getTM25Kv3TileMap('test/tile/minify_part')
+    #showim(tm.getTileByTileXY_(14, x, y), 'magnify')
 
-    tm = getTM25Kv3TileMap('test/tile/minify_magnify')
-    showim(tm.getTileByTileXY_(14, x, y), 'minify_magnify')
+    #tm = getTM25Kv3TileMap('test/tile/minify_magnify')
+    #showim(tm.getTileByTileXY_(14, x, y), 'minify_magnify')
 
     root.mainloop()
