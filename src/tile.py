@@ -292,36 +292,57 @@ class __TileMap:
             self.__requestTile(id, level, x, y, cb)
         return None
 
-    def __genFakeTile(self, level, x, y):
+    def __genMagnifyFakeTile(self, level, x, y, diff=1):
         side = self.tile_side
-        bg = 'lightgray'
-
-        #gen fake by zome out of level-1
-        if level > self.level_min:
-            img = self.__getTile(level-1, int(x/2), int(y/2), False)
+        for i in range(1, diff+1):
+            scale = 2**i
+            img = self.__getTile(level-i, int(x/scale), int(y/scale), False)
             if img:
-                half_side = int(side/2)
-                px = 0 if x%2 == 0 else half_side
-                py = 0 if y%2 == 0 else half_side
-                img = img.crop((px, py, px+half_side, py+half_side))
+                step = int(side/scale)
+                px = step * (x%scale)
+                py = step * (y%scale)
+                img = img.crop((px, py, px+step, py+step))
                 img = img.resize((side,side))  #magnify
                 return img
+        return None
 
-        #gen fake by zome in of level+1
-        if level < self.level_max:
-            img = Image.new("RGBA", (2*side, 2*side), bg)
-            tl = self.__getTile(level+1, 2*x,   2*y, False)
-            tr = self.__getTile(level+1, 2*x+1, 2*y, False)
-            bl = self.__getTile(level+1, 2*x,   2*y+1, False)
-            br = self.__getTile(level+1, 2*x+1, 2*y+1, False)
+    def __genMinifyFakeTile(self, level, x, y, diff=1):
+        bg = 'lightgray'
+        side = self.tile_side
 
-            if tl: img.paste(tl, (0, 0))
-            if tr: img.paste(tr, (side, 0))
-            if bl: img.paste(bl, (0, side))
-            if br: img.paste(br, (side, side))
-            img = img.resize((side,side)) #minify
+        for i in range(1, diff+1):
+            scale = 2**i
+            img = Image.new("RGBA", (side*scale, side*scale), bg)
+            has_tile = False
+            #paste tiles
+            for p in range(scale):
+                for q in range(scale):
+                    t = self.__getTile(level+i, x*scale+p, y*scale+q, False)
+                    if t:
+                        img.paste(t, (p*side, q*side))
+                        has_tile = True
+            #minify
+            if has_tile:
+                img = img.resize((side,side))
+                return img
+        return None
+
+    def __genFakeTile(self, level, x, y):
+        #gen from lower level
+        level_diff = min(level - self.level_min, 3)
+        img = self.__genMagnifyFakeTile(level, x, y, level_diff)
+        if img:
             return img
 
+        #gen from upper level
+        level_diff = min(self.level_max - level, 1)
+        img = self.__genMinifyFakeTile(level, x, y, level_diff)
+        if img:
+            return img
+
+        #gen empty
+        side = self.tile_side
+        bg = 'lightgray'
         img = Image.new("RGBA", (side, side), bg)
         return img
 
@@ -386,9 +407,8 @@ if __name__ == '__main__':
         top.update()
 
     def downloadImage(tm, title):
-        cb = lambda level, x, y: downloadImage(tm, title)
         while True:
-            tile = tm.getTileByTileXY_(level, x, y, cb)
+            tile = tm.getTileByTileXY_(level, x, y)
             showim(tile, title)
             if tile.is_fake:
                 time.sleep(3)
@@ -400,19 +420,15 @@ if __name__ == '__main__':
         downloadImage(tm, cache_dir.split('/')[-1])
         tm.close()
 
-    test('test/tile/noop')
+    #test('test/tile/noop')
+    #test('test/tile/normal')
 
-    #tm = getTM25Kv3TileMap('test/tile/normal')
-    #showim(tm.getTileByTileXY_(14, x, y), 'normal')
+    #test('test/tile/magnify_13')
+    #test('test/tile/magnify_12')
+    #test('test/tile/magnify_11')
 
-    #tm = getTM25Kv3TileMap('test/tile/magnify')
-    #showim(tm.getTileByTileXY_(14, x, y), 'magnify')
-
-    #tm = getTM25Kv3TileMap('test/tile/minify')
-    #showim(tm.getTileByTileXY_(14, x, y), 'minify')
-
-    #tm = getTM25Kv3TileMap('test/tile/minify_part')
-    #showim(tm.getTileByTileXY_(14, x, y), 'magnify')
+    #test('test/tile/minify')
+    test('test/tile/minify_part')
 
     #tm = getTM25Kv3TileMap('test/tile/minify_magnify')
     #showim(tm.getTileByTileXY_(14, x, y), 'minify_magnify')
