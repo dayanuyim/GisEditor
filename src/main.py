@@ -565,7 +565,12 @@ class MapBoard(tk.Frame):
             self.map_ctrl.geo = geo
             self.map_ctrl.shiftGeoPixel(-w/2, -h/2)
 
-        self.__img = self.map_ctrl.getTileImage(w, h, force, cb=self.resetMap)  #buffer the image
+        def refreshMap(timestamp):
+            if (datetime.now()-timestamp).seconds >= 3: #prevent from frequent updating
+                print('UPDATE is available...update now.')
+                self.resetMap()
+
+        self.__img = self.map_ctrl.getTileImage(w, h, force, cb=refreshMap)  #buffer the image
         self.__setMap(self.__img)
 
     def restore(self):
@@ -715,7 +720,7 @@ class MapController:
         self.__drawTM2Coord(img, req_attr)
 
         #rec attr/cb or update later
-        self.__dirty_map_info = (req_attr, cb) if img.is_fake and cb else None
+        self.__dirty_map_info = (req_attr, cb, datetime.now()) if img.is_fake and cb else None
 
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: done")
         return img
@@ -792,19 +797,18 @@ class MapController:
         return (t_left, t_right, t_upper, t_lower)
 
     def __updateDirtyMap(self, level, x, y):
-        print('Update dirty map')
-
         def tileInAttr(level, x, y, attr):
             if level == attr.level:
                 t_left, t_right, t_upper, t_lower = box = self.__tileRangeOfAttr(attr, self.extra_p)
                 return (t_left <= x and x <= t_right) and (t_upper <= y and y <= t_lower)
             return False
 
-        if self.__dirty_map_info:
-            attr, cb = self.__dirty_map_info
-            if tileInAttr(level, x, y, attr):
-                print('Update dirty map...OK')
-                cb()
+        if not self.__dirty_map_info:
+            return
+        attr, cb, timestamp = self.__dirty_map_info
+        if tileInAttr(level, x, y, attr):
+            print('UPDATE is available.')
+            cb(timestamp)
 
     def __genTileMap(self, img_attr, extra_p):
         #get tile x, y.
