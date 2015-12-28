@@ -13,7 +13,6 @@ from PIL import Image, ImageTk, ImageDraw, ImageFont, ImageColor
 from math import floor, ceil, sqrt
 from tkinter import messagebox, filedialog
 from datetime import datetime
-from threading import Thread, Lock, Condition
 
 #my modules
 import tile
@@ -576,9 +575,15 @@ class MapBoard(tk.Frame):
         pimg = ImageTk.PhotoImage(img)
         self.disp_canvas.image = pimg #keep a ref
         
-        if self.__canvas_map is not None:
-            self.disp_canvas.delete(self.__canvas_map)
+        #it seems the view is more smoothly if DISABLED...update...NORMAL
+        #any better idea?
+        self.disp_canvas['state'] = 'disabled'
+        tmp = self.__canvas_map
         self.__canvas_map = self.disp_canvas.create_image((0,0), image=pimg, anchor='nw')
+        if tmp:
+            self.disp_canvas.tag_lower(tmp)
+            self.disp_canvas.delete(tmp)
+        self.disp_canvas['state'] = 'normal'
 
 class MapController:
 
@@ -801,7 +806,6 @@ class MapController:
                 print('Update dirty map...OK')
                 cb()
 
-    #todo: make the function threading
     def __genTileMap(self, img_attr, extra_p):
         #get tile x, y.
         t_left, t_right, t_upper, t_lower = self.__tileRangeOfAttr(img_attr, extra_p)
@@ -1572,7 +1576,7 @@ class TrkSingleBoard(tk.Toplevel):
     def onPtDeleted(self, e):
         idxes = self.pt_list.curselection()
         if idxes:
-            #Todo: may improve by deleting range?
+            #Todo: bulk of deleting is better?
             for i in sorted(idxes, reverse=True):
                 self.pt_list.delete(i) #view
                 del self._curr_trk[i]  #data

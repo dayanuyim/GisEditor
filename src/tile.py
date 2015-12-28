@@ -107,10 +107,11 @@ class __TileMap:
 
         #gen cache dir
         self.__cache_dir = cache_dir if cache_dir else './cache' 
-        self.__img_repo = {}
         self.__is_closed = False
 
         #download helpers
+        self.__img_repo = {}
+        self.__img_repo_lock = Lock()
         self.__workers_cv = Condition()
         self.__workers_lock = Lock()
         self.__workers = []
@@ -147,31 +148,39 @@ class __TileMap:
     def genTileUrl(self, level, x, y):
         return self.url_template % (level, x, y)
 
-    #get tile in sync
-    def getTileByTileXY(self, level, x, y):
-        id = self.genTileId(level, x, y)
+    def getRepoImage(self, id):
+        with self.__img_repo_lock:
+            return self.__img_repo.get(id)
 
-        img = self.__img_repo.get(id)
-        if img is None:
-            img = self.__readTile(level, x, y)
+    def setRepoImage(self, id, img):
+        with self.__img_repo_lock:
             self.__img_repo[id] = img
-        return img
 
-    def __readTile(self, level, x, y):
-        path = self.genTilePath(level, x, y)
-        #print("File", path)
-
-        if not os.path.exists(path):
-            self.__downloadTile(level, x, y, path)
-        return Image.open(path)
-
-    def __downloadTile(self, level, x, y, file_path):
-        url = self.genTileUrl(level, x, y)
-        print("DL", url)
-
-        #urllib.request.urlretrieve(url, file_path)
-        with urllib.request.urlopen(url) as response, open(file_path, 'wb') as out_file:
-            shutil.copyfileobj(response, out_file)
+#get tile in sync
+#    def getTileByTileXY(self, level, x, y):
+#        id = self.genTileId(level, x, y)
+#
+#        img = self.__img_repo.get(id)
+#        if img is None:
+#            img = self.__readTile(level, x, y)
+#            self.__img_repo[id] = img
+#        return img
+#
+#    def __readTile(self, level, x, y):
+#        path = self.genTilePath(level, x, y)
+#        #print("File", path)
+#
+#        if not os.path.exists(path):
+#            self.__downloadTile(level, x, y, path)
+#        return Image.open(path)
+#
+#    def __downloadTile(self, level, x, y, file_path):
+#        url = self.genTileUrl(level, x, y)
+#        print("DL", url)
+#
+#        #urllib.request.urlretrieve(url, file_path)
+#        with urllib.request.urlopen(url) as response, open(file_path, 'wb') as out_file:
+#            shutil.copyfileobj(response, out_file)
 
     #The therad to download
     def __doDownloadJob(self, id, level, x, y, cb):
@@ -179,41 +188,35 @@ class __TileMap:
         result_ok = False
         try:
             url = self.genTileUrl(level, x, y)
-            path = self.genTilePath(level, x, y)
             print('DL', url)
-            with urllib.request.urlopen(url) as response, open(path, 'wb') as out_file:
-                shutil.copyfileobj(response, out_file)
-                #Todo: read iamge from buffer, putting it to cache repo
+            with urllib.request.urlopen(url) as response:
+                res_img = Image.open(response)
             result_ok = True
         except Exception as ex:
             print('Error to download %s: %s' % (url, str(ex)))
 
-        #premature exit
-        if self.__is_closed:
-            return
-
-        #remove from worker
-        self.__workers_lock.acquire()
-        self.__workers = [w for w in self.__workers if w.name != id]
-        self.__workers_lock.release()
+        #remove myself from workers
+        with self.__workers_lock:
+            self.__workers = [w for w in self.__workers if w.name != id]
+        #wakeup the foreman
         with self.__workers_cv:
             self.__workers_cv.notify()
-
         print('DL %s [FINISH][%s]' % (url, 'SUCCESS' if result_ok else 'FAILED'))
 
-        #notify when done
-        if result_ok and cb:
-            try:
-                cb(level, x, y)
-            except Exception as ex:
-                print('Inovke cb of download tile error:', str(ex))
+        #cache && notify if need
+        if not self.__is_closed:
+            self.setRepoImage(id, res_img)
+            if result_ok and cb:
+                try:
+                    cb(level, x, y)
+                except Exception as ex:
+                    print('Invoke cb of download tile error:', str(ex))
 
         #save file
         if result_ok:
             try:
-                pass
-                #make dir
-                #copy file
+                path = self.genTilePath(level, x, y)
+                res_img.save(path, quality=85)
             except Exception as ex:
                 print('Error to save tile file', str(ex))
 
@@ -229,9 +232,8 @@ class __TileMap:
         if not self.__is_closed:
             job = lambda: self.__doDownloadJob(id, level, x, y, cb)
             worker = Thread(name=id, target=job)
-            self.__workers_lock.acquire()
-            self.__workers.append(worker)
-            self.__workers_lock.release()
+            with self.__workers_lock:
+                self.__workers.append(worker)
             worker.start()
 
     #The thread to handle all download requests
@@ -249,21 +251,21 @@ class __TileMap:
                 break
 
             #check queue
-            self.__req_lock.acquire()
-            if len(self.__req_queue) == 0:
-                self.__req_lock.release()
-            else:
-                id, (level, x, y, cb) = self.__req_queue.popitem() #LIFO
-                self.__req_lock.release()
+            item = None
+            with self.__req_lock:
+                if len(self.__req_queue) > 0:
+                    item = self.__req_queue.popitem() #LIFO
+            if item:
+                id, (level, x, y, cb) = item
                 self.__deliverDownload(id, level, x, y, cb)  #wait a worker to download
             
     def __requestTile(self, id, level, x, y, cb):
-        self.__req_lock.acquire()
-        if id in self.__req_queue:
-            self.__req_lock.release()
-        else:
-            self.__req_queue[id] = (level, x, y, cb)   #add request
-            self.__req_lock.release()
+        has_new_req = False
+        with self.__req_lock:
+            if not id in self.__req_queue:
+                self.__req_queue[id] = (level, x, y, cb)   #add request
+                has_new_req = True
+        if has_new_req:
             with self.__req_cv:
                 self.__req_cv.notify()    #notify
 
@@ -274,7 +276,7 @@ class __TileMap:
 
         #from cache
         id = self.genTileId(level, x, y)
-        img = self.__img_repo.get(id)
+        img = self.getRepoImage(id)
         if img:
             return img;
 
@@ -282,7 +284,7 @@ class __TileMap:
         path = self.genTilePath(level, x, y)
         if os.path.exists(path):
             img = Image.open(path)
-            self.__img_repo[id] = img
+            self.setRepoImage(id, img)
             return img
 
         #async request
@@ -366,7 +368,12 @@ if __name__ == '__main__':
     import time
 
     root = tk.Tk()
-    def showim(img, title):
+
+    level = 14
+    x, y = TileSystem.getTileXYByLatLon(24.988625, 121.313181, 14)
+    print('level, x, y:', level, x, y) #14, 13713, 7016
+
+    def showim(img, title=''):
         top = tk.Toplevel(root)
         top.title(title)
         if img:
@@ -378,21 +385,22 @@ if __name__ == '__main__':
             print('oops, img is none')
         top.update()
 
-    x, y = TileSystem.getTileXYByLatLon(24.988625, 121.313181, 14)
-    print(x, y) #13713, 7016
+    def downloadImage(tm, title):
+        cb = lambda level, x, y: downloadImage(tm, title)
+        while True:
+            tile = tm.getTileByTileXY_(level, x, y, cb)
+            showim(tile, title)
+            if tile.is_fake:
+                time.sleep(3)
+            else:
+                break
 
-    def get_tile_cb(level, x, y):
-        print(x,y, 'in level', level, 'is download ok');
+    def test(cache_dir):
+        tm = getTM25Kv3TileMap(cache_dir)
+        downloadImage(tm, cache_dir.split('/')[-1])
+        tm.close()
 
-    tm = getTM25Kv3TileMap('test/tile/noop')
-    tile = tm.getTileByTileXY_(14, x, y, get_tile_cb)
-    showim(tile, 'noop')
-    while tile.is_fake:
-        time.sleep(3)
-        tile = tm.getTileByTileXY_(14, x, y)
-        showim(tile, 'noop')
-    print('here')
-    tm.close()
+    test('test/tile/noop')
 
     #tm = getTM25Kv3TileMap('test/tile/normal')
     #showim(tm.getTileByTileXY_(14, x, y), 'normal')
