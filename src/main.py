@@ -201,8 +201,9 @@ class MapBoard(tk.Frame):
             return
 
         #focus geo on map
+        self.map_ctrl.addMark(geo)
         self.setMapInfo(geo)
-        self.resetMap(geo)
+        self.resetMap(geo, force='wpt')
 
     def setMapInfo(self, geo=None):
         self.__info_level.variable.set(self.map_ctrl.level)
@@ -637,6 +638,7 @@ class MapController:
         self.__dirty_map_info = None
 
         #layer
+        self.__mark_wpt = None
         self.__pseudo_gpx = GpsDocument()  #to hold waypoints which not read from gpx
         self.gpx_layers = []
         self.gpx_layers.append(self.__pseudo_gpx)
@@ -650,8 +652,13 @@ class MapController:
     def addGpxLayer(self, gpx):
         self.gpx_layers.append(gpx)
 
-    def addWpt(self, pic):
-        self.__pseudo_gpx.addWpt(pic)
+    def addWpt(self, wpt):
+        self.__pseudo_gpx.addWpt(wpt)
+
+    def addMark(self, geo):
+        wpt = WayPoint(geo.lat, geo.lon)
+        wpt.sym = 'crosshair'
+        self.__mark_wpt = wpt
 
     def deleteWpt(self, wpt):
         for gpx in self.gpx_layers:
@@ -899,6 +906,8 @@ class MapController:
     #draw pic as waypoint
     def __drawWpt(self, img, img_attr):
         wpts = self.getAllWpts()  #gpx's wpt + pic's wpt
+        if self.__mark_wpt:
+            wpts.append(self.__mark_wpt)
         if len(wpts) == 0:
             return
 
