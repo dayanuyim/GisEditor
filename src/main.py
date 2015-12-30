@@ -448,7 +448,7 @@ class MapBoard(tk.Frame):
             ext_geo = sel_geo.incPixel(w, h, org_level)            #lower-right
             dx, dy = ext_geo.diffPixel(sel_geo, out_level)
             #get map
-            img = self.map_ctrl.getTileImage(dx, dy, geo=sel_geo, level=out_level)
+            img = self.map_ctrl.getMap(dx, dy, geo=sel_geo, level=out_level)
             img.save(fpath, format='png')
 
         except AreaSizeTooLarge as ex:
@@ -509,8 +509,8 @@ class MapBoard(tk.Frame):
             #print('highlight wpt', wpt.name)
             c = self.map_ctrl
             img = self.__img.copy()
-            img_attr = ImageAttr(c.level, c.px, c.py, c.px + img.size[0], c.py + img.size[1])
-            c.drawWayPoint(img, img_attr, wpt, 'red', 'white')
+            map_attr = MapAttr(c.level, c.px, c.py, c.px + img.size[0], c.py + img.size[1])
+            c.drawWayPoint(img, map_attr, wpt, 'red', 'white')
 
             self.__setMap(img)
 
@@ -520,8 +520,8 @@ class MapBoard(tk.Frame):
 
         c = self.map_ctrl
         img = self.__img.copy()
-        img_attr = ImageAttr(c.level, c.px, c.py, c.px + img.size[0], c.py + img.size[1])
-        c.drawTrkPoint(img, img_attr, pts, 'orange', 'black', width=8)
+        map_attr = MapAttr(c.level, c.px, c.py, c.px + img.size[0], c.py + img.size[1])
+        c.drawTrkPoint(img, map_attr, pts, 'orange', 'black', width=8)
 
         #set
         self.__setMap(img)
@@ -571,7 +571,7 @@ class MapBoard(tk.Frame):
                 print('UPDATE is available...update now.')
                 self.resetMap()
 
-        self.__img = self.map_ctrl.getTileImage(w, h, force, cb=refreshMap)  #buffer the image
+        self.__img = self.map_ctrl.getMap(w, h, force, cb=refreshMap)  #buffer the image
         self.__setMap(self.__img)
 
     def restore(self):
@@ -687,50 +687,26 @@ class MapController:
                 return wpt
         return None
 
-    #old version for ref
-    def ___getTileImage(self, width, height):
-
-        #The image attributes with which we want to create a image compatible.
-        img_attr = ImageAttr(self.level, self.px, self.py, self.px + width, self.py + height)
-
-        print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: begin")
-        #gen new map if need
-        if self.__cache_attr is None or not self.__cache_attr.containsImgae(img_attr):
-            print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  gen base map")
-            (self.__cache_basemap, self.__cache_attr) = self.__genBaseMap(img_attr)
-
-        print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw trk")
-        self.__drawTrk(img, img_attr)
-        print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw wpt")
-        self.__drawWpt(img, img_attr)
-
-        print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  crop map")
-        img = self.__getCropMap(img_attr)
-        print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw coord")
-        self.__drawTM2Coord(img, img_attr)
-        print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: done")
-        return img
-
-    def getTileImage(self, width, height, force=None, geo=None, level=None, cb=None):
+    def getMap(self, width, height, force=None, geo=None, level=None, cb=None):
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: begin")
         if geo is None: geo = self.geo
         if level is None: level = self.level
         px, py = geo.px(level), geo.py(level)
 
         #The image attributes with which we want to create a image compatible.
-        req_attr = ImageAttr(level, px, py, px+width, py+height)
-        img, attr = self.__genGpsMap(req_attr, force)
+        req_attr = MapAttr(level, px, py, px+width, py+height)
+        map, attr = self.__genGpsMap(req_attr, force)
 
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  crop map")
-        img = self.__genCropMap(img, attr, req_attr)
+        map = self.__genCropMap(map, attr, req_attr)
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw coord")
-        self.__drawTM2Coord(img, req_attr)
+        self.__drawTM2Coord(map, req_attr)
 
         #rec attr/cb or update later
-        self.__dirty_map_info = (req_attr, cb, datetime.now()) if img.is_fake and cb else None
+        self.__dirty_map_info = (req_attr, cb, datetime.now()) if map.is_fake and cb else None
 
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: done")
-        return img
+        return map
 
     #def __isCacheValid(self, cache_img):
         #return self.__parent.alter_time is None or cache_img.time > self.__parent.alter_time
@@ -745,9 +721,9 @@ class MapController:
             #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  get gps map from cache")
             return (self.__cache_gpsmap, self.__cache_attr)
 
-        img, attr = self.__genBaseMap(req_attr)
-        self.__cache_gpsmap = img.copy()   #copy as cache
-        self.__cache_gpsmap.is_fake = img.is_fake
+        map, attr = self.__genBaseMap(req_attr)
+        self.__cache_gpsmap = map.copy()   #copy as cache
+        self.__cache_gpsmap.is_fake = map.is_fake
 
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw trk")
         self.__drawTrk(self.__cache_gpsmap, attr)
@@ -768,19 +744,21 @@ class MapController:
         if req_attr.level == level:
             tile_map = self.__genTileMap(req_attr, self.extra_p)
         else:
-            zoom_attr = req_attr.zoomToLevel(level)
+            #get approx map
+            aprx_attr = req_attr.zoomToLevel(level)
             extra_p = self.extra_p * 2**(level - req_attr.level)
+            aprx_map, aprx_attr = self.__genTileMap(aprx_attr, extra_p)
+            #zoom to request level
+            tile_map = self.__genZoomMap(aprx_map, aprx_attr, req_attr.level)
 
-            (img, attr) = self.__genTileMap(zoom_attr, extra_p)
-            tile_map = self.__zoomImage(img, attr, req_attr.level)
-
-        self.__cache_basemap, self.__cache_attr = tile_map  #cache
+        #cache
+        self.__cache_basemap, self.__cache_attr = tile_map
         return tile_map
 
-    def __zoomImage(self, img, attr, level):
+    def __genZoomMap(self, map, attr, level):
         s = level - attr.level
         if s == 0:
-            return (img, attr)
+            return (map, attr)
         elif s > 0:
             w = (attr.right_px - attr.left_px) << s
             h = (attr.low_py - attr.up_py) << s
@@ -789,8 +767,8 @@ class MapController:
             h = (attr.low_py - attr.up_py) >> (-s)
 
         #Image.NEAREST, Image.BILINEAR, Image.BICUBIC, or Image.LANCZOS 
-        zoom_img = img.resize((w,h), Image.BILINEAR)
-        zoom_img.is_fake = img.is_fake
+        zoom_img = map.resize((w,h), Image.BILINEAR)
+        zoom_img.is_fake = map.is_fake
 
         #the attr of resized image
         zoom_attr = attr.zoomToLevel(level)
@@ -798,9 +776,9 @@ class MapController:
         return (zoom_img, zoom_attr)
 
     #return tile no. of left, right, upper, lower
-    def __tileRangeOfAttr(self, img_attr, extra_p=0):
-        (t_left, t_upper) = TileSystem.getTileXYByPixcelXY(img_attr.left_px - extra_p, img_attr.up_py - extra_p)
-        (t_right, t_lower) = TileSystem.getTileXYByPixcelXY(img_attr.right_px + extra_p, img_attr.low_py + extra_p)
+    def __tileRangeOfAttr(self, map_attr, extra_p=0):
+        (t_left, t_upper) = TileSystem.getTileXYByPixcelXY(map_attr.left_px - extra_p, map_attr.up_py - extra_p)
+        (t_right, t_lower) = TileSystem.getTileXYByPixcelXY(map_attr.right_px + extra_p, map_attr.low_py + extra_p)
         return (t_left, t_right, t_upper, t_lower)
 
     def __updateDirtyMap(self, level, x, y):
@@ -817,59 +795,59 @@ class MapController:
             print('UPDATE is available.')
             cb(timestamp)
 
-    def __genTileMap(self, img_attr, extra_p):
+    def __genTileMap(self, map_attr, extra_p):
         #get tile x, y.
-        t_left, t_right, t_upper, t_lower = self.__tileRangeOfAttr(img_attr, extra_p)
+        t_left, t_right, t_upper, t_lower = self.__tileRangeOfAttr(map_attr, extra_p)
         tx_num = t_right - t_left +1
         ty_num = t_lower - t_upper +1
 
         #gen image
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "paste tile...")
-        disp_img = Image.new("RGBA", (tx_num*256, ty_num*256))
-        disp_img.is_fake = False
+        disp_map = Image.new("RGBA", (tx_num*256, ty_num*256))
+        disp_map.is_fake = False
         self.__paste_count = tx_num*ty_num
         for x in range(tx_num):
             for y in range(ty_num):
-                tile = self.__tile_map.getTileByTileXY_(img_attr.level, t_left +x, t_upper +y, self.__updateDirtyMap)
+                tile = self.__tile_map.getTileByTileXY_(map_attr.level, t_left +x, t_upper +y, self.__updateDirtyMap)
                 if tile.is_fake:
-                    disp_img.is_fake = True
-                disp_img.paste(tile, (x*256, y*256))
+                    disp_map.is_fake = True
+                disp_map.paste(tile, (x*256, y*256))
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "paste tile...done")
 
-        #reset img_attr
-        disp_attr = ImageAttr(img_attr.level, t_left*256, t_upper*256, (t_right+1)*256 -1, (t_lower+1)*256 -1)
+        #reset map_attr
+        disp_attr = MapAttr(map_attr.level, t_left*256, t_upper*256, (t_right+1)*256 -1, (t_lower+1)*256 -1)
 
-        return  (disp_img, disp_attr)
+        return  (disp_map, disp_attr)
 
-    def __drawTrk(self, img, img_attr):
+    def __drawTrk(self, map, map_attr):
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw gpx...")
         if len(self.gpx_layers) == 0:
             return
 
-        draw = ImageDraw.Draw(img)
+        draw = ImageDraw.Draw(map)
 
         for gpx in self.gpx_layers:
             #draw tracks
             #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw gpx...")
             for trk in gpx.tracks:
-                if self.isTrackInImage(trk, img_attr):
-                    self.drawTrkPoint(img, img_attr, trk, trk.color, draw=draw)
+                if self.isTrackInImage(trk, map_attr):
+                    self.drawTrkPoint(map, map_attr, trk, trk.color, draw=draw)
 
         #recycle draw object
         del draw
 
-    def drawTrkPoint(self, img, img_attr, pts, color, bg_color=None, draw=None, width=2):
+    def drawTrkPoint(self, map, map_attr, pts, color, bg_color=None, draw=None, width=2):
         if pts is None or len(pts) == 0:
             return
 
         bg_width = width + 4
-        _draw = draw if draw is not None else ImageDraw.Draw(img)
+        _draw = draw if draw is not None else ImageDraw.Draw(map)
 
         if len(pts) == 1:
             #print('draw trk point')
-            (px, py) = pts[0].pixel(img_attr.level)
-            px -= img_attr.left_px
-            py -= img_attr.up_py
+            (px, py) = pts[0].pixel(map_attr.level)
+            px -= map_attr.left_px
+            py -= map_attr.up_py
 
             #r = int(bg_width/2)
             #_draw.ellipse((px-r, py-r, px+r, py+r), fill=bg_color)
@@ -880,9 +858,9 @@ class MapController:
             #print('draw trk seg')
             xy = []
             for pt in pts:
-                (px, py) = pt.pixel(img_attr.level)
-                xy.append(px - img_attr.left_px)
-                xy.append(py - img_attr.up_py)
+                (px, py) = pt.pixel(map_attr.level)
+                xy.append(px - map_attr.left_px)
+                xy.append(py - map_attr.up_py)
 
             if bg_color is not None:
                 _draw.line(xy, fill=bg_color, width=width+4)
@@ -894,42 +872,42 @@ class MapController:
 
 
     #disable for now, because the algo will be broken if two pt across the image
-    def isTrackInImage(self, trk, img_attr):
+    def isTrackInImage(self, trk, map_attr):
         return True
         #if some track point is in disp
         for pt in trk:
-            (px, py) = pt.pixel(img_attr.level)
-            if img_attr.containsPoint(px, py):
+            (px, py) = pt.pixel(map_attr.level)
+            if map_attr.containsPoint(px, py):
                 return True
         return False
 
     #draw pic as waypoint
-    def __drawWpt(self, img, img_attr):
+    def __drawWpt(self, map, map_attr):
         wpts = self.getAllWpts()  #gpx's wpt + pic's wpt
         if self.__mark_wpt:
             wpts.append(self.__mark_wpt)
         if len(wpts) == 0:
             return
 
-        draw = ImageDraw.Draw(img)
+        draw = ImageDraw.Draw(map)
         for wpt in wpts:
-            (px, py) = wpt.pixel(img_attr.level)
-            self.drawWayPoint(img, img_attr, wpt, "black", draw=draw)
+            (px, py) = wpt.pixel(map_attr.level)
+            self.drawWayPoint(map, map_attr, wpt, "black", draw=draw)
         del draw
 
-    def drawWayPoint(self, img, img_attr, wpt, txt_color, bg_color=None, draw=None):
+    def drawWayPoint(self, map, map_attr, wpt, txt_color, bg_color=None, draw=None):
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw wpt'", wpt.name, "'")
         #check range
-        (px, py) = wpt.pixel(img_attr.level)
-        if not img_attr.containsPoint(px, py):
+        (px, py) = wpt.pixel(map_attr.level)
+        if not map_attr.containsPoint(px, py):
             return
 
-        px -= img_attr.left_px
-        py -= img_attr.up_py
+        px -= map_attr.left_px
+        py -= map_attr.up_py
         adj = int(conf.ICON_SIZE/2)
 
         #get draw
-        _draw = draw if draw is not None else ImageDraw.Draw(img)
+        _draw = draw if draw is not None else ImageDraw.Draw(map)
 
         if bg_color is not None:
             r = ceil(conf.ICON_SIZE/sqrt(2))
@@ -940,13 +918,13 @@ class MapController:
             icon = conf.getIcon(wpt.sym)
             if icon is not None:
                 if icon.mode == 'RGBA':
-                    img.paste(icon, (px-adj, py-adj), icon)
+                    map.paste(icon, (px-adj, py-adj), icon)
                 elif icon.mode == 'LA' or (icon.mode == 'P' and 'transparency' in icon.info):
                     mask = icon.convert('RGBA')
-                    img.paste(icon, (px-adj, py-adj), mask)
+                    map.paste(icon, (px-adj, py-adj), mask)
                 else:
                     print("Warning: Icon for '%s' with mode %s is not ransparency" % (wpt.sym, icon.mode))
-                    img.paste(icon, (px-adj, py-adj))
+                    map.paste(icon, (px-adj, py-adj))
 
         #draw point   //replace by icon
         #n = self.pt_size
@@ -965,16 +943,16 @@ class MapController:
             del _draw
 
 
-    def __genCropMap(self, img, src_attr, dst_attr):
+    def __genCropMap(self, map, src_attr, dst_attr):
         left  = dst_attr.left_px - src_attr.left_px
         up    = dst_attr.up_py - src_attr.up_py
         right = dst_attr.right_px - src_attr.left_px
         low   = dst_attr.low_py - src_attr.up_py
-        img2 = img.crop((left, up, right, low))
-        img2.is_fake = img.is_fake
+        img2 = map.crop((left, up, right, low))
+        img2.is_fake = map.is_fake
         return img2
 
-    def __drawTM2Coord(self, img, attr):
+    def __drawTM2Coord(self, map, attr):
 
         if attr.level <= 12:  #too crowded to show
             return
@@ -982,7 +960,7 @@ class MapController:
         #set draw
         py_shift = 20
         font = self.__font
-        draw = ImageDraw.Draw(img)
+        draw = ImageDraw.Draw(map)
 
         #get xy of TM2
         (left_x, up_y) = self.getTWD67TM2ByPixcelXY(attr.left_px, attr.up_py, attr.level)
@@ -1018,7 +996,7 @@ class MapController:
         return geo.pixel(level)
 
 #record image atrr
-class ImageAttr:
+class MapAttr:
     def __init__(self, level, left_px, up_py, right_px, low_py):
         #self.img = None
         self.level = level
@@ -1037,17 +1015,17 @@ class ImageAttr:
     def containsPoint(self, px, py):
         return self.left_px <= px and self.up_py <= py and px <= self.right_px and py <= self.low_py
 
-    #def isBoxInImage(self, px_left, py_up, px_right, py_low, img_attr):
+    #def isBoxInImage(self, px_left, py_up, px_right, py_low, map_attr):
         #return self.isPointInImage(px_left, py_up) or self.isPointInImage(px_left, py_low) or \
               #self.isPointInImage(px_right, py_up) or self.isPointInImage(px_right, py_low)
 
     def zoomToLevel(self, level):
         if level > self.level:
             s = level - self.level
-            return ImageAttr(level, self.left_px << s, self.up_py << s, self.right_px << s, self.low_py << s)
+            return MapAttr(level, self.left_px << s, self.up_py << s, self.right_px << s, self.low_py << s)
         elif self.level > level:
             s = self.level - level
-            return ImageAttr(level, self.left_px >> s, self.up_py >> s, self.right_px >> s, self.low_py >> s)
+            return MapAttr(level, self.left_px >> s, self.up_py >> s, self.right_px >> s, self.low_py >> s)
         else:
             return self
 
