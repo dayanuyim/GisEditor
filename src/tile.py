@@ -114,7 +114,7 @@ class __TileMap:
         self.__img_repo_lock = Lock()
         self.__workers_cv = Condition()
         self.__workers_lock = Lock()
-        self.__workers = []
+        self.__workers = {}
         self.__MAX_WORKS = 3
         self.__req_lock = Lock()
         self.__req_cv = Condition()
@@ -197,20 +197,22 @@ class __TileMap:
 
         #remove myself from workers
         with self.__workers_lock:
-            self.__workers = [w for w in self.__workers if w.name != id]
+            self.__workers.pop(id, None)
         #wakeup the foreman
         with self.__workers_cv:
             self.__workers_cv.notify()
         print('DL %s [%s]' % (url, 'SUCCESS' if result_ok else 'FAILED'))
 
+        if self.__is_closed:
+            return
+
         #cache && notify if need
-        if not self.__is_closed:
-            self.setRepoImage(id, res_img)
-            if result_ok and cb:
-                try:
-                    cb(level, x, y)
-                except Exception as ex:
-                    print('Invoke cb of download tile error:', str(ex))
+        self.setRepoImage(id, res_img)
+        if result_ok and cb:
+            try:
+                cb(level, x, y)
+            except Exception as ex:
+                print('Invoke cb of download tile error:', str(ex))
 
         #save file
         if result_ok:
@@ -221,27 +223,42 @@ class __TileMap:
                 print('Error to save tile file', str(ex))
 
     #wait an available worker and deliver the download job.
-    def __deliverDownload(self, id, level, x, y, cb):
+    def __deliverDownload(self):
         def has_worker():
             return len(self.__workers) < self.__MAX_WORKS
 
-        if not has_worker():
-            with self.__workers_cv:
-                self.__workers_cv.wait_for(has_worker)
+        #wait waker availabel
+        with self.__workers_cv:
+            self.__workers_cv.wait_for(has_worker)
             
-        if not self.__is_closed:
-            job = lambda: self.__doDownloadJob(id, level, x, y, cb)
-            worker = Thread(name=id, target=job)
-            with self.__workers_lock:
-                self.__workers.append(worker)
-            worker.start()
+        if self.__is_closed:
+            return
+
+        #get the job
+        item = None
+        with self.__req_lock:
+            if len(self.__req_queue) == 0:
+                print("WARNING: no request in the queue!") #should not happen
+                return
+            item = self.__req_queue.popitem() #LIFO
+
+        #deliver the job to a worker
+        id, (level, x, y, cb) = item
+        job = lambda: self.__doDownloadJob(id, level, x, y, cb)
+        worker = Thread(name=id, target=job)
+        with self.__workers_lock:
+            if id in self.__workers:
+                print("WARNING: try to request DUP download!") #should not happen
+            else:
+                self.__workers[id] = worker
+                worker.start()
 
     #The thread to handle all download requests
     def __tileDownloader(self):
         def has_events():
             return self.__is_closed or len(self.__req_queue)
 
-        while not self.__is_closed:
+        while True:
             #wait for events
             with self.__req_cv:
                 self.__req_cv.wait_for(has_events)
@@ -250,24 +267,27 @@ class __TileMap:
             if self.__is_closed:
                 break
 
-            #check queue
-            item = None
+            #check req_queue
             with self.__req_lock:
-                if len(self.__req_queue) > 0:
-                    item = self.__req_queue.popitem() #LIFO
-            if item:
-                id, (level, x, y, cb) = item
-                self.__deliverDownload(id, level, x, y, cb)  #wait a worker to download
-            
+                if len(self.__req_queue) == 0:
+                    continue
+            #deliver
+            self.__deliverDownload()  #find and wait a worker to download
+
     def __requestTile(self, id, level, x, y, cb):
-        has_new_req = False
+        #check req queue
         with self.__req_lock:
-            if not id in self.__req_queue:
-                self.__req_queue[id] = (level, x, y, cb)   #add request
-                has_new_req = True
-        if has_new_req:
-            with self.__req_cv:
-                self.__req_cv.notify()    #notify
+            if id in self.__req_queue:
+                return
+        #check active workers
+        with self.__workers_lock:
+            if id in self.__workers:
+                return
+
+        #add request
+        self.__req_queue[id] = (level, x, y, cb)   
+        with self.__req_cv:
+            self.__req_cv.notify()    #notify
 
     def __getTile(self, level, x, y, auto_req=True, cb=None):
         #check level
