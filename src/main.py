@@ -509,7 +509,8 @@ class MapBoard(tk.Frame):
             #print('highlight wpt', wpt.name)
             c = self.map_ctrl
             img = self.__img.copy()
-            map_attr = MapAttr(c.level, c.px, c.py, c.px + img.size[0], c.py + img.size[1])
+            #todo: refine this
+            map_attr = MapAttr(c.level, c.px, c.py, c.px + img.size[0], c.py + img.size[1], 0)
             c.drawWayPoint(img, map_attr, wpt, 'red', 'white')
 
             self.__setMap(img)
@@ -519,8 +520,9 @@ class MapBoard(tk.Frame):
             return
 
         c = self.map_ctrl
+        #todo: refine this
         img = self.__img.copy()
-        map_attr = MapAttr(c.level, c.px, c.py, c.px + img.size[0], c.py + img.size[1])
+        map_attr = MapAttr(c.level, c.px, c.py, c.px + img.size[0], c.py + img.size[1], 0)
         c.drawTrkPoint(img, map_attr, pts, 'orange', 'black', width=8)
 
         #set
@@ -694,7 +696,7 @@ class MapController:
         px, py = geo.px(level), geo.py(level)
 
         #The image attributes with which we want to create a image compatible.
-        req_attr = MapAttr(level, px, py, px+width, py+height)
+        req_attr = MapAttr(level, px, py, px+width, py+height, 0)
         map, attr = self.__genGpsMap(req_attr, force)
 
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  crop map")
@@ -703,18 +705,19 @@ class MapController:
         self.__drawTM2Coord(map, req_attr)
 
         #rec attr/cb or update later
-        self.__dirty_map_info = (req_attr, cb, datetime.now()) if map.is_fake and cb else None
+        #self.__dirty_map_info = (req_attr, cb, datetime.now()) if map.is_fake and cb else None
+        self.__dirty_map_info = (req_attr, cb, datetime.now()) if attr.fake_count and cb else None
+        print('fake count:', attr.fake_count)
 
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: done")
         return map
 
-    #def __isCacheValid(self, cache_img):
-        #return self.__parent.alter_time is None or cache_img.time > self.__parent.alter_time
-
-    def __isCacheValid(self, cache_img, req_attr):
+    def __isCacheValid(self, cache_map, req_attr):
         cache_attr = self.__cache_attr
-        return cache_img and not cache_img.is_fake and \
-               cache_attr and cache_attr.containsImgae(req_attr)
+        return cache_map and \
+               cache_attr and \
+               cache_attr.fake_count == 0 and \
+               cache_attr.containsImgae(req_attr)
 
     def __genGpsMap(self, req_attr, force=None):
         if force not in ('all', 'gps', 'trk', 'wpt') and self.__isCacheValid(self.__cache_gpsmap, req_attr):
@@ -805,17 +808,19 @@ class MapController:
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "paste tile...")
         disp_map = Image.new("RGBA", (tx_num*256, ty_num*256))
         disp_map.is_fake = False
+        fake_count = 0
         self.__paste_count = tx_num*ty_num
         for x in range(tx_num):
             for y in range(ty_num):
                 tile = self.__tile_map.getTileByTileXY_(map_attr.level, t_left +x, t_upper +y, self.__updateDirtyMap)
                 if tile.is_fake:
                     disp_map.is_fake = True
+                    fake_count += 1
                 disp_map.paste(tile, (x*256, y*256))
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "paste tile...done")
 
         #reset map_attr
-        disp_attr = MapAttr(map_attr.level, t_left*256, t_upper*256, (t_right+1)*256 -1, (t_lower+1)*256 -1)
+        disp_attr = MapAttr(map_attr.level, t_left*256, t_upper*256, (t_right+1)*256 -1, (t_lower+1)*256 -1, fake_count)
 
         return  (disp_map, disp_attr)
 
@@ -997,13 +1002,14 @@ class MapController:
 
 #record image atrr
 class MapAttr:
-    def __init__(self, level, left_px, up_py, right_px, low_py):
+    def __init__(self, level, left_px, up_py, right_px, low_py, fake_count):
         #self.img = None
         self.level = level
         self.left_px = left_px
         self.up_py = up_py
         self.right_px = right_px
         self.low_py = low_py
+        self.fake_count = fake_count
 
     def containsImgae(self, attr):
         if self.level == attr.level and \
@@ -1022,10 +1028,10 @@ class MapAttr:
     def zoomToLevel(self, level):
         if level > self.level:
             s = level - self.level
-            return MapAttr(level, self.left_px << s, self.up_py << s, self.right_px << s, self.low_py << s)
+            return MapAttr(level, self.left_px << s, self.up_py << s, self.right_px << s, self.low_py << s, self.fake_count)
         elif self.level > level:
             s = self.level - level
-            return MapAttr(level, self.left_px >> s, self.up_py >> s, self.right_px >> s, self.low_py >> s)
+            return MapAttr(level, self.left_px >> s, self.up_py >> s, self.right_px >> s, self.low_py >> s, self.fake_count)
         else:
             return self
 
