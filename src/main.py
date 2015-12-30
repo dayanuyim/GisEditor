@@ -41,7 +41,8 @@ class MapBoard(tk.Frame):
         self.__bg_color=self['bg']
         self.__focused_wpt = None
         self.__focused_geo = None
-        self.__img = None         #buffer disp image for restore map
+        self.__map = None         #buffer disp image for restore map
+        self.__map_attr = None
         self.__alter_time = None
 
         #canvas items
@@ -448,8 +449,8 @@ class MapBoard(tk.Frame):
             ext_geo = sel_geo.incPixel(w, h, org_level)            #lower-right
             dx, dy = ext_geo.diffPixel(sel_geo, out_level)
             #get map
-            img = self.map_ctrl.getMap(dx, dy, geo=sel_geo, level=out_level)
-            img.save(fpath, format='png')
+            map, attr = self.map_ctrl.getMap(dx, dy, geo=sel_geo, level=out_level)
+            map.save(fpath, format='png')
 
         except AreaSizeTooLarge as ex:
             messagebox.showwarning(str(ex), 'Please zoom out or resize the window to enlarge the map')
@@ -507,26 +508,16 @@ class MapBoard(tk.Frame):
         #draw wpt
         if wpt is not None:
             #print('highlight wpt', wpt.name)
-            c = self.map_ctrl
-            img = self.__img.copy()
-            #todo: refine this
-            map_attr = MapAttr(c.level, c.px, c.py, c.px + img.size[0], c.py + img.size[1], 0)
-            c.drawWayPoint(img, map_attr, wpt, 'red', 'white')
-
-            self.__setMap(img)
+            map = self.__map.copy()
+            self.map_ctrl.drawWayPoint(map, self.__map_attr, wpt, 'red', 'white')
+            self.__setMap(map)
 
     def highlightTrk(self, pts):
         if pts is None or len(pts) == 0:
             return
-
-        c = self.map_ctrl
-        #todo: refine this
-        img = self.__img.copy()
-        map_attr = MapAttr(c.level, c.px, c.py, c.px + img.size[0], c.py + img.size[1], 0)
-        c.drawTrkPoint(img, map_attr, pts, 'orange', 'black', width=8)
-
-        #set
-        self.__setMap(img)
+        map = self.__map.copy()
+        self.map_ctrl.drawTrkPoint(map, self.__map_attr, pts, 'orange', 'black', width=8)
+        self.__setMap(map)
 
     def onWptDeleted(self, wpt=None, prompt=True):
         if prompt:
@@ -573,11 +564,11 @@ class MapBoard(tk.Frame):
                 print('UPDATE is available...update now.')
                 self.resetMap()
 
-        self.__img = self.map_ctrl.getMap(w, h, force, cb=refreshMap)  #buffer the image
-        self.__setMap(self.__img)
+        self.__map, self.__map_attr = self.map_ctrl.getMap(w, h, force, cb=refreshMap)  #buffer the image
+        self.__setMap(self.__map)
 
     def restore(self):
-        self.__setMap(self.__img)
+        self.__setMap(self.__map)
 
     def __setMap(self, img):
         pimg = ImageTk.PhotoImage(img)
@@ -700,9 +691,9 @@ class MapController:
         map, attr = self.__genGpsMap(req_attr, force)
 
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  crop map")
-        map = self.__genCropMap(map, attr, req_attr)
+        req_map = self.__genCropMap(map, attr, req_attr)
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw coord")
-        self.__drawTM2Coord(map, req_attr)
+        self.__drawTM2Coord(req_map, req_attr)
 
         #rec attr/cb or update later
         #self.__dirty_map_info = (req_attr, cb, datetime.now()) if map.is_fake and cb else None
@@ -710,7 +701,7 @@ class MapController:
         print('fake count:', attr.fake_count)
 
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: done")
-        return map
+        return req_map, req_attr
 
     def __isCacheValid(self, cache_map, req_attr):
         cache_attr = self.__cache_attr
