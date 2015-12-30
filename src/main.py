@@ -60,6 +60,10 @@ class MapBoard(tk.Frame):
         info_frame.pack(side='top', expand=0, fill='x', anchor='nw')
         self.setMapInfo()
 
+        #status
+        status_frame = self.initStatusBar()
+        status_frame.pack(side='bottom', expand=0, fill='x', anchor='nw')
+
         #display area
         self.__init_w= 800  #deprecated
         self.__init_h = 600  #deprecated
@@ -117,7 +121,7 @@ class MapBoard(tk.Frame):
         font = 'Arialuni 12'
         bfont = font + ' bold'
 
-        frame = tk.Frame(self)
+        frame = tk.Frame(self, relief='ridge', bd=1)
 
         #title
         info_mapname = tk.Label(frame, font=bfont, bg='lightgray')
@@ -149,6 +153,14 @@ class MapBoard(tk.Frame):
             entry.bind('<Return>', cb)
 
         return entry
+
+    def initStatusBar(self):
+        font = 'Arialuni 10'
+        bg='lightgray'
+        frame = tk.Frame(self, relief='ridge', bd=1, bg=bg)
+        self.__status_label = tk.Label(frame, font=font, bg=bg)
+        self.__status_label.pack(side='left', expand=0, anchor='nw')
+        return frame
 
     #{{{ operations
     def inSaveMode(self):
@@ -221,6 +233,9 @@ class MapBoard(tk.Frame):
             self.__info_97latlon.variable.set("%f, %f" % (geo.lat, geo.lon))
             self.__info_97tm2.variable.set("%.3f, %.3f" % (geo.twd97_x/1000, geo.twd97_y/1000))
             self.__info_67tm2.variable.set("%.3f, %.3f" % (geo.twd67_x/1000, geo.twd67_y/1000))
+
+    def setStatus(self, txt):
+        self.__status_label['text'] = txt
 
     def addGpx(self, gpx):
         if gpx is not None:
@@ -596,9 +611,12 @@ class MapBoard(tk.Frame):
 
         #set status
         if self.__map_attr.fake_count:
-            print('Map Loding...', self.__map_attr.fake_count)
+            txt = "Map Loading...(%d)" % (self.__map_attr.fake_count,)
+            print(txt)
+            self.setStatus(txt)
         else:
-            print('Map Loding...done')
+            print("Map Loading...OK")
+            self.setStatus('')
 
     def restore(self):
         self.__setMap(self.__map)
