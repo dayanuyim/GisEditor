@@ -623,7 +623,7 @@ class MapController:
         self.__cache_gpsmap = None
         self.__cache_basemap = None
         self.__cache_attr = None
-        self.extra_p = 128
+        self.extra_p = 0
         self.pt_size = 3
         self.__font = conf.IMG_FONT
         self.hide_txt = False
