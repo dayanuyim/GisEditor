@@ -8,11 +8,13 @@ import Pmw as pmw
 import urllib.request
 import shutil
 import tempfile
+import time
 from os import path
 from PIL import Image, ImageTk, ImageDraw, ImageFont, ImageColor
 from math import floor, ceil, sqrt
 from tkinter import messagebox, filedialog
 from datetime import datetime
+from threading import Lock, Thread
 
 #my modules
 import tile
@@ -38,12 +40,16 @@ class MapBoard(tk.Frame):
         self.map_ctrl = MapController(self)
 
         #board
+        self.__is_closed = False
         self.__bg_color=self['bg']
         self.__focused_wpt = None
         self.__focused_geo = None
         self.__map = None         #buffer disp image for restore map
         self.__map_attr = None
+        self.__map_req = False
+        self.__map_req_time = None
         self.__alter_time = None
+        Thread(target=self.mapUpdater).start()
 
         #canvas items
         self.__canvas_map = None
@@ -106,6 +112,7 @@ class MapBoard(tk.Frame):
         self.__wpt_rclick_menu = tk.Menu(self.disp_canvas, tearoff=0)
         self.__wpt_rclick_menu.add_command(label='Delete Wpt', underline=0, command=self.onWptDeleted)
 
+
     def initMapInfo(self):
         font = 'Arialuni 12'
         bfont = font + ' bold'
@@ -149,6 +156,7 @@ class MapBoard(tk.Frame):
 
     #release sources to exit
     def exit(self):
+        self.__is_closed = True
         if self.inSaveMode():
             self.__canvas_sel_area.exit()
         self.map_ctrl.close()
@@ -551,6 +559,22 @@ class MapBoard(tk.Frame):
             if self.inSaveMode():
                 self.disp_canvas.tag_raise('AS')
 
+    def mapUpdater(self):
+        while not self.__is_closed:
+            #sleep 3sec
+            time.sleep(1)
+            if self.__is_closed:
+                break  #exit
+
+            #update if req, prevent from frequent updating
+            if self.__map_attr and self.__map_attr.fake_count and \
+               self.__map_req and \
+               (datetime.now()-self.__map_req_time).seconds >= 3:
+                try:
+                    self.resetMap()
+                except Exception as ex:
+                    print("Auto reset map error: ", str(ex))
+
     def resetMap(self, geo=None, w=None, h=None, force=None):
         if w is None: w = self.disp_canvas.winfo_width()
         if h is None: h = self.disp_canvas.winfo_height()
@@ -559,13 +583,22 @@ class MapBoard(tk.Frame):
             self.map_ctrl.geo = geo
             self.map_ctrl.shiftGeoPixel(-w/2, -h/2)
 
-        def refreshMap(timestamp):
-            if (datetime.now()-timestamp).seconds >= 3: #prevent from frequent updating
-                print('UPDATE is available...update now.')
-                self.resetMap()
+        def refreshMap():
+            self.__map_req = True
 
+        #request map
+        self.__map_req = False #reset flag
+        self.__map_req_time = datetime.now()
         self.__map, self.__map_attr = self.map_ctrl.getMap(w, h, force, cb=refreshMap)  #buffer the image
+
+        #set map
         self.__setMap(self.__map)
+
+        #set status
+        if self.__map_attr.fake_count:
+            print('Map Loding...', self.__map_attr.fake_count)
+        else:
+            print('Map Loding...done')
 
     def restore(self):
         self.__setMap(self.__map)
@@ -691,17 +724,16 @@ class MapController:
         map, attr = self.__genGpsMap(req_attr, force)
 
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  crop map")
-        req_map = self.__genCropMap(map, attr, req_attr)
+        map = self.__genCropMap(map, attr, req_attr)
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw coord")
-        self.__drawTM2Coord(req_map, req_attr)
+        self.__drawTM2Coord(map, req_attr)
 
         #rec attr/cb or update later
-        #self.__dirty_map_info = (req_attr, cb, datetime.now()) if map.is_fake and cb else None
-        self.__dirty_map_info = (req_attr, cb, datetime.now()) if attr.fake_count and cb else None
-        print('fake count:', attr.fake_count)
+        self.__dirty_map_info = (attr, cb) if attr.fake_count and cb else None
 
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: done")
-        return req_map, req_attr
+        req_attr.fake_count = attr.fake_count
+        return map, req_attr
 
     def __isCacheValid(self, cache_map, req_attr):
         cache_attr = self.__cache_attr
@@ -717,7 +749,6 @@ class MapController:
 
         map, attr = self.__genBaseMap(req_attr)
         self.__cache_gpsmap = map.copy()   #copy as cache
-        self.__cache_gpsmap.is_fake = map.is_fake
 
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw trk")
         self.__drawTrk(self.__cache_gpsmap, attr)
@@ -762,7 +793,6 @@ class MapController:
 
         #Image.NEAREST, Image.BILINEAR, Image.BICUBIC, or Image.LANCZOS 
         zoom_img = map.resize((w,h), Image.BILINEAR)
-        zoom_img.is_fake = map.is_fake
 
         #the attr of resized image
         zoom_attr = attr.zoomToLevel(level)
@@ -784,10 +814,10 @@ class MapController:
 
         if not self.__dirty_map_info:
             return
-        attr, cb, timestamp = self.__dirty_map_info
+        attr, cb = self.__dirty_map_info
         if tileInAttr(level, x, y, attr):
             print('UPDATE is available.')
-            cb(timestamp)
+            cb()
 
     def __genTileMap(self, map_attr, extra_p):
         #get tile x, y.
@@ -798,14 +828,12 @@ class MapController:
         #gen image
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "paste tile...")
         disp_map = Image.new("RGBA", (tx_num*256, ty_num*256))
-        disp_map.is_fake = False
         fake_count = 0
         self.__paste_count = tx_num*ty_num
         for x in range(tx_num):
             for y in range(ty_num):
                 tile = self.__tile_map.getTileByTileXY_(map_attr.level, t_left +x, t_upper +y, self.__updateDirtyMap)
                 if tile.is_fake:
-                    disp_map.is_fake = True
                     fake_count += 1
                 disp_map.paste(tile, (x*256, y*256))
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "paste tile...done")
@@ -945,7 +973,6 @@ class MapController:
         right = dst_attr.right_px - src_attr.left_px
         low   = dst_attr.low_py - src_attr.up_py
         img2 = map.crop((left, up, right, low))
-        img2.is_fake = map.is_fake
         return img2
 
     def __drawTM2Coord(self, map, attr):

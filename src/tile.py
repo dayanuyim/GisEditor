@@ -201,7 +201,7 @@ class __TileMap:
         #wakeup the foreman
         with self.__workers_cv:
             self.__workers_cv.notify()
-        print('DL %s [FINISH][%s]' % (url, 'SUCCESS' if result_ok else 'FAILED'))
+        print('DL %s [%s]' % (url, 'SUCCESS' if result_ok else 'FAILED'))
 
         #cache && notify if need
         if not self.__is_closed:
