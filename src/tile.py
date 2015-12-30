@@ -189,7 +189,7 @@ class __TileMap:
         try:
             url = self.genTileUrl(level, x, y)
             print('DL', url)
-            with urllib.request.urlopen(url) as response:
+            with urllib.request.urlopen(url, timeout=30) as response:
                 res_img = Image.open(response)
             result_ok = True
         except Exception as ex:
