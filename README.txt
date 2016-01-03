@@ -16,10 +16,10 @@
 
 1. Install (linux)
     a. install necessary libraries
-        sudo apt-get ibjpeg libjpeg-dev libfreetype6 libfreetype6-dev zlib1g-dev libpng12-dev libopenjpeg-dev tk-dev tcl-dev
+        sudo apt-get install libjpeg libjpeg-dev libfreetype6 libfreetype6-dev zlib1g-dev libpng12-dev libopenjpeg-dev tk-dev tcl-dev
 
     b. install python dev
-         sudo apt-get python3-dev python3-pip python3-tk python3-imaging-tk
+         sudo apt-get install python3-dev python3-pip python3-tk python3-imaging-tk
 
     c. install python libraries
          sudo pip3 install pillow
