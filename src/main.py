@@ -100,10 +100,13 @@ class MapBoard(tk.Frame):
         self.__rclick_menu.add_command(label='Toggle wpt name', underline=0, command=self.onToggleWptNmae)
         self.__rclick_menu.add_command(label='Apply symbol rules', underline=0, command=self.onApplySymbolRule)
         self.__rclick_menu.add_separator()
+        '''
         edit_trk_menu = tk.Menu(self.__rclick_menu, tearoff=0)
         edit_trk_menu.add_command(label='Edit 1-by-1', underline=5, command=lambda:self.onEditTrk(mode='single'))
         edit_trk_menu.add_command(label='Edit in list', underline=5, command=lambda:self.onEditTrk(mode='list'))
         self.__rclick_menu.add_cascade(label='Edit tracks...', menu=edit_trk_menu)
+        '''
+        self.__rclick_menu.add_command(label='Edit tracks', underline=5, command=lambda:self.onEditTrk(mode='single'))
         split_trk_menu = tk.Menu(self.__rclick_menu, tearoff=0)
         split_trk_menu.add_command(label='By day', command=lambda:self.onSplitTrk(self.trkDiffDay))
         split_trk_menu.add_command(label='By time gap', command=lambda:self.onSplitTrk(self.trkTimeGap))
