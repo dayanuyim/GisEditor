@@ -1819,7 +1819,7 @@ class SymRuleBoard(tk.Toplevel):
         self.__var_widgets = {}
         self.__rules = conf.Sym_rules
         if not hasattr(self.__rules, 'is_altered'):
-            self.__rules.is_altered = False
+            self.__rules.is_altered = tk.BooleanVar(value=False)
         self.__font = 'Arialuni 12'
         self.__bfont = 'Arialuni 12 bold'
 
@@ -1859,8 +1859,9 @@ class SymRuleBoard(tk.Toplevel):
         self.__inc_btn.pack(side='right', anchor='ne')
 
         self.__save_btn = tk.Button(self, text='Save', command=lambda: self.onSave())
-        self.__save_btn['state'] = 'normal' if self.__rules.is_altered else 'disabled' 
         self.__save_btn.pack(side='left', anchor='nw')
+        self.__rules.is_altered.trace('w', self.setSaveButtonState)
+        self.setSaveButtonState() #init invoke
 
         frame = self.sf.interior()
         bfont = self.__bfont
@@ -1876,6 +1877,9 @@ class SymRuleBoard(tk.Toplevel):
             self.genRuleWidgets(rule, row)  #view
             self.setRuleWidgets(rule)      #data
 
+    def setSaveButtonState(self, *args):
+        self.__save_btn['state'] = 'normal' if self.__rules.is_altered.get() else 'disabled' 
+
     def genRuleWidgets(self, rule, row):
         bfont = self.__bfont
         font = self.__font
@@ -1889,7 +1893,8 @@ class SymRuleBoard(tk.Toplevel):
         self.setWidgetCommon(type_label, row, 1)
 
         #text_label = tk.Label(frame, font=font)
-        text_label = tk.Entry(frame, font=font, relief='flat', state='disabled', disabledbackground=self.__bg_color)
+        text_label = tk.Entry(frame, font=font, relief='flat', \
+                state='disabled', disabledforeground='black',disabledbackground=self.__bg_color)
         self.setWidgetEditable(text_label, self.onTextWrite)
         self.setWidgetCommon(text_label, row, 2)
 
@@ -1906,8 +1911,7 @@ class SymRuleBoard(tk.Toplevel):
 
     def onSave(self):
         self.__rules.save()
-        self.__rules.is_altered = False
-        self.__save_btn.config(state='disabled')
+        self.__rules.is_altered.set(False)
 
     def getWidgetsRow(self, rule):
         w = self.__widgets[rule]
@@ -2051,8 +2055,7 @@ class SymRuleBoard(tk.Toplevel):
         if e.widget == en_w:
             rule.enabled = not rule.enabled
             self.setRuleWidgets(rule)
-            self.__rules.is_altered = True
-            self.__save_btn.config(state='normal')
+            self.__rules.is_altered.set(True)
         elif e.widget == type_w:
             self.__type_menu.post(e.x_root, e.y_root)
         elif e.widget == txt_w:
@@ -2062,8 +2065,7 @@ class SymRuleBoard(tk.Toplevel):
             if sym is not None and rule.symbol != sym:
                 rule.symbol = sym
                 self.setRuleWidgets(rule)
-                self.__rules.is_altered = True
-                self.__save_btn.config(state='normal')
+                self.__rules.is_altered.set(True)
 
     def onTextWrite(self, widget):
         var = widget.variable
@@ -2071,8 +2073,7 @@ class SymRuleBoard(tk.Toplevel):
         if rule.text != var.get():
             #print('rule change text from ', rule.text, 'to', var.get() )
             rule.text = var.get()
-            self.__rules.is_altered = True
-            self.__save_btn.config(state='normal')
+            self.__rules.is_altered.set(True)
 
     def onTypeWrite(self, t):
         #print('set type to ', str(t))
@@ -2080,8 +2081,7 @@ class SymRuleBoard(tk.Toplevel):
         if rule.type != t:
             rule.type = t
             self.setRuleWidgets(rule)
-            self.__rules.is_altered = True
-            self.__save_btn.config(state='normal')
+            self.__rules.is_altered.set(True)
 
     #{{ add/dup rule
 
@@ -2113,6 +2113,7 @@ class SymRuleBoard(tk.Toplevel):
         #view, to insert new
         self.genRuleWidgets(new_rule, row)
         self.setRuleWidgets(new_rule)
+        self.__rules.is_altered.set(True)
 
     def onRemoveRule(self):
         rule = self.__focused_rule
@@ -2127,6 +2128,7 @@ class SymRuleBoard(tk.Toplevel):
             w.grid_forget()
 
         self.__focused_rule = None
+        self.__rules.is_altered.set(True)
     #}}
 
 __sym_board = None
