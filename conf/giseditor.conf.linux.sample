@@ -1,4 +1,4 @@
-cache_dir=/home/dayanuyim/Dropbox/backup/mapcache
+cache_dir=mapcache
 gpsbabel_exe=gpsbabel
 img_font=ukai.ttc
 img_font_size=18
@@ -9,8 +9,8 @@ max_supp_level=18
 min_supp_level=7
 split_time_gap=4.000000
 split_dist_gap=200.000000
-select_area_x=6.000000
-select_area_y=4.000000
+select_area_x=7.000000
+select_area_y=5.000000
 select_area_align=y
 select_area_fixed=y
 select_area_level=16
