@@ -376,6 +376,10 @@ class MapBoard(tk.Frame):
 
     def onEditTrk(self, mode, trk=None):
         trk_list = self.map_ctrl.getAllTrks()
+        if len(trk_list) == 0:
+            messagebox.showwarning('', "No Tracks Found")
+            return
+
         if mode == 'single':
             trk_board = TrkSingleBoard(self, trk_list, trk)
         else:
