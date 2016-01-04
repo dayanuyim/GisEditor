@@ -87,10 +87,14 @@ class MapBoard(tk.Frame):
         self.__rclick_menu.add_command(label='Save to gpx...', underline=0, command=self.onGpxSave)
         self.__rclick_menu.add_separator()
         self.__rclick_menu.add_command(label='Add wpt', command=self.onAddWpt)
+        '''
         edit_wpt_menu = tk.Menu(self.__rclick_menu, tearoff=0)
         edit_wpt_menu.add_command(label='Edit 1-by-1', underline=5, command=lambda:self.onEditWpt(mode='single'))
         edit_wpt_menu.add_command(label='Edit in list', underline=5, command=lambda:self.onEditWpt(mode='list'))
         self.__rclick_menu.add_cascade(label='Edit waypoints...', menu=edit_wpt_menu)
+        '''
+        self.__rclick_menu.add_command(label='Edit waypoints', underline=0, command=lambda:self.onEditWpt(mode='single'))
+        self.__rclick_menu.add_command(label='Show waypoints list', underline=0, command=lambda:self.onEditWpt(mode='list'))
 
         num_wpt_menu = tk.Menu(self.__rclick_menu, tearoff=0)
         num_wpt_menu.add_command(label='By time order', command=lambda:self.onNumberWpt(time=1))
