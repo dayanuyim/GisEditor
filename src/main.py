@@ -653,6 +653,12 @@ class MapController:
     def tile_map(self): return self.__tile_map
 
     @property
+    def tile_max_level(self): return self.__tile_map.level_max
+
+    @property
+    def tile_min_level(self): return self.__tile_map.level_min
+
+    @property
     def geo(self): return self.__geo
     @geo.setter
     def geo(self, v): self.__geo = v
@@ -791,9 +797,7 @@ class MapController:
             return (self.__cache_basemap, self.__cache_attr)
 
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  gen base map")
-        level_max = self.__tile_map.level_max
-        level_min = self.__tile_map.level_min
-        level = max(self.__tile_map.level_min, min(req_attr.level, self.__tile_map.level_max))
+        level = min(max(self.tile_min_level, req_attr.level), self.tile_max_level)
 
         if req_attr.level == level:
             tile_map = self.__genTileMap(req_attr, self.extra_p)
@@ -836,6 +840,11 @@ class MapController:
 
     def __updateDirtyMap(self, level, x, y):
         def tileInAttr(level, x, y, attr):
+            #handle psudo level beyond min level or max level
+            crop_level = min(max(self.tile_min_level, attr.level), self.tile_max_level)
+            if crop_level != attr.level:
+                attr = attr.zoomToLevel(crop_level)
+            #check range
             if level == attr.level:
                 t_left, t_right, t_upper, t_lower = box = self.__tileRangeOfAttr(attr, self.extra_p)
                 return (t_left <= x and x <= t_right) and (t_upper <= y and y <= t_lower)
