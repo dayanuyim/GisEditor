@@ -366,7 +366,7 @@ class __TileMap:
         img = Image.new("RGBA", (side, side), bg)
         return img
 
-    def getTileByTileXY_(self, level, x, y, cb=None, allow_fake=True):
+    def getTile(self, level, x, y, cb=None, allow_fake=True):
         img = self.__getTile(level, x, y, True, cb)
         if img:
             img.is_fake = False
@@ -428,7 +428,7 @@ if __name__ == '__main__':
 
     def downloadImage(tm, title):
         while True:
-            tile = tm.getTileByTileXY_(level, x, y)
+            tile = tm.getTile(level, x, y)
             showim(tile, title)
             if tile.is_fake:
                 time.sleep(3)
@@ -451,6 +451,6 @@ if __name__ == '__main__':
     test('test/tile/minify_part')
 
     #tm = getTM25Kv3TileMap('test/tile/minify_magnify')
-    #showim(tm.getTileByTileXY_(14, x, y), 'minify_magnify')
+    #showim(tm.getTile(14, x, y), 'minify_magnify')
 
     root.mainloop()

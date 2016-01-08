@@ -870,7 +870,7 @@ class MapController:
         self.__paste_count = tx_num*ty_num
         for x in range(tx_num):
             for y in range(ty_num):
-                tile = self.__tile_map.getTileByTileXY_(map_attr.level, t_left +x, t_upper +y, self.__updateDirtyMap)
+                tile = self.__tile_map.getTile(map_attr.level, t_left +x, t_upper +y, self.__updateDirtyMap)
                 if tile.is_fake:
                     fake_count += 1
                 disp_map.paste(tile, (x*256, y*256))
