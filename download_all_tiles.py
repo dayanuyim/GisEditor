@@ -27,6 +27,7 @@ def downloadJob(tile_map, level, x, y):
         path = tile_map.genTilePath(level, x, y)
         print('DL', url)
         with urllib.request.urlopen(url, timeout=30) as response:
+            tile.mkdirCheck(os.path.dirname(path))
             with open(path, 'wb') as f:
                 shutil.copyfileobj(response, f)
         result_ok = True
