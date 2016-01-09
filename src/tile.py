@@ -302,10 +302,13 @@ class __TileMap:
 
         #from disk
         path = self.genTilePath(level, x, y)
-        if os.path.exists(path):
-            img = Image.open(path)
-            self.setRepoImage(id, img)
-            return img
+        if os.path.exists(path): #check file exists and is valid
+            try:
+                img = Image.open(path)
+                self.setRepoImage(id, img)
+                return img
+            except Exception as ex:
+                print("ERROR read tile image file error: ", str(ex))
 
         #async request
         if auto_req:
