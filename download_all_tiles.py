@@ -31,7 +31,7 @@ def downloadJob(tile_map, level, x, y):
                 shutil.copyfileobj(response, f)
         result_ok = True
     except Exception as ex:
-        print('Error to download %s to %s: %s' % (url, path, str(ex)))
+        print('ERROR download %s to %s error: %s' % (url, path, str(ex)))
 
     #result
     print('DL %s [%s]' % (url, 'SUCCESS' if result_ok else 'FAILED'))
@@ -73,7 +73,6 @@ if __name__ == '__main__':
                             break
                     print('.', end='')
                     time.sleep(1)
-                print()
 
                 #download
                 print("DL tile(%d,%d,%d)...%d/%d" % (level, x, y, count, total))
