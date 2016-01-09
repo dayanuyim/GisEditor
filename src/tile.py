@@ -15,6 +15,13 @@ from threading import Thread, Lock, Condition
 from math import tan, sin, cos, radians, degrees
 from collections import OrderedDict
 
+def mkdirCheck(path, is_recursive=True):
+    if not os.path.exists(path):
+        if is_recursive:
+            os.makedirs(path)
+        else:
+            os.mkdir(path)
+
 class TileSystem:
     EARTH_RADIUS = 6378137
     MIN_LATITUDE = -85.05112878
@@ -122,11 +129,8 @@ class __TileMap:
         self.__downloader = Thread(target=self.__tileDownloader)
 
     def start(self):
-        #create cache dirs
-        for level in range(self.level_min, self.level_max+1):
-            level_dir = os.path.join(self.__cache_dir, self.map_id, str(level))
-            if not os.path.exists(level_dir):
-                os.makedirs(level_dir)
+        #create cache dir for the map
+        mkdirCheck(self.getCachePath())
         #start download thread
         self.__downloader.start()
 
@@ -138,12 +142,16 @@ class __TileMap:
     def isSupportedLevel(self, level):
         return self.level_min <= level and level <= self.level_max
 
+    def getCachePath(self):
+        return os.path.join(self.__cache_dir, self.map_id)
+
     def genTileId(self, level, x, y):
         return "%s-%d-%d-%d" % (self.map_id, level, x, y)
 
     def genTilePath(self, level, x, y):
-        name = "%d-%d.jpg" % (x, y)
-        return os.path.join(self.__cache_dir, self.map_id, str(level), name)
+        #add extra folder layer 'x' to lower the number of files within a folder
+        name = "%d-%d-%d.jpg" % (level, x, y)
+        return os.path.join(self.getCachePath(), str(x), name)
 
     def genTileUrl(self, level, x, y):
         return self.url_template % (level, x, y)
@@ -218,6 +226,7 @@ class __TileMap:
         if result_ok:
             try:
                 path = self.genTilePath(level, x, y)
+                mkdirCheck(os.path.dirname(path))
                 res_img.save(path, quality=85)
             except Exception as ex:
                 print('Error to save tile file', str(ex))
