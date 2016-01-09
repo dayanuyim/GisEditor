@@ -42,16 +42,10 @@ def downloadJob(tile_map, level, x, y):
     with thread_lock:
         thread_pool.remove(myself)
 
-if __name__ == '__main__':
-    #main island of Taiwan
-    low_lat, up_lat = 21.876792, 25.373809
-    left_lon, right_lon = 120.020142, 122.025146
-
-    #TM25Kv3
-    cdir = sys.argv[1] if len(sys.argv) > 1 else CACHE_DIR
-    map = tile.getTM25Kv3TileMap(cache_dir=cdir)
-
+def downloadArea(map, low_lat, up_lat, left_lon, right_lon):
+    #level
     for level in range(map.level_min, map.level_max+1):
+        #x, y
         min_x, min_y = TileSystem.getTileXYByLatLon(up_lat, left_lon, level)
         max_x, max_y = TileSystem.getTileXYByLatLon(low_lat, right_lon, level)
         total = (max_x - min_x + 1) * (max_y - min_y + 1)
@@ -82,8 +76,23 @@ if __name__ == '__main__':
                 with thread_lock:
                     thread_pool.append(th)
                 th.start()
-    map.close()
 
+if __name__ == '__main__':
+    cdir = sys.argv[1] if len(sys.argv) > 1 else CACHE_DIR
 
+    #TM25Kv3
+    map = tile.getTM25Kv3TileMap(cache_dir=cdir)
+    try:
+        #main island of Taiwan
+        low_lat, up_lat = 21.876792, 25.373809
+        left_lon, right_lon = 120.020142, 122.025146
+        downloadArea(map, low_lat, up_lat, left_lon, right_lon)
+
+        #penghu
+        low_lat, up_lat = 23.122995, 23.877676
+        left_lon, right_lon = 119.383106, 119.758186
+        downloadArea(map, low_lat, up_lat, left_lon, right_lon)
+    finally:
+        map.close()
 
 
