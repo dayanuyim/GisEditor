@@ -193,13 +193,12 @@ class __TileMap:
     #The therad to download
     def __doDownloadJob(self, id, level, x, y, cb):
         #do download
-        result_ok = False
+        res_img = None
         try:
             url = self.genTileUrl(level, x, y)
             print('DL', url)
             with urllib.request.urlopen(url, timeout=30) as response:
                 res_img = Image.open(response)
-            result_ok = True
         except Exception as ex:
             print('Error to download %s: %s' % (url, str(ex)))
 
@@ -209,21 +208,24 @@ class __TileMap:
         #wakeup the foreman
         with self.__workers_cv:
             self.__workers_cv.notify()
-        print('DL %s [%s]' % (url, 'SUCCESS' if result_ok else 'FAILED'))
+        print('DL %s [%s]' % (url, 'SUCCESS' if res_img else 'FAILED'))
 
+        #premature return
         if self.__is_closed:
             return
 
-        #cache && notify if need
-        self.setRepoImage(id, res_img)
-        if result_ok and cb:
-            try:
-                cb(level, x, y)
-            except Exception as ex:
-                print('Invoke cb of download tile error:', str(ex))
+        if res_img:
+            #cache
+            self.setRepoImage(id, res_img)
 
-        #save file
-        if result_ok:
+            #notify if need
+            if cb:
+                try:
+                    cb(level, x, y)
+                except Exception as ex:
+                    print('Invoke cb of download tile error:', str(ex))
+
+            #save file
             try:
                 path = self.genTilePath(level, x, y)
                 mkdirCheck(os.path.dirname(path))
