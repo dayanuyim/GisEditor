@@ -26,7 +26,86 @@ from pic import PicDocument
 from sym import SymRuleType, SymRule
 from util import GeoPoint, getPrefCornerPos, AreaSelector, AreaSizeTooLarge
 
+#read pathes
+def isGpsFile(path):
+    (fname, ext) = os.path.splitext(path)
+    ext = ext.lower()
+    if ext == '.gpx':
+        return True
+    if ext == '.gdb':
+        return True
+    #assue the file is a gps file!
+    return True
 
+def isPicFile(path):
+    (fname, ext) = os.path.splitext(path)
+    ext = ext.lower()
+
+    if ext == '.jpg' or ext == '.jpeg':
+        return True
+    return False
+
+def getGpsDocument(path):
+    try:
+        (fname, ext) = os.path.splitext(path)
+        ext = ext.lower()
+        gpx = GpsDocument(conf.TZ)
+        if ext == '.gpx':
+            gpx.load(filename=path)
+        else:
+            gpx_string = toGpxString(path)
+            gpx.load(filestring=gpx_string)
+        return gpx
+    except Exception as ex:
+        print("Error to open '%s': %s" % (path, str(ex)))
+        return None
+
+def getPicDocument(path):
+    try:
+        return PicDocument(path, conf.TZ)
+    except:
+        print('No metadata in the picture:', path)
+    return None
+
+def toGpxString(src_path):
+    (fname, ext) = os.path.splitext(src_path)
+    if ext == '':
+        raise ValueError("cannot identify input format")
+
+    exe_file = conf.GPSBABEL_EXE
+    tmp_path = os.path.join(tempfile.gettempdir(),  "giseditor_gps.tmp")
+
+    shutil.copyfile(src_path, tmp_path)  #to work around the problem of gpx read non-ascii filename
+    cmd = '"%s" -i %s -f "%s" -o gpx,gpxver=1.1 -F -' % (exe_file, ext[1:], tmp_path)
+    print(cmd)
+    output = subprocess.check_output(cmd, shell=True)
+    os.remove(tmp_path)
+
+    return output.decode("utf-8")
+
+def __parsePath(path, gps_path, pic_path):
+    if not path:
+        return
+    if os.path.isdir(path):
+        for f in os.listdir(path):
+            subpath = os.path.join(path, f)
+            __parsePath(subpath, gps_path, pic_path)
+    elif isPicFile(path):
+        pic_path.append(path)
+    elif isGpsFile(path):
+        gps_path.append(path)
+
+#may generalize the method, and moving to util.py
+def parsePathes(pathes):
+    gps_path = []
+    pic_path = []
+    for path in pathes:
+        __parsePath(path, gps_path, pic_path)
+    gps_path.sort()
+    pic_path.sort()
+    return gps_path, pic_path
+
+#The Main board to display the map
 class MapBoard(tk.Frame):
     @property
     def is_alter(self): return self.__alter_time is not None
@@ -49,6 +128,8 @@ class MapBoard(tk.Frame):
         self.__map_req = False
         self.__map_req_time = None
         self.__alter_time = None
+        self.__pref_dir = None
+        self.__pref_geo = None
         Thread(target=self.mapUpdater).start()
 
         #canvas items
@@ -84,7 +165,7 @@ class MapBoard(tk.Frame):
 
         #right-click menu
         self.__rclick_menu = tk.Menu(self.disp_canvas, tearoff=0)
-        self.__rclick_menu.add_command(label='Save to gpx...', underline=0, command=self.onGpxSave)
+        self.__rclick_menu.add_command(label='Add Files', underline=0, command=self.onAddFiles)
         self.__rclick_menu.add_separator()
         self.__rclick_menu.add_command(label='Add wpt', command=self.onAddWpt)
         '''
@@ -118,6 +199,7 @@ class MapBoard(tk.Frame):
         self.__rclick_menu.add_cascade(label='Split tracks...', menu=split_trk_menu)
         self.__rclick_menu.add_separator()
         self.__rclick_menu.add_command(label='Save to image...', underline=0, command=self.onImageSave)
+        self.__rclick_menu.add_command(label='Save to gpx...', underline=0, command=self.onGpxSave)
 
         #wpt menu
         self.__wpt_rclick_menu = tk.Menu(self.disp_canvas, tearoff=0)
@@ -253,12 +335,14 @@ class MapBoard(tk.Frame):
             self.map_ctrl.addWpt(wpt)
 
     #deprecated
+    '''
     def initDisp(self):
         print('initDisp', self.winfo_width(), self.winfo_height())
         pt = self.__getPrefGeoPt()
         disp_w = self.__init_w
         disp_h = self.__init_h
         self.resetMap(pt, disp_w, disp_h)
+   '''
 
     def __getPrefGeoPt(self):
         #prefer track point
@@ -313,24 +397,50 @@ class MapBoard(tk.Frame):
             self.__rclick_menu.unpost()
             self.__wpt_rclick_menu.unpost()
 
+    #to handle preferred dir : no exist, success, or exception
+    def withPreferredDir(self, action_cb):
+        if self.__pref_dir and not os.path.exists(self.__pref_dir):
+            self.__pref_dir = None
+            
+        try:
+            result = action_cb(self.__pref_dir)
+            if result:
+                self.__pref_dir = None  #no init dir after successful saving
+            return result
+        except Exception as ex:
+            self.__pref_dir = None  #no init dir if exception
+            raise ex
+
+    def addFiles(self, file_pathes):
+        gps_path, pic_path = parsePathes(file_pathes)  
+        for path in gps_path:
+            self.addGpx(getGpsDocument(path))
+        for path in pic_path:
+            self.addWpt(getPicDocument(path))
+
+        #also set preferred dir if needed
+        def getPrefDir(pathes):
+            return None if not len(pathes) else os.path.dirname(pathes[0])
+        if not self.__pref_dir:
+            self.__pref_dir = getPrefDir(gps_path)
+        if not self.__pref_dir:
+            self.__pref_dir = getPrefDir(pic_path)
 
     #{{ Right click actions
-    def onGpxSave(self):
-        fpath = asksaveasfilename(".gpx",(("GPS Excahnge Format", ".gpx"), ("All Files", "*.*")))
-        if not fpath:
-            return False
+    def onAddFiles(self):
+        #add filenames
+        def to_ask(init_dir):
+            return filedialog.askopenfilenames(initialdir=init_dir)
+        filenames = self.withPreferredDir(to_ask)
+        self.addFiles(filenames)
 
-        #gen gpx faile
-        doc = GpsDocument()
-        for gpx in self.map_ctrl.gpx_layers:
-            doc.merge(gpx)
-
-        #save
-        doc.save(fpath)
-        self.__alter_time = None
-
-        return True
-
+        #got to pref geo, if no init_geo before
+        if not self.__pref_geo:
+            geo = self.__getPrefGeoPt()
+            if geo:
+                self.__pref_geo = geo
+                self.setMapInfo(geo)
+                self.resetMap(geo)
 
     def onAddWpt(self):
         geo = self.__focused_geo
@@ -469,7 +579,12 @@ class MapBoard(tk.Frame):
                 return
 
             #get fpath
-            fpath = asksaveasfilename(".png", (("Portable Network Graphics", ".png"), ("All Files", "*.*")))
+            def to_ask(init_dir):
+                return filedialog.asksaveasfilename(
+                    defaultextension=".png",
+                    filetypes=(("Portable Network Graphics", ".png"), ("All Files", "*.*")),
+                    initialdir=init_dir)
+            fpath = self.withPreferredDir(to_ask)
             if not fpath:
                 return False
 
@@ -490,6 +605,27 @@ class MapBoard(tk.Frame):
             messagebox.showwarning(str(ex), 'Please zoom out or resize the window to enlarge the map')
         finally:
             self.__canvas_sel_area = None
+
+    def onGpxSave(self):
+        def to_ask(init_dir):
+            return filedialog.asksaveasfilename(
+                defaultextension=".gpx",
+                filetypes=(("GPS Excahnge Format", ".gpx"), ("All Files", "*.*")),
+                initialdir=init_dir)
+        fpath = self.withPreferredDir(to_ask)
+        if not fpath:
+            return False
+
+        #gen gpx faile
+        doc = GpsDocument()
+        for gpx in self.map_ctrl.gpx_layers:
+            doc.merge(gpx)
+
+        #save
+        doc.save(fpath)
+        self.__alter_time = None
+
+        return True
 
     #}} Right click actions
 
@@ -574,7 +710,8 @@ class MapBoard(tk.Frame):
         if e.widget == disp:
             if not hasattr(disp, 'image'):  #init
                 geo = self.__getPrefGeoPt()
-                if geo is None:
+                self.__pref_geo = geo  #rec
+                if not geo:
                     geo = self.map_ctrl.geo
                 self.setMapInfo(geo)
                 self.resetMap(geo)
@@ -2202,83 +2339,6 @@ def getTextImag(text, size):
     return img
 
 
-def isGpsFile(path):
-    (fname, ext) = os.path.splitext(path)
-    ext = ext.lower()
-    if ext == '.gpx':
-        return True
-    if ext == '.gdb':
-        return True
-    #assue the file is a gps file!
-    return True
-
-def getGpsDocument(path):
-    try:
-        (fname, ext) = os.path.splitext(path)
-        ext = ext.lower()
-        gpx = GpsDocument(conf.TZ)
-        if ext == '.gpx':
-            gpx.load(filename=path)
-        else:
-            gpx_string = toGpxString(path)
-            gpx.load(filestring=gpx_string)
-        return gpx
-    except Exception as ex:
-        print("Error to open '%s': %s" % (path, str(ex)))
-        return None
-
-def getPicDocument(path):
-    try:
-        return PicDocument(path, conf.TZ)
-    except:
-        print('No metadata in the picture:', path)
-    return None
-
-def toGpxString(src_path):
-    (fname, ext) = os.path.splitext(src_path)
-    if ext == '':
-        raise ValueError("cannot identify input format")
-
-    exe_file = conf.GPSBABEL_EXE
-    tmp_path = os.path.join(tempfile.gettempdir(),  "giseditor_gps.tmp")
-
-    shutil.copyfile(src_path, tmp_path)  #to work around the problem of gpx read non-ascii filename
-    cmd = '"%s" -i %s -f "%s" -o gpx,gpxver=1.1 -F -' % (exe_file, ext[1:], tmp_path)
-    print(cmd)
-    output = subprocess.check_output(cmd, shell=True)
-    os.remove(tmp_path)
-
-    return output.decode("utf-8")
-
-def isPicFile(path):
-    (fname, ext) = os.path.splitext(path)
-    ext = ext.lower()
-
-    if ext == '.jpg' or ext == '.jpeg':
-        return True
-    return False
-
-def readPathes(pathes):
-    gps_path = []
-    pic_path = []
-    for path in pathes:
-        __readPath(path, gps_path, pic_path)
-    gps_path.sort()
-    pic_path.sort()
-    return gps_path, pic_path
-    
-def __readPath(path, gps_path, pic_path):
-    if not path:
-        return
-    if os.path.isdir(path):
-        for f in os.listdir(path):
-            subpath = os.path.join(path, f)
-            __readPath(subpath, gps_path, pic_path)
-    elif isPicFile(path):
-        pic_path.append(path)
-    elif isGpsFile(path):
-        gps_path.append(path)
-
 def isExit(disp_board):
 
     if not disp_board.is_alter:
@@ -2308,40 +2368,6 @@ def getTitleText():
             txt += ' '
     return txt
 
-def getPrefSaveDir():
-    files = sys.argv[1:]
-
-    if not len(files):
-        return None
-    
-    #prefer gpx file
-    for f in files:
-        if f.endswith('.gpx'):
-            return os.path.dirname(f)
-
-    return os.path.dirname(files[0])
-
-Pref_save_dir = None
-
-def asksaveasfilename(def_ext, types):
-    global Pref_save_dir
-
-    #no init dir if not exist
-    if Pref_save_dir and not os.path.exists(Pref_save_dir):
-        Pref_save_dir = None
-        
-    try:
-        fpath = filedialog.asksaveasfilename(
-                defaultextension=def_ext,
-                filetypes=types,
-                initialdir=Pref_save_dir)
-        if fpath:
-            Pref_save_dir = None  #no init dir after successful saving
-        return fpath
-    except Exception as ex:
-        Pref_save_dir = None  #no init dir if exception
-        raise ex
-
 if __name__ == '__main__':
     try:
         #create window
@@ -2350,19 +2376,13 @@ if __name__ == '__main__':
         root.title(getTitleText())
         root.geometry('950x700+200+0')
 
-        Pref_save_dir = getPrefSaveDir()
-
         pad_ = 2
         disp_board = MapBoard(root)
         disp_board.pack(side='right', anchor='se', expand=1, fill='both', padx=pad_, pady=pad_)
         root.protocol('WM_DELETE_WINDOW', lambda: onExit(root, disp_board))
 
         #add files
-        gps_path, pic_path = readPathes(sys.argv[1:])
-        for path in gps_path:
-            disp_board.addGpx(getGpsDocument(path))
-        for path in pic_path:
-            disp_board.addWpt(getPicDocument(path))
+        disp_board.addFiles(sys.argv[1:])
 
         #disp_board.initDisp()
         root.mainloop()
