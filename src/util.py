@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 import os
 import platform
-import Xlib.display as display
-import Xlib.X as X
 import tkinter as tk
 from threading import Timer
 from PIL import Image, ImageTk, ImageDraw, ImageColor
@@ -12,6 +10,9 @@ import conf
 from tile import TileSystem
 from coord import CoordinateSystem
 
+'''
+import Xlib.display as display
+import Xlib.X as X
 def autorepeat(enabled):
     if platform.system() == 'Linux':
         #mode = X.AutoRepeatModeOn if enabled else X.AutoRepeatModeOff
@@ -22,6 +23,7 @@ def autorepeat(enabled):
             os.system('xset r on')
         else:
             os.system('xset r off')
+'''
 
 def getPrefCornerPos(widget, pos):
     sw = widget.winfo_screenwidth()
