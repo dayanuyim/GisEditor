@@ -32,9 +32,13 @@ ICON_DIR = os.path.join(HOME_DIR, 'icon')
 
 #read conf
 __config = __readConfig(GISEDITOR_CONF)
+
 __cache_dir = __config['cache_dir']
 CACHE_DIR = __cache_dir if os.path.isabs(__cache_dir ) else os.path.join(HOME_DIR, __cache_dir)
-GPSBABEL_EXE = __config['gpsbabel_exe']
+
+__gpsbabel_exe = __config['gpsbabel_exe']
+GPSBABEL_EXE = __gpsbabel_exe if os.path.isabs(__gpsbabel_exe) else os.path.join(HOME_DIR, __gpsbabel_exe)
+
 IMG_FONT_SIZE = int(__config['img_font_size'])
 IMG_FONT = ImageFont.truetype(__config['img_font'], IMG_FONT_SIZE) #global use font (Note: the operation is time wasting)
 TZ = timedelta(hours=float(__config['tz']))
@@ -54,7 +58,7 @@ SELECT_AREA_LEVEL = int(__config['select_area_level'])
 def save(path=GISEDITOR_CONF):
     with open(path, 'w') as f:
         f.write("cache_dir=%s\n" % (__config['cache_dir'],))
-        f.write("gpsbabel_exe=%s\n" % (GPSBABEL_EXE,))
+        f.write("gpsbabel_exe=%s\n" % (__config['gpsbabel_exe'],))
         #f.write("img_font=%s\n" % (IMG_FONT.getname(),))
         f.write("img_font=%s\n" % (__config['img_font'],))  #workaround to get font name
         f.write("img_font_size=%d\n" % (IMG_FONT_SIZE,))
