@@ -77,8 +77,8 @@ def getGpsDocument(path):
 def getPicDocument(path):
     try:
         return PicDocument(path, conf.TZ)
-    except:
-        print('No metadata in the picture:', path)
+    except Exception as ex:
+        logMsg("cannot read the picture '%s'" % (path,), str(ex))
     return None
 
 def __toGpx(src_path, output):
@@ -568,6 +568,9 @@ class MapBoard(tk.Frame):
 
     def onEditWpt(self, mode, wpt=None):
         wpt_list = self.map_ctrl.getAllWpts()
+        if len(wpt_list) == 0:
+            messagebox.showwarning('', 'No Waypoints to show')
+            return
         if mode == 'single':
             wpt_board =  WptSingleBoard(self, wpt_list, wpt)
         elif mode == 'list':
