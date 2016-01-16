@@ -208,7 +208,7 @@ class AreaSelectorSettings(Dialog):
                 w.config(state=s)
         f = tk.Frame(self)
         f.grid(row=row, column=0, sticky='w')
-        tk.Checkbutton(f, text='Fixed size', variable=self.var_fixed, command=checkSizeWidgets)\
+        tk.Checkbutton(f, text='Fixed size (KM)', variable=self.var_fixed, command=checkSizeWidgets)\
                 .pack(side='left', expand=1, fill='both')
 
         #size
