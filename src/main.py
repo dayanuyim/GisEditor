@@ -2373,6 +2373,7 @@ if __name__ == '__main__':
         #create window
         root = tk.Tk()
         pmw.initialise(root)
+        root.iconbitmap(conf.EXE_ICON)
         root.title(getTitleText())
         root.geometry('950x700+200+0')
 
