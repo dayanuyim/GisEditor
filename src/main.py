@@ -2456,13 +2456,15 @@ def getTitleText():
 
 if __name__ == '__main__':
     try:
-        #create window
+        #create root
         root = tk.Tk()
         pmw.initialise(root)
+        root.withdraw() #hidden
         root.iconbitmap(conf.EXE_ICON)
         root.title(getTitleText())
         root.geometry('950x700+200+0')
 
+        #create display board
         pad_ = 2
         disp_board = MapBoard(root)
         disp_board.pack(side='right', anchor='se', expand=1, fill='both', padx=pad_, pady=pad_)
@@ -2471,7 +2473,9 @@ if __name__ == '__main__':
         #add files
         disp_board.addFiles(sys.argv[1:])
 
-        #disp_board.initDisp()
+        #show
+        root.update()
+        root.deiconify()
         root.mainloop()
     except Exception as ex:
         messagebox.showwarning('Startup failed', str(ex))
