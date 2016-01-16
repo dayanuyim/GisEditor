@@ -1579,10 +1579,14 @@ class WptListBoard(WptBoard):
         #wait
         self.wait_window(self)
 
+    def initWidget(self, w, row, col):
+        w.bind('<Double-Button-1>', self.onDoubleClick)
+        w.bind('<Motion>', self.onMotion)
+        w.grid(row=row, column=col, sticky='news')
+
     def init(self):
         self.sf = pmw.ScrolledFrame(self, usehullsize = 1, hull_width = 300, hull_height = 600)
         self.sf.pack(fill = 'both', expand = 1)
-
 
         frame = self.sf.interior()
         font = self._font
@@ -1596,31 +1600,25 @@ class WptListBoard(WptBoard):
 
         for w in self._wpt_list:
             row += 1
-            on_motion = lambda e: self.onMotion(e)
 
             #icon
             icon = ImageTk.PhotoImage(conf.getIcon(w.sym))
             icon_label = tk.Label(frame, image=icon, anchor='e')
             icon_label.image=icon
-            icon_label.bind('<Motion>', on_motion)
-            icon_label.grid(row=row, column=0, sticky='news')
+            self.initWidget(icon_label, row, 0)
 
             name_label = tk.Label(frame, text=w.name, font=font, anchor='w')
-            name_label.bind('<Motion>', on_motion)
-            name_label.grid(row=row, column=1, sticky='news')
+            self.initWidget(name_label, row, 1)
 
             pos_txt = conf.getPtPosText(w, fmt='%.3f\n%.3f')
             pos_label = tk.Label(frame, text=pos_txt, font=font)
-            pos_label.bind('<Motion>', on_motion)
-            pos_label.grid(row=row, column=2, sticky='news')
+            self.initWidget(pos_label, row, 2)
 
             ele_label = tk.Label(frame, text=conf.getPtEleText(w), font=font)
-            ele_label.bind('<Motion>', on_motion)
-            ele_label.grid(row=row, column=3, sticky='news')
+            self.initWidget(ele_label, row, 3)
 
             time_label = tk.Label(frame, text=conf.getPtTimeText(w), font=font)
-            time_label.bind('<Motion>', on_motion)
-            time_label.grid(row=row, column=4, sticky='news')
+            self.initWidget(time_label, row, 4)
 
             #save
             self.__widgets[w] = (
@@ -1630,6 +1628,11 @@ class WptListBoard(WptBoard):
                     ele_label,
                     time_label
             )
+
+    def onDoubleClick(self, e):
+        wpt = self.getWptOfWidget(e.widget)
+        self.master.resetMap(wpt) #focuse
+        self.highlightWpt(wpt) #highlight
 
     def getWptOfWidget(self, w):
         for wpt, widgets in self.__widgets.items():
