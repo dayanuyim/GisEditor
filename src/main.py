@@ -162,6 +162,8 @@ class MapBoard(tk.Frame):
         self.__alter_time = None
         self.__pref_dir = None
         self.__pref_geo = None
+        self.__left_click_pos = None
+        self.__right_click_pos = None
         Thread(target=self.mapUpdater).start()
 
         #canvas items
@@ -406,17 +408,22 @@ class MapBoard(tk.Frame):
             messagebox.showwarning('Level Over Limit', 'The level should between %d ~ %d' % (conf.MIN_SUPP_LEVEL, conf.MAX_SUPP_LEVEL))
 
     def onClickDown(self, e, flag):
-        e.widget.focus_set() #to grap key events
-        self.__mouse_down_pos = (e.x, e.y)
+        #to grap key events
+        e.widget.focus_set()
 
-        geo = self.__focused_geo
-        wpt = self.__focused_wpt
+        #rec
+        if flag == 'left':
+            self.__left_click_pos = (e.x, e.y)
+        elif flag == 'right':
+            self.__right_click_pos = (e.x, e.y)
 
         #geo info
+        geo = self.getGeoPointAt(e.x, e.y)
         self.setMapInfo(geo)
 
-        #wpt. left->edit, right->menu
-        if wpt is not None:
+        #wpt context, if any
+        wpt = self.map_ctrl.getWptAround(geo)
+        if wpt:
             if flag == 'left':
                 self.onEditWpt(mode='single', wpt=wpt)
             elif flag == 'right':
@@ -426,6 +433,7 @@ class MapBoard(tk.Frame):
             self.__rclick_menu.post(e.x_root, e.y_root)  #right menu
         #unpost, if any
         else:
+            self.__right_click_pos = None
             self.__rclick_menu.unpost()
             self.__wpt_rclick_menu.unpost()
 
@@ -478,10 +486,17 @@ class MapBoard(tk.Frame):
             logMsg('Add Files Error', str(ex))
 
     def onAddWpt(self):
-        geo = self.__focused_geo
+        if not self.__right_click_pos:
+            logMsg('Create Wpt Error', 'Cannot not get right click position')
+            return
+
+        #create wpt
+        px, py = self.__right_click_pos
+        geo = self.getGeoPointAt(px, py)
         wpt = WayPoint(geo.lat, geo.lon)
         wpt.time = datetime.now()
 
+        #add wpt
         self.addWpt(wpt)
         self.setAlter('wpt')
 
@@ -676,33 +691,35 @@ class MapBoard(tk.Frame):
         if self.inSaveMode():
             return
 
-        if self.__mouse_down_pos is not None:
+        if self.__left_click_pos:
             label = event.widget
 
-            #print("change from ", self.__mouse_down_pos, " to " , (event.x, event.y))
-            (last_x, last_y) = self.__mouse_down_pos
+            #print("change from ", self.__left_click_pos, " to " , (event.x, event.y))
+            (last_x, last_y) = self.__left_click_pos
             self.map_ctrl.shiftGeoPixel(last_x - event.x, last_y - event.y)
             self.setMapInfo()
             self.resetMap()
 
-            self.__mouse_down_pos = (event.x, event.y)
+            self.__left_click_pos = (event.x, event.y)
+
+    def getGeoPointAt(self, px, py):
+        px += self.map_ctrl.px
+        py += self.map_ctrl.py
+        return GeoPoint(px=px, py=py, level=self.map_ctrl.level)
 
     def onMotion(self, event):
         if self.inSaveMode():
             return
+        geo = self.getGeoPointAt(event.x, event.y)
 
         #draw point
-        c = self.map_ctrl
-        px=c.px + event.x
-        py=c.py + event.y
-
-        curr_wpt = c.getWptAt(px, py)
+        curr_wpt = self.map_ctrl.getWptAround(geo)
         prev_wpt = self.__focused_wpt
         if curr_wpt != prev_wpt:
             self.highlightWpt(curr_wpt, prev_wpt)
 
         #rec
-        self.__focused_geo = GeoPoint(px=px, py=py, level=c.level)
+        self.__focused_geo = geo
         self.__focused_wpt = curr_wpt
 
     def highlightWpt(self, wpt, un_wpt=None):
@@ -741,7 +758,8 @@ class MapBoard(tk.Frame):
         return True
 
     def onClickUp(self, event, flag):
-        self.__mouse_down_pos = None
+        if flag == 'left':
+            self.__left_click_pos = None
 
     def onResize(self, e):
         disp = self.disp_canvas
@@ -915,7 +933,8 @@ class MapController:
                 trks.append(trk)
         return trks
 
-    def getWptAt(self, px, py):
+    def getWptAround(self, geo):
+        px, py = geo.px(self.level), geo.py(self.level)
         r = int(conf.ICON_SIZE/2)
         for wpt in self.getAllWpts():
             wpx, wpy = wpt.pixel(self.level)
