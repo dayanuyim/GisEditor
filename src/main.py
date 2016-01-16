@@ -26,6 +26,16 @@ from pic import PicDocument
 from sym import SymRuleType, SymRule
 from util import GeoPoint, getPrefCornerPos, AreaSelector, AreaSizeTooLarge
 
+#print to console/log and messagebox (generalize this with LOG, moving to util.py)
+def logMsg(desc, reason):
+    #Todo: log
+    print("%s: %s" % (desc, reason))
+    messagebox.showwarning(desc, reason)
+
+def logPrint(msg):
+    #Todo: log
+    print(msg)
+
 #read pathes
 def isGpsFile(path):
     (fname, ext) = os.path.splitext(path)
@@ -49,15 +59,19 @@ def getGpsDocument(path):
     try:
         (fname, ext) = os.path.splitext(path)
         ext = ext.lower()
-        gpx = GpsDocument(conf.TZ)
+        gps = GpsDocument(conf.TZ)
         if ext == '.gpx':
-            gpx.load(filename=path)
+            gps.load(filename=path)
         else:
-            gpx_string = toGpxString(path)
-            gpx.load(filestring=gpx_string)
-        return gpx
+            gpx_path = toGpxFile(path)
+            gps.load(filename=gpx_path)
+            os.remove(gpx_path)        #remove tmp file
+            #pythonW.exe seems causing pipe error, if we get output from stdout directly.
+            #gpx_string = toGpxString(path)
+            #gps.load(filestring=gpx_string)
+        return gps
     except Exception as ex:
-        print("Error to open '%s': %s" % (path, str(ex)))
+        logMsg("Error to open '%s'" % (path,), str(ex))
         return None
 
 def getPicDocument(path):
@@ -67,21 +81,38 @@ def getPicDocument(path):
         print('No metadata in the picture:', path)
     return None
 
-def toGpxString(src_path):
+def __toGpx(src_path, output):
     (fname, ext) = os.path.splitext(src_path)
     if ext == '':
         raise ValueError("cannot identify input format")
 
     exe_file = conf.GPSBABEL_EXE
-    tmp_path = os.path.join(tempfile.gettempdir(),  "giseditor_gps.tmp")
+    tmp_in_path = os.path.join(tempfile.gettempdir(),  "giseditor_in.tmp")
 
-    shutil.copyfile(src_path, tmp_path)  #to work around the problem of gpx read non-ascii filename
-    cmd = '"%s" -i %s -f "%s" -o gpx,gpxver=1.1 -F -' % (exe_file, ext[1:], tmp_path)
-    print(cmd)
-    output = subprocess.check_output(cmd, shell=True)
-    os.remove(tmp_path)
+    shutil.copyfile(src_path, tmp_in_path)  #to work around the problem of gpsbabel connot read non-ascii filename
 
-    return output.decode("utf-8")
+    if output == 'string':
+        cmd = '"%s" -i %s -f "%s" -o gpx,gpxver=1.1 -F -' % (exe_file, ext[1:], tmp_in_path)
+        logPrint(cmd)
+        output = subprocess.check_output(cmd, shell=True)  #@@! pythonW.exe caused 'WinError 6: the handler is invalid'
+        result = output.decode("utf-8")
+    elif output == 'file':
+        tmp_out_path = os.path.join(tempfile.gettempdir(),  "giseditor_out.tmp")
+        cmd = '"%s" -i %s -f "%s" -o gpx,gpxver=1.1 -F "%s"' % (exe_file, ext[1:], tmp_in_path, tmp_out_path)
+        logPrint(cmd)
+        subprocess.call(cmd, shell=True)
+        result = tmp_out_path
+    else:
+        raise ValueError('Unknow type to convert to gpx: ' + output)
+
+    os.remove(tmp_in_path) #clean tmp file before return
+    return result
+
+def toGpxFile(src_path):
+    return __toGpx(src_path, 'file')
+
+def toGpxString(src_path):
+    return __toGpx(src_path, 'string')
 
 def __parsePath(path, gps_path, pic_path):
     if not path:
@@ -428,19 +459,22 @@ class MapBoard(tk.Frame):
 
     #{{ Right click actions
     def onAddFiles(self):
-        #add filenames
-        def to_ask(init_dir):
-            return filedialog.askopenfilenames(initialdir=init_dir)
-        filenames = self.withPreferredDir(to_ask)
-        self.addFiles(filenames)
+        try:
+            #add filenames
+            def to_ask(init_dir):
+                return filedialog.askopenfilenames(initialdir=init_dir)
+            filenames = self.withPreferredDir(to_ask)
+            self.addFiles(filenames)
 
-        #got to pref geo, if no init_geo before
-        if not self.__pref_geo:
-            geo = self.__getPrefGeoPt()
-            if geo:
-                self.__pref_geo = geo
-                self.setMapInfo(geo)
-                self.resetMap(geo)
+            #go to pref geo, if no init_geo before
+            if not self.__pref_geo:
+                geo = self.__getPrefGeoPt()
+                if geo:
+                    self.__pref_geo = geo
+                    self.setMapInfo(geo)
+                    self.resetMap(geo)
+        except Exception as ex:
+            logMsg('Add Files Error', str(ex))
 
     def onAddWpt(self):
         geo = self.__focused_geo
