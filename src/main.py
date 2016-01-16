@@ -29,8 +29,9 @@ from util import GeoPoint, getPrefCornerPos, AreaSelector, AreaSizeTooLarge
 #print to console/log and messagebox (generalize this with LOG, moving to util.py)
 def logMsg(desc, reason):
     #Todo: log
-    print("%s: %s" % (desc, reason))
-    messagebox.showwarning(desc, reason)
+    msg = "%s: %s" % (desc, reason)
+    print(msg)
+    messagebox.showwarning('', msg)
 
 def logPrint(msg):
     #Todo: log
@@ -1381,7 +1382,7 @@ class WptBoard(tk.Toplevel):
         self.highlightWpt(self._curr_wpt)
 
     def onEditSymRule(self):
-        SymRuleBoard(self)
+        showRule(self)
     
     def highlightWpt(self, wpt):
         #focus
@@ -1863,7 +1864,7 @@ class SymBoard(tk.Toplevel):
 
     @pos.setter
     def pos(self, val):
-        val = (0,0) if val is None else getPrefCornerPos(self, val)
+        val = (0,0) if not val else getPrefCornerPos(self, val)
         self.geometry('+%d+%d' % val)
         self.__pos = val
 
@@ -2003,9 +2004,19 @@ class SymBoard(tk.Toplevel):
         self.onClosed(None)
 
 class SymRuleBoard(tk.Toplevel):
-    def __init__(self, master, pos=None):
+    @property
+    def pos(self): return self.__pos
+
+    @pos.setter
+    def pos(self, val):
+        val = (0,0) if not val else getPrefCornerPos(self, val)
+        self.geometry('+%d+%d' % val)
+        self.__pos = val
+
+    def __init__(self, master=None):
         super().__init__(master)
 
+        self.__parent = None
         self.__bg_color = self.cget('bg')
         self.__hl_bg_color = 'lightblue'
         self.__focused_rule = None
@@ -2016,10 +2027,9 @@ class SymRuleBoard(tk.Toplevel):
             self.__rules.is_altered = tk.BooleanVar(value=False)
         self.__font = 'Arialuni 12'
         self.__bfont = 'Arialuni 12 bold'
+        self.__pos = (0,0)
 
         #board
-        pos = '+%d+%d' % (pos[0], pos[1]) if pos is not None else '+0+0'
-        self.geometry(pos)
         self.title('Symbol Rules')
         self.bind('<Escape>', self.onClosed)
         self.protocol('WM_DELETE_WINDOW', lambda: self.onClosed(None))
@@ -2028,19 +2038,32 @@ class SymRuleBoard(tk.Toplevel):
         self.initRightMenu()
         self.initTypeMenu()
 
-        #set focus
-        self.transient(self.master)
-        self.focus_set()
-        if conf.OS == 'Linux':
-            self.withdraw() #ensure update silently
-            self.update()   #ensure viewable before grab, 
-            self.deiconify() #show
-        self.grab_set()
-        self.wait_window(self)
+        #hidden and silent update
+        self.withdraw()  #hidden
+        self.visible = tk.BooleanVar(value=False)
+        self.update()  
+
+    def show(self, parent):
+        self.__parent = parent #rec
+
+        #UI
+        self.transient(parent)  #remove max/min buttons
+        self.focus_set()  #prevent key-press sent back to parent
+        
+        self.deiconify() #show
+        self.visible.set(True)
+
+        self.grab_set()   #disalbe interact of parent
+        parent.wait_variable(self.visible)
 
     def onClosed(self, e):
-        self.master.focus_set()
-        self.destroy()
+        if self.__parent:
+            self.__parent.focus_set()
+        self.grab_release()
+
+        #self.destroy()
+        self.withdraw()
+        self.visible.set(False)
 
     def init(self):
         self.sf = pmw.ScrolledFrame(self, usehullsize = 1, hull_width = 450, hull_height = 600)
@@ -2284,10 +2307,10 @@ class SymRuleBoard(tk.Toplevel):
 
     def initRightMenu(self):
         menu = tk.Menu(self, tearoff=0)
-        menu.add_command(label='Insert rule', command=self.onAddRule)
-        menu.add_command(label='Duplicate rule', command=lambda: self.onAddRule(dup=1))
+        menu.add_command(label='Insert a rule', command=self.onAddRule)
+        menu.add_command(label='Duplicate the rule', command=lambda: self.onAddRule(dup=1))
         menu.add_separator()
-        menu.add_command(label='Remove rule', command=self.onRemoveRule)
+        menu.add_command(label='Remove the rule', command=self.onRemoveRule)
         self.__add_menu = menu
 
     def onAddRule(self, dup=0):
@@ -2331,14 +2354,21 @@ def askSym(parent, pos=None, init_sym=None):
     #return sym_board.sym
 
     global __sym_board
-
     if __sym_board is None:
         __sym_board = SymBoard()
+
     __sym_board.pos = pos
     __sym_board.sym = init_sym
-
     __sym_board.show(parent)
     return __sym_board.sym
+
+__rule_board = None
+def showRule(parent, pos=None):
+    global __rule_board
+    if not __rule_board:
+        __rule_board = SymRuleBoard()
+    __rule_board.pos = pos
+    __rule_board.show(parent)
 
 def listdiff(list1, list2):
     result = []
