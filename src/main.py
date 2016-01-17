@@ -52,7 +52,7 @@ def isPicFile(path):
     (fname, ext) = os.path.splitext(path)
     ext = ext.lower()
 
-    if ext == '.jpg' or ext == '.jpeg':
+    if ext in ('.jpg', '.jpeg', '.tif', '.gif', '.png'):
         return True
     return False
 
