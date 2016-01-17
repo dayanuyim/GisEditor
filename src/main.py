@@ -1436,7 +1436,7 @@ class WptSingleBoard(WptBoard):
 
         #image
         self.__img_label = None
-        self.__img_sz = (img_w, img_h) = (600, 450)
+        self.__img_sz = (img_w, img_h) = (400, 300)
         if self._hasPicWpt():
             #bd=0: let widget size align image size; set width/height to disable auto resizing
             self.__img_label = tk.Label(self, bg='black', bd=0, width=img_w, height=img_h)
