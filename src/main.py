@@ -2463,7 +2463,11 @@ if __name__ == '__main__':
         root = tk.Tk()
         pmw.initialise(root)
         root.withdraw() #hidden
-        root.iconbitmap(conf.EXE_ICON)
+        if conf.OS == "Windows":
+            root.iconbitmap(conf.EXE_ICON)
+            #icon = ImageTk.PhotoImage(conf.EXE_ICON)
+            #root.tk.call('wm', 'iconphoto', root._w, icon)
+
         root.title(getTitleText())
         root.geometry('950x700+200+0')
 
