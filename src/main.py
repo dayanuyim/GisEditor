@@ -83,10 +83,13 @@ def __toGpx(src_path, flag):
     #input format
     (fname, ext) = os.path.splitext(src_path)
     if ext == '':
-        raise ValueError("cannot identify input format")
+        raise ValueError("cannot identify gps format deu to no file extension")
     input_fmt = conf.gpsbabel_ext_fmt.get(ext)
     if not input_fmt:
-        raise ValueError("cannot identify input format: " + ext)
+        raise ValueError("cannot identify gps format for the file extension: " + ext)
+    if len(input_fmt) > 1:
+        raise ValueError("cannot identify gps format, candidates are " + str(input_fmt))
+    input_fmt = input_fmt[0]
 
     #input path: to work around the problem of gpsbabel connot read non-ascii filename
     input_tmp_path = os.path.join(tempfile.gettempdir(),  "giseditor_in.tmp")
