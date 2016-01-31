@@ -41,12 +41,7 @@ def logPrint(msg):
 def isGpsFile(path):
     (fname, ext) = os.path.splitext(path)
     ext = ext.lower()
-    if ext == '.gpx':
-        return True
-    if ext == '.gdb':
-        return True
-    #assue the file is a gps file!
-    return True
+    return ext in conf.gpsbabel_ext_fmt
 
 def isPicFile(path):
     (fname, ext) = os.path.splitext(path)
@@ -82,31 +77,36 @@ def getPicDocument(path):
         logMsg("cannot read the picture '%s'" % (path,), str(ex))
     return None
 
-def __toGpx(src_path, output):
+def __toGpx(src_path, flag):
+    exe_file = conf.GPSBABEL_EXE
+
+    #input format
     (fname, ext) = os.path.splitext(src_path)
     if ext == '':
         raise ValueError("cannot identify input format")
+    input_fmt = conf.gpsbabel_ext_fmt.get(ext)
+    if not input_fmt:
+        raise ValueError("cannot identify input format: " + ext)
 
-    exe_file = conf.GPSBABEL_EXE
-    tmp_in_path = os.path.join(tempfile.gettempdir(),  "giseditor_in.tmp")
-
-    shutil.copyfile(src_path, tmp_in_path)  #to work around the problem of gpsbabel connot read non-ascii filename
-
-    if output == 'string':
-        cmd = '"%s" -i %s -f "%s" -o gpx,gpxver=1.1 -F -' % (exe_file, ext[1:], tmp_in_path)
-        logPrint(cmd)
-        output = subprocess.check_output(cmd, shell=True)  #@@! pythonW.exe caused 'WinError 6: the handler is invalid'
-        result = output.decode("utf-8")
-    elif output == 'file':
-        tmp_out_path = os.path.join(tempfile.gettempdir(),  "giseditor_out.tmp")
-        cmd = '"%s" -i %s -f "%s" -o gpx,gpxver=1.1 -F "%s"' % (exe_file, ext[1:], tmp_in_path, tmp_out_path)
-        logPrint(cmd)
-        subprocess.call(cmd, shell=True)
-        result = tmp_out_path
-    else:
-        raise ValueError('Unknow type to convert to gpx: ' + output)
-
-    os.remove(tmp_in_path) #clean tmp file before return
+    #input path: to work around the problem of gpsbabel connot read non-ascii filename
+    input_tmp_path = os.path.join(tempfile.gettempdir(),  "giseditor_in.tmp")
+    shutil.copyfile(src_path, input_tmp_path)  
+    try:
+        if flag == 'string':
+            cmd = '"%s" -i %s -f "%s" -o gpx,gpxver=1.1 -F -' % (exe_file, input_fmt, input_tmp_path)
+            logPrint(cmd)
+            output = subprocess.check_output(cmd, shell=True)  #@@! pythonW.exe caused 'WinError 6: the handler is invalid'
+            result = output.decode("utf-8")
+        elif flag == 'file':
+            output_tmp_path = os.path.join(tempfile.gettempdir(),  "giseditor_out.tmp")
+            cmd = '"%s" -i %s -f "%s" -o gpx,gpxver=1.1 -F "%s"' % (exe_file, input_fmt, input_tmp_path, output_tmp_path)
+            logPrint(cmd)
+            subprocess.call(cmd, shell=True)
+            result = output_tmp_path
+        else:
+            raise ValueError('Unknow type to convert to gpx by ' + flag)
+    finally:
+        os.remove(input_tmp_path) #clean tmp file before return
     return result
 
 def toGpxFile(src_path):
@@ -126,6 +126,8 @@ def __parsePath(path, gps_path, pic_path):
         pic_path.append(path)
     elif isGpsFile(path):
         gps_path.append(path)
+    else:
+        logPrint("omit the file: " + path)
 
 #may generalize the method, and moving to util.py
 def parsePathes(pathes):

@@ -76,6 +76,14 @@ def save(path=GISEDITOR_CONF):
         f.write("select_area_fixed=%s\n" % ('y' if SELECT_AREA_FIXED else 'n',))
         f.write("select_area_level=%d\n" % (SELECT_AREA_LEVEL,))
 
+#ext -> fmorat supported by gpsbabel
+gpsbabel_ext_fmt = {
+        ".gpx": "gpx",
+        ".gdb": "gdb",
+        ".gtm": "gtm",
+        ".mps": "mapsource",
+    }
+
 #global variables
 Sym_rules = SymbolRules(SYM_RULE_CONF)
 
