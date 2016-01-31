@@ -99,8 +99,8 @@ class GpsDocument:
             elem = wpt_elem.find("./gpx:time", self.ns)
             if elem is not None and elem.text is not None:
                 wpt.time = datetime.strptime(elem.text, "%Y-%m-%dT%H:%M:%SZ")
-            else:
-                wpt.time = self.toUTC(datetime.now())
+            #else:
+                #wpt.time = self.toUTC(datetime.now())
 
             elem = wpt_elem.find("./gpx:name", self.ns)
             if elem is not None and elem.text is not None:

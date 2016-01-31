@@ -505,7 +505,7 @@ class MapBoard(tk.Frame):
         if name is not None:
             wpt_list = sorted(wpt_list, key=lambda wpt: wpt.name)
         elif time is not None:
-            wpt_list = sorted(wpt_list, key=lambda wpt: wpt.time)
+            wpt_list = sorted(wpt_list, key=lambda wpt: wpt.time if wpt.time else datetime.min)
 
         sn = 0
         for wpt in wpt_list:
