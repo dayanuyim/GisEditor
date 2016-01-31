@@ -96,37 +96,45 @@ def getDefSymList():
                     __def_syms.append(sym)
     return __def_syms
 
-__sym_paths = None  #sym->icon_path
-def getIconPath():
-    global __sym_paths
-    if __sym_paths is None:
-        __sym_paths = {}
+
+def __getSymIcons():
+    sym_icons = {}
+    try:
         for f in os.listdir(ICON_DIR):
             p = path.join(ICON_DIR, f)
             if path.isfile(p):
                 name, ext = path.splitext(f)
                 sym = _tosymkey(name)
-                __sym_paths[sym] = p
-    return __sym_paths
+                sym_icons[sym] = (p, None)
+    except Exception as ex:
+        print('read icons error:', str(ex))
+    return sym_icons
+
+#sym->icon_path, icon_image
+__sym_icons = __getSymIcons()
+
+def getTotalSymbols():
+    return __sym_icons.keys()
 
 def getIcon(sym):
     sym = _tosymkey(sym)
     icon = __getIcon(sym)
-    if icon is None and sym != DEF_SYMBOL:
-        icon = __getIcon(DEF_SYMBOL)
+    if not icon and sym != DEF_SYMBOL:
+        return __getIcon(DEF_SYMBOL) #return default
     return icon
 
-__icons = {}   #sym->icon image
 def __getIcon(sym):
-    icon = __icons.get(sym)
-    if icon is None:
-        icon = __loadIcon(sym, ICON_SIZE)
-        if icon is not None:
-            __icons[sym] = icon  #cache
-    return icon
+    icon = __sym_icons.get(sym)
+    if not icon:
+        return None
+    path, img = icon
+    if img is None:
+        img = __readIcon(path, ICON_SIZE)
+        if img:
+            __sym_icons[sym] = (path, img)
+    return img
 
-def __loadIcon(sym, sz):
-    path =  getIconPath().get(sym)
+def __readIcon(path, sz):
     if path is None:
         return None
     icon = Image.open(path)

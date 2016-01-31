@@ -1911,9 +1911,9 @@ class SymBoard(tk.Toplevel):
         self.protocol('WM_DELETE_WINDOW', lambda: self.onClosed(None))
 
         #init
-        dir_sym = conf.getIconPath().keys()
+        total_sym = conf.getTotalSymbols()
         self.__def_sym = conf.getDefSymList()
-        self.__ext_sym = listdiff(dir_sym, self.__def_sym)
+        self.__ext_sym = listdiff(total_sym, self.__def_sym)
 
         sn = 0
         for sym in self.__def_sym:
