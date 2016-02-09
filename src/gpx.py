@@ -94,22 +94,22 @@ class GpsDocument:
 
             #read info from child elements, if any
             elem = wpt_elem.find("./gpx:ele", self.ns)
-            wpt.ele = float(elem.text) if elem and elem.text else 0.0
+            wpt.ele = float(elem.text) if elem is not None and elem.text else 0.0
 
             elem = wpt_elem.find("./gpx:time", self.ns)
-            wpt.time = datetime.strptime(elem.text, "%Y-%m-%dT%H:%M:%SZ") if elem and elem.text else None
+            wpt.time = datetime.strptime(elem.text, "%Y-%m-%dT%H:%M:%SZ") if elem is not None and elem.text else None
 
             elem = wpt_elem.find("./gpx:name", self.ns)
-            wpt.name = elem.text if elem and elem.text else ""
-
-            elem = wpt_elem.find("./gpx:cmt", self.ns)
-            wpt.cmt = elem.text if elem and elem.text else ""
-
-            elem = wpt_elem.find("./gpx:desc", self.ns)
-            wpt.desc = elem.text if elem and elem.text else ""
+            wpt.name = elem.text if elem is not None and elem.text is not None else ""
 
             elem = wpt_elem.find("./gpx:sym", self.ns)
-            wpt.sym = elem.text if elem and elem.text else ""
+            wpt.sym = elem.text if elem is not None and elem.text else ""
+
+            elem = wpt_elem.find("./gpx:cmt", self.ns)
+            wpt.cmt = elem.text if elem is not None and elem.text else ""
+
+            elem = wpt_elem.find("./gpx:desc", self.ns)
+            wpt.desc = elem.text if elem is not None and elem.text else ""
 
             self.addWpt(wpt)
 
@@ -246,22 +246,23 @@ class GpsDocument:
             ele = ET.SubElement(wpt, "ele");
             ele.text = str(w.ele);
 
-            time = ET.SubElement(wpt, "time");
-            time.text = w.time.strftime("%Y-%m-%dT%H:%M:%SZ");
+            if w.time:
+                time = ET.SubElement(wpt, "time");
+                time.text = w.time.strftime("%Y-%m-%dT%H:%M:%SZ");
 
             name = ET.SubElement(wpt, "name");
             name.text = w.name;
 
-            if len(w.cmt) > 0:
+            sym = ET.SubElement(wpt, "sym");
+            sym.text = w.sym;
+
+            if w.cmt:
                 cmt = ET.SubElement(wpt, "cmt");
                 cmt.text = w.cmt;
 
-            if len(w.desc) > 0:
+            if w.desc:
                 desc = ET.SubElement(wpt, "desc");
                 desc.text = w.desc;
-
-            sym = ET.SubElement(wpt, "sym");
-            sym.text = w.sym;
 
             #extension =====
             extensions = ET.SubElement(wpt, "extensions");
