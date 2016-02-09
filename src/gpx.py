@@ -87,36 +87,29 @@ class GpsDocument:
             return
 
         for wpt_elem in wpt_elems:
+            #read lat, lon, necessarily
             wpt = WayPoint(
                 float(wpt_elem.attrib['lat']),
                 float(wpt_elem.attrib['lon']))
 
-            #child element
+            #read info from child elements, if any
             elem = wpt_elem.find("./gpx:ele", self.ns)
-            if elem is not None and elem.text is not None:
-                wpt.ele = float(elem.text)
+            wpt.ele = float(elem.text) if elem and elem.text else 0.0
 
             elem = wpt_elem.find("./gpx:time", self.ns)
-            if elem is not None and elem.text is not None:
-                wpt.time = datetime.strptime(elem.text, "%Y-%m-%dT%H:%M:%SZ")
-            #else:
-                #wpt.time = self.toUTC(datetime.now())
+            wpt.time = datetime.strptime(elem.text, "%Y-%m-%dT%H:%M:%SZ") if elem and elem.text else None
 
             elem = wpt_elem.find("./gpx:name", self.ns)
-            if elem is not None and elem.text is not None:
-                wpt.name = elem.text
+            wpt.name = elem.text if elem and elem.text else ""
 
             elem = wpt_elem.find("./gpx:cmt", self.ns)
-            if elem is not None and elem.text is not None:
-                wpt.cmt = elem.text
+            wpt.cmt = elem.text if elem and elem.text else ""
 
             elem = wpt_elem.find("./gpx:desc", self.ns)
-            if elem is not None and elem.text is not None:
-                wpt.desc = elem.text
+            wpt.desc = elem.text if elem and elem.text else ""
 
             elem = wpt_elem.find("./gpx:sym", self.ns)
-            if elem is not None and elem.text is not None:
-                wpt.sym = elem.text
+            wpt.sym = elem.text if elem and elem.text else ""
 
             self.addWpt(wpt)
             
