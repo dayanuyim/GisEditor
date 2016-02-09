@@ -112,7 +112,6 @@ class GpsDocument:
             wpt.sym = elem.text if elem and elem.text else ""
 
             self.addWpt(wpt)
-            
 
     def loadTrk(self, xml_root):
         trk_elems = xml_root.findall("./gpx:trk", self.ns)
