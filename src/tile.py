@@ -119,13 +119,13 @@ class __TileMap:
         #download helpers
         self.__img_repo = {}
         self.__img_repo_lock = Lock()
-        self.__workers_cv = Condition()
-        self.__workers_lock = Lock()
-        self.__workers = {}
         self.__MAX_WORKS = 3
-        self.__req_lock = Lock()
-        self.__req_cv = Condition()
+        self.__workers = {}
+        self.__workers_lock = Lock()
+        self.__workers_cv = Condition(self.__workers_lock)
         self.__req_queue = OrderedDict()
+        self.__req_lock = Lock()
+        self.__req_cv = Condition(self.__req_lock)
         self.__downloader = Thread(target=self.__tileDownloader)
 
     def start(self):
@@ -136,6 +136,8 @@ class __TileMap:
 
     def close(self):
         self.__is_closed = True
+        with self.__workers_cv:
+            self.__workers_cv.notify() #wakeup the thread 'foreman'
         with self.__req_cv:
             self.__req_cv.notify() #wakeup the thread 'TileDownloader'
 
@@ -202,12 +204,12 @@ class __TileMap:
         except Exception as ex:
             print('Error to download %s: %s' % (url, str(ex)))
 
-        #remove myself from workers
-        with self.__workers_lock:
-            self.__workers.pop(id, None)
         #wakeup the foreman
         with self.__workers_cv:
+            self.__workers.pop(id, None)
             self.__workers_cv.notify()
+
+        #print result
         print('DL %s [%s]' % (url, 'SUCCESS' if res_img else 'FAILED'))
 
         #premature return
@@ -235,12 +237,12 @@ class __TileMap:
 
     #wait an available worker and deliver the download job.
     def __deliverDownload(self):
-        def has_worker():
-            return len(self.__workers) < self.__MAX_WORKS
+        def worker_events():
+            return self.__is_closed or len(self.__workers) < self.__MAX_WORKS
 
         #wait waker availabel
         with self.__workers_cv:
-            self.__workers_cv.wait_for(has_worker)
+            self.__workers_cv.wait_for(worker_events)
             
         if self.__is_closed:
             return
@@ -259,45 +261,34 @@ class __TileMap:
         worker = Thread(name=id, target=job)
         with self.__workers_lock:
             if id in self.__workers:
-                print("WARNING: try to request DUP download!") #should not happen
+                print("INFO: skip the req for DUP download.") #may dup to req
             else:
                 self.__workers[id] = worker
                 worker.start()
 
     #The thread to handle all download requests
     def __tileDownloader(self):
-        def has_events():
+        def req_events():
             return self.__is_closed or len(self.__req_queue)
 
         while True:
-            #wait for events
+            #wait for requests
             with self.__req_cv:
-                self.__req_cv.wait_for(has_events)
+                self.__req_cv.wait_for(req_events)
 
             #closed
             if self.__is_closed:
                 break
 
-            #check req_queue
-            with self.__req_lock:
-                if len(self.__req_queue) == 0:
-                    continue
             #deliver
             self.__deliverDownload()  #find and wait a worker to download
 
     def __requestTile(self, id, level, x, y, cb):
-        #check req queue
-        with self.__req_lock:
+        #check adn add to req queue
+        with self.__req_cv:
             if id in self.__req_queue:
                 return
-        #check active workers
-        with self.__workers_lock:
-            if id in self.__workers:
-                return
-
-        #add request
-        self.__req_queue[id] = (level, x, y, cb)   
-        with self.__req_cv:
+            self.__req_queue[id] = (level, x, y, cb)
             self.__req_cv.notify()    #notify
 
     def __getTile(self, level, x, y, auto_req=True, cb=None):
