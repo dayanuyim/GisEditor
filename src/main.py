@@ -150,6 +150,16 @@ class MapBoard(tk.Frame):
     @property
     def alter_time(self): return self.__alter_time
 
+    @property
+    def map_has_update(self):
+        with self.__map_has_update_lock:
+            return self.__map_has_update
+
+    @map_has_update.setter
+    def map_has_update(self, v):
+        with self.__map_has_update_lock:
+            self.__map_has_update = v
+
     def __init__(self, master):
         super().__init__(master)
 
@@ -162,8 +172,9 @@ class MapBoard(tk.Frame):
         self.__focused_geo = None
         self.__map = None         #buffer disp image for restore map
         self.__map_attr = None
-        self.__map_req = False
         self.__map_req_time = None
+        self.__map_has_update = False
+        self.__map_has_update_lock = Lock()
         self.__alter_time = None
         self.__pref_dir = None
         self.__pref_geo = None
@@ -785,15 +796,15 @@ class MapBoard(tk.Frame):
 
     def mapUpdater(self):
         while not self.__is_closed:
-            #sleep 3sec
+            #check per second
             time.sleep(1)
             if self.__is_closed:
                 break  #exit
 
             #update if req, prevent from frequent updating
             if self.__map_attr and self.__map_attr.fake_count and \
-               self.__map_req and \
-               (datetime.now()-self.__map_req_time).seconds >= 3:
+               (datetime.now()-self.__map_req_time).seconds >= 3 and \
+               self.map_has_update:
                 try:
                     self.resetMap()
                 except Exception as ex:
@@ -808,10 +819,10 @@ class MapBoard(tk.Frame):
             self.map_ctrl.shiftGeoPixel(-w/2, -h/2)
 
         def refreshMap():
-            self.__map_req = True
+            self.map_has_update = True
 
         #request map
-        self.__map_req = False #reset flag
+        self.map_has_update = False #reset flag
         self.__map_req_time = datetime.now()
         self.__map, self.__map_attr = self.map_ctrl.getMap(w, h, force, cb=refreshMap)  #buffer the image
 
