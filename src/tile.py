@@ -136,10 +136,12 @@ class __TileMap:
 
     def close(self):
         self.__is_closed = True
+        #todo: stop download workers, if any
         with self.__workers_cv:
             self.__workers_cv.notify() #wakeup the thread 'foreman'
         with self.__req_cv:
             self.__req_cv.notify() #wakeup the thread 'TileDownloader'
+        #todo: wait download workers/monitor to stop
 
     def isSupportedLevel(self, level):
         return self.level_min <= level and level <= self.level_max
@@ -238,8 +240,12 @@ class __TileMap:
     #deliver a req to a worker
     def __deliverDownloadJob(self):
         with self.__req_lock, self.__workers_lock:  #Be CAREFUL the order
+            #test conditions again
             if len(self.__req_queue) == 0:
                 print("WARNING: no request in the queue!") #should not happen
+                return
+            if len(self.__workers) >= self.__MAX_WORKS:
+                print("WARNING: no available download workers!") #should not happen
                 return
 
             #the req
