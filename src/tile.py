@@ -14,6 +14,7 @@ from PIL import Image, ImageTk, ImageDraw, ImageTk
 from threading import Thread, Lock, Condition
 from math import tan, sin, cos, radians, degrees
 from collections import OrderedDict
+from io import BytesIO
 
 def mkdirCheck(path, is_recursive=True):
     if not os.path.exists(path):
@@ -199,23 +200,24 @@ class __TileMap:
     #The therad to download
     def __runDownloadJob(self, id, level, x, y, cb):
         #do download
-        res_img = None
+        tile_data = None
         try:
             url = self.genTileUrl(level, x, y)
             print('DL', url)
             with urllib.request.urlopen(url, timeout=30) as response:
-                res_img = Image.open(response)
+                tile_data = response.read()
         except Exception as ex:
             print('Error to download %s: %s' % (url, str(ex)))
-        print('DL %s [%s]' % (url, 'SUCCESS' if res_img else 'FAILED'))
+        print('DL %s [%s]' % (url, 'SUCCESS' if tile_data else 'FAILED'))
 
         #premature done
         if self.__is_closed:
             return
 
         #cache
-        if res_img:
-            self.setRepoImage(id, res_img)
+        if tile_data:
+            tile_img = Image.open(BytesIO(tile_data))
+            self.setRepoImage(id, tile_img)
 
         #done the download
         with self.__workers_cv:
@@ -223,7 +225,7 @@ class __TileMap:
             self.__workers_cv.notify()
 
         #side effect
-        if res_img:
+        if tile_data:
             #notify if need
             if cb:
                 try:
@@ -235,7 +237,8 @@ class __TileMap:
             try:
                 path = self.genTilePath(level, x, y)
                 mkdirCheck(os.path.dirname(path))
-                res_img.save(path, quality=85)
+                with open(path, 'wb') as tile_file:
+                    tile_file.write(tile_data)
             except Exception as ex:
                 print('Error to save tile file', str(ex))
 
