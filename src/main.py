@@ -892,7 +892,7 @@ class MapController:
     def __init__(self, parent):
         #def settings
         self.__parent = parent
-        self.__tile_map = tile.getTM25Kv3TileMap(cache_dir=conf.CACHE_DIR)
+        self.__tile_map = tile.getTM25Kv3TileMap(cache_dir=conf.CACHE_DIR, is_started=True)
         self.__geo = GeoPoint(lon=121.334754, lat=24.987969)  #default location
         self.__level = 14
 

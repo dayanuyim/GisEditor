@@ -103,6 +103,7 @@ class __TileMap:
 
     def __init__(self, cache_dir=None):
         #The attributes needed to be initialized outside
+        self.uid = None
         self.map_id = None
         self.map_title = None
         self.lower_corner = None
@@ -111,6 +112,7 @@ class __TileMap:
         self.level_min = None
         self.level_max = None
         self.tile_side = None
+        self.tile_format = None
 
         #gen cache dir
         self.__cache_dir = cache_dir if cache_dir else './cache' 
@@ -389,8 +391,9 @@ class __TileMap:
 
         return None
 
-def getTM25Kv3TileMap(cache_dir):
+def getTM25Kv3TileMap(cache_dir, is_started=False):
     tm = __TileMap(cache_dir=cache_dir)
+    tm.uid = 210
     tm.map_id = "TM25K_2001"
     tm.map_title = "2001-臺灣經建3版地形圖-1:25,000"
     tm.lower_corner = (117.84953432, 21.65607265)
@@ -399,11 +402,13 @@ def getTM25Kv3TileMap(cache_dir):
     tm.level_min = 7
     tm.level_max = 16
     tm.tile_side = 256
-    tm.start()
+    tm.tile_format = 'jpg'
+    if is_started: tm.start()
     return tm
 
 def getTM25Kv4TileMap(cache_dir):
-    tm = __TileMap(cache_dir=cache_dir)
+    tm = __TileMap(cache_dir=cache_dir, is_started=False)
+    tm.uid = 211
     tm.map_id = "TM25K_2003"
     tm.map_title = "2001-臺灣經建4版地形圖-1:25,000"
     tm.lower_corner = (117.84953432, 21.65607265)
@@ -412,7 +417,8 @@ def getTM25Kv4TileMap(cache_dir):
     tm.level_min = 5
     tm.level_max = 17
     tm.tile_side = 256
-    tm.start()
+    tm.tile_format = 'jpg'
+    if is_started: tm.start()
     return tm
 
 if __name__ == '__main__':
@@ -446,7 +452,7 @@ if __name__ == '__main__':
                 break
 
     def test(cache_dir):
-        tm = getTM25Kv3TileMap(cache_dir)
+        tm = getTM25Kv3TileMap(cache_dir, True)
         downloadImage(tm, cache_dir.split('/')[-1])
         tm.close()
 
