@@ -7,8 +7,14 @@ from PIL import Image, ImageTk, ImageDraw, ImageColor
 
 #my modules
 import conf
-from tile import TileSystem
-from coord import CoordinateSystem
+from coord import TileSystem, CoordinateSystem
+
+def mkdirSafely(path, is_recursive=True):
+    if not os.path.exists(path):
+        if is_recursive:
+            os.makedirs(path)
+        else:
+            os.mkdir(path)
 
 '''
 import Xlib.display as display

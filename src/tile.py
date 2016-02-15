@@ -35,13 +35,18 @@ class __TileMap:
         self.tile_side = None
         self.tile_format = None
 
-        #gen cache dir
-        self.__cache_dir = cache_dir if cache_dir else './cache' 
         self.__is_closed = False
 
-        #download helpers
+        #local cache
+        if cache_dir is None:
+            cache_dir = 'cache'
+        self.__local_cache = LocalCache(cache_dir)
+
+        #memory cache
         self.__img_repo = {}
         self.__img_repo_lock = Lock()
+
+        #download helpers
         self.__MAX_WORKS = 3
         self.__workers = {}
         self.__workers_lock = Lock()
@@ -53,18 +58,24 @@ class __TileMap:
 
     def start(self):
         #create cache dir for the map
-        mkdirCheck(self.getCachePath())
+        self.__local_cache.start()
         #start download thread
         self.__downloader.start()
 
     def close(self):
+        #set flag
         self.__is_closed = True
+
+        #stop all download workers/monitor
         #todo: stop download workers, if any
         with self.__workers_cv:
-            self.__workers_cv.notify() #wakeup the thread 'foreman'
+            self.__workers_cv.notify() #wakeup the thread 'downloader monitor'
         with self.__req_cv:
-            self.__req_cv.notify() #wakeup the thread 'TileDownloader'
+            self.__req_cv.notify()     #wakeup the thread 'downloader monitor'
         #todo: wait download workers/monitor to stop
+
+        #close resources
+        self.__local_cache.close()
 
     def isSupportedLevel(self, level):
         return self.level_min <= level and level <= self.level_max
@@ -74,11 +85,6 @@ class __TileMap:
 
     def genTileId(self, level, x, y):
         return "%s-%d-%d-%d" % (self.map_id, level, x, y)
-
-    def genTilePath(self, level, x, y):
-        #add extra folder layer 'x' to lower the number of files within a folder
-        name = "%d-%d-%d.jpg" % (level, x, y)
-        return os.path.join(self.getCachePath(), str(x), name)
 
     def genTileUrl(self, level, x, y):
         return self.url_template % (level, x, y)
@@ -90,32 +96,6 @@ class __TileMap:
     def setRepoImage(self, id, img):
         with self.__img_repo_lock:
             self.__img_repo[id] = img
-
-#get tile in sync
-#    def getTileByTileXY(self, level, x, y):
-#        id = self.genTileId(level, x, y)
-#
-#        img = self.__img_repo.get(id)
-#        if img is None:
-#            img = self.__readTile(level, x, y)
-#            self.__img_repo[id] = img
-#        return img
-#
-#    def __readTile(self, level, x, y):
-#        path = self.genTilePath(level, x, y)
-#        #print("File", path)
-#
-#        if not os.path.exists(path):
-#            self.__downloadTile(level, x, y, path)
-#        return Image.open(path)
-#
-#    def __downloadTile(self, level, x, y, file_path):
-#        url = self.genTileUrl(level, x, y)
-#        print("DL", url)
-#
-#        #urllib.request.urlretrieve(url, file_path)
-#        with urllib.request.urlopen(url) as response, open(file_path, 'wb') as out_file:
-#            shutil.copyfileobj(response, out_file)
 
     #The therad to download
     def __runDownloadJob(self, id, level, x, y, cb):
@@ -147,20 +127,16 @@ class __TileMap:
         #side effect
         if tile_data:
             #notify if need
-            if cb:
-                try:
-                    cb(level, x, y)
-                except Exception as ex:
-                    print('Invoke cb of download tile error:', str(ex))
+            try:
+                if cb: cb(level, x, y)
+            except Exception as ex:
+                print('Invoke cb of download tile error:', str(ex))
 
             #save file
             try:
-                path = self.genTilePath(level, x, y)
-                mkdirCheck(os.path.dirname(path))
-                with open(path, 'wb') as tile_file:
-                    tile_file.write(tile_data)
+                self.__local_cache.put(level, x, y, tile_data)
             except Exception as ex:
-                print('Error to save tile file', str(ex))
+                print('Error to save tile data', str(ex))
 
     #deliver a req to a worker
     def __deliverDownloadJob(self):
@@ -233,14 +209,14 @@ class __TileMap:
             return img;
 
         #from disk
-        path = self.genTilePath(level, x, y)
-        if os.path.exists(path): #check file exists and is valid
-            try:
-                img = Image.open(path)
+        try:
+            data = self.__local_cache.get(level, x, y)
+            if data:
+                img = Image.open(BytesIO(data))
                 self.setRepoImage(id, img)
                 return img
-            except Exception as ex:
-                print("ERROR read tile image file error: ", str(ex))
+        except Exception as ex:
+            print("Error to read tile data: ", str(ex))
 
         #async request
         if auto_req:
@@ -343,6 +319,34 @@ def getTM25Kv4TileMap(cache_dir):
     tm.tile_format = 'jpg'
     if is_started: tm.start()
     return tm
+
+class LocalCache:
+    def __init__(self, cache_dir):
+        self.__cache_dir = cache_dir
+
+    def __genTilePath(self, level, x, y):
+        #add extra folder layer 'x' to lower the number of files within a folder
+        name = "%d-%d-%d.jpg" % (level, x, y)
+        return os.path.join(self.__cache_dir, str(x), name)
+
+    def start(self):
+        mkdirSafely(self.__cache_dir)
+
+    def close(self):
+        pass
+
+    def put(self, level, x, y, data):
+        path = self.__genTilePath(level, x, y)
+        mkdirSafely(os.path.dirname(path))
+        with open(path, 'wb') as file:
+            file.write(data)
+
+    def get(self, level, x, y):
+        path = self.__genTilePath(level, x, y)
+        if os.path.exists(path):
+            with open(path, 'rb') as file:
+                return file.read()
+        return None
 
 if __name__ == '__main__':
     import time
