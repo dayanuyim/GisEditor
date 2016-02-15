@@ -7,7 +7,7 @@ from xml.etree import ElementTree as ET
 from datetime import datetime
 from PIL import Image
 import xml.dom.minidom
-from tile import TileSystem
+from coord import TileSystem
 from util import GeoPoint
 
 class GpsDocument:

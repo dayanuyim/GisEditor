@@ -20,7 +20,6 @@ from threading import Lock, Thread
 import tile
 import conf
 import util
-from tile import TileSystem
 from gpx import GpsDocument, WayPoint
 from pic import PicDocument
 from sym import SymRuleType, SymRule
@@ -621,7 +620,7 @@ class MapBoard(tk.Frame):
         #pos adjuster to align twd67
         def twd67PosAdjuster(pos):
             level = self.map_ctrl.level
-            sel_geo = self.map_ctrl.geo.incPixel(pos[0], pos[1], level)
+            sel_geo = self.map_ctrl.geo.addPixel(pos[0], pos[1], level)
             #adjust to twd67
             x = round(sel_geo.twd67_x/1000)*1000
             y = round(sel_geo.twd67_y/1000)*1000
@@ -631,7 +630,7 @@ class MapBoard(tk.Frame):
         #convert Geo Diff to Pixel diff, x/y->w/h
         def twd67GeoScaler(xy):
             level = self.map_ctrl.level
-            #sel_geo = self.map_ctrl.geo.incPixel(pos[0], pos[1], level)
+            #sel_geo = self.map_ctrl.geo.addPixel(pos[0], pos[1], level)
             sel_geo = self.map_ctrl.geo #use pos(0,0) as ref
             x = sel_geo.twd67_x + xy[0]*1000
             y = sel_geo.twd67_y - xy[1]*1000
@@ -663,8 +662,8 @@ class MapBoard(tk.Frame):
             w, h = self.__canvas_sel_area.size
             x, y = self.__canvas_sel_area.pos
             #bounding geo
-            sel_geo = self.map_ctrl.geo.incPixel(x, y, org_level)  #upper-left
-            ext_geo = sel_geo.incPixel(w, h, org_level)            #lower-right
+            sel_geo = self.map_ctrl.geo.addPixel(x, y, org_level)  #upper-left
+            ext_geo = sel_geo.addPixel(w, h, org_level)            #lower-right
             dx, dy = ext_geo.diffPixel(sel_geo, out_level)
             #get map
             map, attr = self.map_ctrl.getMap(dx, dy, geo=sel_geo, level=out_level)
@@ -917,7 +916,7 @@ class MapController:
         self.__tile_map.close()
 
     def shiftGeoPixel(self, px, py):
-        self.geo = self.geo.incPixel(int(px), int(py), self.__level)
+        self.geo = self.geo.addPixel(int(px), int(py), self.__level)
 
     def addGpxLayer(self, gpx):
         self.gpx_layers.append(gpx)
@@ -1044,8 +1043,11 @@ class MapController:
 
     #return tile no. of left, right, upper, lower
     def __tileRangeOfAttr(self, map_attr, extra_p=0):
-        (t_left, t_upper) = TileSystem.getTileXYByPixcelXY(map_attr.left_px - extra_p, map_attr.up_py - extra_p)
-        (t_right, t_lower) = TileSystem.getTileXYByPixcelXY(map_attr.right_px + extra_p, map_attr.low_py + extra_p)
+        a = map_attr
+        p = extra_p
+        #todo: simplify this!
+        t_left, t_upper  = GeoPoint(px=a.left_px - p,  py=a.up_py - p,  level=a.level).tile_xy(a.level)
+        t_right, t_lower = GeoPoint(px=a.right_px + p, py=a.low_py + p, level=a.level).tile_xy(a.level)
         return (t_left, t_right, t_upper, t_lower)
 
     def __updateDirtyMap(self, level, x, y):

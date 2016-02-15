@@ -634,15 +634,19 @@ class GeoPoint:
     def pixel(self, level):
         return (self.px(level), self.py(level))
 
-    def incPixel(self, px, py, level):
+    #utility
+    def addPixel(self, px, py, level):  # add (px, py) to get a GeoPoint
         px = self.px(level) + px
         py = self.py(level) + py
         return GeoPoint(px=px, py=py, level=level)
 
-    def diffPixel(self, geo, level):
+    def diffPixel(self, geo, level):    # minus a GeoPoint to get the diff of (px, py)
         dpx = self.px(level) - geo.px(level)
         dpy = self.py(level) - geo.py(level)
         return (dpx, dpy)
+
+    def tile_xy(self, level):
+        return TileSystem.getTileXYByPixcelXY(self.px(level), self.py(level))
 
     #accesor TWD67 TM2 ==========
     @property
