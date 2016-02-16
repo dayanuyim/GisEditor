@@ -1043,11 +1043,11 @@ class MapController:
 
     #return tile no. of left, right, upper, lower
     def __tileRangeOfAttr(self, map_attr, extra_p=0):
-        a = map_attr
-        p = extra_p
-        #todo: simplify this!
-        t_left, t_upper  = GeoPoint(px=a.left_px - p,  py=a.up_py - p,  level=a.level).tile_xy(a.level)
-        t_right, t_lower = GeoPoint(px=a.right_px + p, py=a.low_py + p, level=a.level).tile_xy(a.level)
+        side = self.__tile_map.tile_side
+        t_left  = int((map_attr.left_px  - extra_p) / side)
+        t_right = int((map_attr.right_px + extra_p) / side)
+        t_upper = int((map_attr.up_py    - extra_p) / side)
+        t_lower = int((map_attr.low_py   + extra_p) / side)
         return (t_left, t_right, t_upper, t_lower)
 
     def __updateDirtyMap(self, level, x, y):
