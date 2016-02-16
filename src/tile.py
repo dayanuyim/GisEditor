@@ -8,6 +8,7 @@ import math
 import tkinter as tk
 import urllib.request
 import shutil
+import sqlite3
 from os import listdir
 from os.path import isdir, isfile, exists
 from PIL import Image, ImageTk, ImageDraw, ImageTk
@@ -59,7 +60,7 @@ class __TileMap:
 
     def start(self):
         #create cache dir for the map
-        self.__local_cache = FileLocalCache(cache_dir, self)
+        self.__local_cache = DBLocalCache(self.__cache_dir, self)
         self.__local_cache.start()
         #start download thread
         self.__downloader.start()
@@ -337,7 +338,7 @@ class LocalCache:
 
 class FileLocalCache(LocalCache):
     def __init__(self, cache_dir, tile_map):
-        self.__cache_dir = os.path.join(cache_dir, tile_map.map_id)
+        self.__cache_dir = os.path.join(cache_dir, tile_map.map_id) #create subfolder
         self.__tile_map = tile_map
 
     def __genTilePath(self, level, x, y):
@@ -346,7 +347,6 @@ class FileLocalCache(LocalCache):
         return os.path.join(self.__cache_dir, str(x), name)
 
     def start(self):
-        self.__cache_dir = os.path.join(self.__cache_dir, self.__tile_map.map_id) #create sub folder
         mkdirSafely(self.__cache_dir)
 
     def close(self):
@@ -365,14 +365,47 @@ class FileLocalCache(LocalCache):
                 return file.read()
         return None
 
-class FileLocalCache(LocalCache):
+class DBLocalCache(LocalCache):
+    @property
+    def is_closed(self):
+        with self.__flag_lock:
+            return self.__is_closed
+
+    @is_closed.setter
+    def is_closed(self, v):
+        with self.__flag_lock:
+            return self.__is_closed = v
+
     def __init__(self, cache_dir, tile_map):
-        self.__cache_dir = cache_dir
         self.__db_path = os.path.join(cache_dir, tile_map.map_id + ".db")
         self.__tile_map = tile_map
         self.__conn = None
+        self.__surrogate  #the thread do All DB operations, due to sqlite3 requiring only the same thread.
 
-    def initDB(self):
+        #flags
+        self.__flag_lock = Lock()
+        self.__is_closed = False
+
+        #the get/put queues
+        self.__req_cv = Condition()
+
+        self.__put_queue = []
+        self.__put_lock = Lock()
+        self.__put_exception = None
+
+        self.__get_queue = []
+        self.__get_lock = Lock()
+        self.__get_cv = Condition(self.__get_lock)
+        self.__get_result = None
+        self.__get_exception = None
+
+    def __initDB(self):
+        def getBoundsText(tile_map):
+            left, bottom = tile_map.lower_corner
+            right, top   = tile_map.upper_corner
+            bounds = "%f,%f,%f,%f" % (left, bottom, right, top) #OpenLayers Bounds format
+            return bounds
+
         tm = self.__tile_map
         conn = self.__conn
 
@@ -383,16 +416,15 @@ class FileLocalCache(LocalCache):
                           "INSERT INTO metadata(name, value) VALUES('%s', '%s')" % ('version', '1.0'),
                           "INSERT INTO metadata(name, value) VALUES('%s', '%s')" % ('description', tm.map_title),
                           "INSERT INTO metadata(name, value) VALUES('%s', '%s')" % ('format', tm.tile_format),
-                          "INSERT INTO metadata(name, value) VALUES('%s', '%s')" % ('bounds', to_bounds_txt(tm)),
+                          "INSERT INTO metadata(name, value) VALUES('%s', '%s')" % ('bounds', getBoundsText(tm)),
                          )
         #tiles
         tiles_create_sql = "CREATE TABLE tiles("
-        tiles_create_sql += "uid         INTEGER  NOT NULL, "
         tiles_create_sql += "zoom_level  INTEGER, "
         tiles_create_sql += "tile_column INTEGER, "
         tiles_create_sql += "tile_row    INTEGER, "
         tiles_create_sql += "tile_data   BLOB     NOT NULL, "
-        tiles_create_sql += "PRIMARY KEY (tile_column, tile_row, zoom_level))"
+        tiles_create_sql += "PRIMARY KEY (zoom_level, tile_column, tile_row))"
 
         #ind_create_sql = "CREATE INDEX IND on tiles (zoom_level, tile_row, tile_column)"
 
@@ -402,19 +434,95 @@ class FileLocalCache(LocalCache):
         for sql in meta_data_sqls:
             conn.execute(sql)
 
-    def start(self):
+
+    #the true actions which are called by Surrogate
+    def __start(self):
         if not os.path.exists(self.__db_path):
             mkdirSafely(os.path.dirname(self.__db_path))
             self.__conn = sqlite3.connect(self.__db_path)
-            self.initDB()
+            self.__initDB()
         else:
             self.__conn = sqlite3.connect(self.__db_path)
 
-    def close(self):
+    def __close(self):
         self.__conn.close()
 
+    def __put(self, level, x, y, data):
+        sql = "INSERT OR REPLACE INTO tiles(zoom_level, tile_column, tile_row, tile_data) VALUES(%d, %d, %d, ?)" % (level, x, y)
+        print(sql)
+        self.__conn.executemany(sql, data)
+        self.__conn.commit()
+
+    def __get(self, level, x, y):
+        sql = "SELECT tile_data FROM tiles WHERE zoom_level=%d AND tile_column=%d AND tile_row=%d" % (level, x, y)
+        print(sql)
+        cursor = self.__conn.execute(sql)
+        row = cursor.fetchone()
+        return None if row is None else row[0]
+
+    #the interface which are called by the user
+    def start(self):
+        self.__surrogate = Thread(target=self.__runSurrogate)
+        self.__surrogate.start()
+
+    def close(self):
+        self.__surrogate.join()
+
     def put(self, level, x, y, data):
+        with self.__put_lock:
+            item = (level, x, y, data)
+            self.__put_queue.append(item)
+            with self.__req_cv:
+                self.__req_cv.notify()
+
     def get(self, level, x, y):
+        #print("DB get tile data error:", str(ex))
+        pass
+
+    #the Surrogate thread
+    def __runSurrogate(self):
+        def has_req_events():
+            return self.__is_closed or len(self.__get_queue) or len(self.__put_queue)
+        
+        #get connection
+        self.__start()
+
+        #do sql
+        while True:
+            #wait events
+            with self.__req_cv:
+                self.__req_cv.wait_for(has_req_events)
+                if self.__is_closed:
+                    break
+
+            #get data
+            item = None
+            with self.__get_lock:
+                if len(self.__get_queue):
+                    item = self.__get_queue.pop(0)
+            if item:
+                try:
+                    level, x, y = item
+                    self.__get_result = self.__get(level, x, y)
+                    self.__get_exception = None
+                except Exception as ex:
+                    self.__get_result = None
+                    self.__get_exception = ex
+
+            #put data
+            item = None
+            with self.__put_lock:
+                if len(self.__put_queue):
+                    item = self.__put_queue.pop(0)
+            if item:
+                try:
+                    level, x, y, data = item
+                    self.__put(leve, x, y, data)
+                except Exception as ex:
+                    print("DB put data error:", str(ex))
+
+        #close
+        self.__close()
 
 if __name__ == '__main__':
     import time
