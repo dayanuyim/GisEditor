@@ -22,7 +22,7 @@ class __TileMap:
     def title(self):
         return self.map_title
 
-    def __init__(self, cache_dir=None):
+    def __init__(self, cache_dir):
         #The attributes needed to be initialized outside
         self.uid = None
         self.map_id = None
@@ -39,8 +39,9 @@ class __TileMap:
 
         #local cache
         if cache_dir is None:
-            cache_dir = 'cache'
-        self.__local_cache = LocalCache(cache_dir)
+            raise ValueError('cache_dir is None')
+        self.__cache_dir = cache_dir
+        self.__local_cache = None
 
         #memory cache
         self.__img_repo = {}
@@ -58,6 +59,7 @@ class __TileMap:
 
     def start(self):
         #create cache dir for the map
+        self.__local_cache = FileLocalCache(cache_dir, self)
         self.__local_cache.start()
         #start download thread
         self.__downloader.start()
@@ -321,8 +323,22 @@ def getTM25Kv4TileMap(cache_dir):
     return tm
 
 class LocalCache:
-    def __init__(self, cache_dir):
-        self.__cache_dir = cache_dir
+    def start(self):
+        pass
+
+    def close(self):
+        pass
+
+    def put(self, level, x, y, data):
+        pass
+
+    def get(self, level, x, y):
+        pass
+
+class FileLocalCache(LocalCache):
+    def __init__(self, cache_dir, tile_map):
+        self.__cache_dir = os.path.join(cache_dir, tile_map.map_id)
+        self.__tile_map = tile_map
 
     def __genTilePath(self, level, x, y):
         #add extra folder layer 'x' to lower the number of files within a folder
@@ -330,6 +346,7 @@ class LocalCache:
         return os.path.join(self.__cache_dir, str(x), name)
 
     def start(self):
+        self.__cache_dir = os.path.join(self.__cache_dir, self.__tile_map.map_id) #create sub folder
         mkdirSafely(self.__cache_dir)
 
     def close(self):
@@ -347,6 +364,57 @@ class LocalCache:
             with open(path, 'rb') as file:
                 return file.read()
         return None
+
+class FileLocalCache(LocalCache):
+    def __init__(self, cache_dir, tile_map):
+        self.__cache_dir = cache_dir
+        self.__db_path = os.path.join(cache_dir, tile_map.map_id + ".db")
+        self.__tile_map = tile_map
+        self.__conn = None
+
+    def initDB(self):
+        tm = self.__tile_map
+        conn = self.__conn
+
+        #meatadata
+        meta_create_sql = "CREATE TABLE metadata(name TEXT PRIMARY KEY, value TEXT)"
+        meta_data_sqls = ("INSERT INTO metadata(name, value) VALUES('%s', '%s')" % ('name', tm.map_id),
+                          "INSERT INTO metadata(name, value) VALUES('%s', '%s')" % ('type', 'overlayer'),
+                          "INSERT INTO metadata(name, value) VALUES('%s', '%s')" % ('version', '1.0'),
+                          "INSERT INTO metadata(name, value) VALUES('%s', '%s')" % ('description', tm.map_title),
+                          "INSERT INTO metadata(name, value) VALUES('%s', '%s')" % ('format', tm.tile_format),
+                          "INSERT INTO metadata(name, value) VALUES('%s', '%s')" % ('bounds', to_bounds_txt(tm)),
+                         )
+        #tiles
+        tiles_create_sql = "CREATE TABLE tiles("
+        tiles_create_sql += "uid         INTEGER  NOT NULL, "
+        tiles_create_sql += "zoom_level  INTEGER, "
+        tiles_create_sql += "tile_column INTEGER, "
+        tiles_create_sql += "tile_row    INTEGER, "
+        tiles_create_sql += "tile_data   BLOB     NOT NULL, "
+        tiles_create_sql += "PRIMARY KEY (tile_column, tile_row, zoom_level))"
+
+        #ind_create_sql = "CREATE INDEX IND on tiles (zoom_level, tile_row, tile_column)"
+
+        #exec
+        conn.execute(meta_create_sql)
+        conn.execute(tiles_create_sql)
+        for sql in meta_data_sqls:
+            conn.execute(sql)
+
+    def start(self):
+        if not os.path.exists(self.__db_path):
+            mkdirSafely(os.path.dirname(self.__db_path))
+            self.__conn = sqlite3.connect(self.__db_path)
+            self.initDB()
+        else:
+            self.__conn = sqlite3.connect(self.__db_path)
+
+    def close(self):
+        self.__conn.close()
+
+    def put(self, level, x, y, data):
+    def get(self, level, x, y):
 
 if __name__ == '__main__':
     import time
