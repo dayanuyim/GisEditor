@@ -179,7 +179,7 @@ class MapBoard(tk.Frame):
         self.__pref_geo = None
         self.__left_click_pos = None
         self.__right_click_pos = None
-        Thread(target=self.mapUpdater).start()
+        Thread(target=self.__runMapUpdater).start()
 
         #canvas items
         self.__canvas_map = None
@@ -793,7 +793,7 @@ class MapBoard(tk.Frame):
             if self.inSaveMode():
                 self.disp_canvas.tag_raise('AS')
 
-    def mapUpdater(self):
+    def __runMapUpdater(self):
         while not self.__is_closed:
             #check per second
             time.sleep(1)

@@ -9,6 +9,7 @@ import tkinter as tk
 import urllib.request
 import shutil
 import sqlite3
+from datetime import datetime
 from os import listdir
 from os.path import isdir, isfile, exists
 from PIL import Image, ImageTk, ImageDraw, ImageTk
@@ -45,7 +46,7 @@ class __TileMap:
         self.__local_cache = None
 
         #memory cache
-        self.__img_repo = {}
+        self.__img_repo = {}   #id -> (img, timestamp)
         self.__img_repo_lock = Lock()
 
         #download helpers
@@ -56,14 +57,14 @@ class __TileMap:
         self.__req_queue = OrderedDict()
         self.__req_lock = Lock()
         self.__req_cv = Condition(self.__req_lock)
-        self.__downloader = Thread(target=self.__runDownloadMonitor)
+        self.__download_monitor = Thread(target=self.__runDownloadMonitor)
 
     def start(self):
         #create cache dir for the map
         self.__local_cache = DBLocalCache(self.__cache_dir, self)
         self.__local_cache.start()
         #start download thread
-        self.__downloader.start()
+        self.__download_monitor.start()
 
     def close(self):
         #set flag
@@ -94,11 +95,17 @@ class __TileMap:
 
     def getRepoImage(self, id):
         with self.__img_repo_lock:
-            return self.__img_repo.get(id)
+            item = self.__img_repo.get(id)
+            if item:
+                return item
+            else:
+                item = (None, datetime.min)  #psuedo data to record timestamp
+                self.__img_repo[id] = item
+                return item
 
-    def setRepoImage(self, id, img):
+    def setRepoImage(self, id, item):
         with self.__img_repo_lock:
-            self.__img_repo[id] = img
+            self.__img_repo[id] = item
 
     #The therad to download
     def __runDownloadJob(self, id, level, x, y, cb):
@@ -120,7 +127,7 @@ class __TileMap:
         #cache
         if tile_data:
             tile_img = Image.open(BytesIO(tile_data))
-            self.setRepoImage(id, tile_img)
+            self.setRepoImage(id, (tile_img, datetime.now()))
 
         #done the download
         with self.__workers_cv:
@@ -205,23 +212,25 @@ class __TileMap:
         if level > self.level_max or level < self.level_min:
             raise ValueError("level is out of range")
 
-        #from cache
+        #get from cache
         id = self.genTileId(level, x, y)
-        img = self.getRepoImage(id)
-        if img:
+        img, ts = self.getRepoImage(id)
+        if img or (datetime.now() - ts).seconds < 60:
             return img;
 
-        #from disk
+        #get from disk
         try:
             data = self.__local_cache.get(level, x, y)
             if data:
                 img = Image.open(BytesIO(data))
-                self.setRepoImage(id, img)
+                self.setRepoImage(id, (img, datetime.now()))
                 return img
+            else:
+                self.setRepoImage(id, (None, datetime.now())) #update timestamp
         except Exception as ex:
             print("Error to read tile data: ", str(ex))
 
-        #async request
+        #async request to WMTS
         if auto_req:
             self.__requestTile(id, level, x, y, cb)
         return None
@@ -424,6 +433,7 @@ class DBLocalCache(LocalCache):
     #the true actions which are called by Surrogate
     def __start(self):
         if not os.path.exists(self.__db_path):
+            print('Initializing local cache DB...')
             mkdirSafely(os.path.dirname(self.__db_path))
             self.__conn = sqlite3.connect(self.__db_path)
             self.__initDB()
@@ -431,6 +441,7 @@ class DBLocalCache(LocalCache):
             self.__conn = sqlite3.connect(self.__db_path)
 
     def __close(self):
+        print('Closing local cache DB...')
         self.__conn.close()
 
     def __put(self, level, x, y, data):
