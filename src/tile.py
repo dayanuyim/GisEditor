@@ -366,38 +366,24 @@ class FileLocalCache(LocalCache):
         return None
 
 class DBLocalCache(LocalCache):
-    @property
-    def is_closed(self):
-        with self.__flag_lock:
-            return self.__is_closed
-
-    @is_closed.setter
-    def is_closed(self, v):
-        with self.__flag_lock:
-            return self.__is_closed = v
-
     def __init__(self, cache_dir, tile_map):
         self.__db_path = os.path.join(cache_dir, tile_map.map_id + ".db")
         self.__tile_map = tile_map
         self.__conn = None
-        self.__surrogate  #the thread do All DB operations, due to sqlite3 requiring only the same thread.
+        self.__surrogate = None  #the thread do All DB operations, due to sqlite3 requiring only the same thread.
 
-        #flags
-        self.__flag_lock = Lock()
         self.__is_closed = False
 
-        #the get/put queues
-        self.__req_cv = Condition()
+        #concurrency get/put
+        self.__sql_queue = []
+        self.__sql_queue_lock = Lock()
+        self.__sql_queue_cv = Condition(self.__sql_queue_lock)
 
-        self.__put_queue = []
-        self.__put_lock = Lock()
-        self.__put_exception = None
+        self.__get_lock = Lock()    #block the 'get' action
 
-        self.__get_queue = []
-        self.__get_lock = Lock()
-        self.__get_cv = Condition(self.__get_lock)
-        self.__get_result = None
-        self.__get_exception = None
+        self.__get_respose = None   #the pair (data, exception)
+        self.__get_respose_lock = Lock()
+        self.__get_respose_cv = Condition(self.__get_respose_lock)
 
     def __initDB(self):
         def getBoundsText(tile_map):
@@ -448,17 +434,33 @@ class DBLocalCache(LocalCache):
         self.__conn.close()
 
     def __put(self, level, x, y, data):
-        sql = "INSERT OR REPLACE INTO tiles(zoom_level, tile_column, tile_row, tile_data) VALUES(%d, %d, %d, ?)" % (level, x, y)
-        print(sql)
-        self.__conn.executemany(sql, data)
-        self.__conn.commit()
+        ex = None
+        try:
+            sql = "INSERT OR REPLACE INTO tiles(zoom_level, tile_column, tile_row, tile_data) VALUES(%d, %d, %d, ?)" % \
+                    (level, x, y)
+            self.__conn.execute(sql, (data,))
+            self.__conn.commit()
+        except Exception as _ex:
+            ex = _ex
+
+        print("%s [%s]" % (sql, ("Fail" if ex else "OK")))
+        if ex:
+            raise ex
 
     def __get(self, level, x, y):
-        sql = "SELECT tile_data FROM tiles WHERE zoom_level=%d AND tile_column=%d AND tile_row=%d" % (level, x, y)
-        print(sql)
-        cursor = self.__conn.execute(sql)
-        row = cursor.fetchone()
-        return None if row is None else row[0]
+        data, ex = None, None
+        try:
+            sql = "SELECT tile_data FROM tiles WHERE zoom_level=%d AND tile_column=%d AND tile_row=%d" % (level, x, y)
+            cursor = self.__conn.execute(sql)
+            row = cursor.fetchone()
+            data = None if row is None else row[0]
+        except Exception as _ex:
+            ex = _ex
+
+        print("%s [%s]" % (sql, ("Fail" if ex else "OK" if data else "NA")))
+        if ex:
+            raise ex
+        return data
 
     #the interface which are called by the user
     def start(self):
@@ -466,63 +468,81 @@ class DBLocalCache(LocalCache):
         self.__surrogate.start()
 
     def close(self):
+        with self.__sql_queue_cv:
+            self.__is_closed = True
+            self.__sql_queue_cv.notify()
         self.__surrogate.join()
 
     def put(self, level, x, y, data):
-        with self.__put_lock:
+        with self.__sql_queue_cv:
             item = (level, x, y, data)
-            self.__put_queue.append(item)
-            with self.__req_cv:
-                self.__req_cv.notify()
+            self.__sql_queue.append(item)
+            self.__sql_queue_cv.notify()
 
     def get(self, level, x, y):
-        #print("DB get tile data error:", str(ex))
-        pass
+        def has_respose():
+            return self.__get_respose is not None
+
+        with self.__get_lock:  #for blocking the continuous get
+            #add req
+            with self.__sql_queue_cv:
+                item = (level, x, y, None)
+                self.__sql_queue.insert(0, item)  #service first
+                self.__sql_queue_cv.notify()
+
+            #wait resposne
+            res = None
+            with self.__get_respose_cv:
+                self.__get_respose_cv.wait_for(has_respose)
+                res, self.__get_respose = self.__get_respose, None   #swap
+
+            #return data
+            data, ex = res
+            if ex:
+                raise ex
+            return data
 
     #the Surrogate thread
     def __runSurrogate(self):
-        def has_req_events():
-            return self.__is_closed or len(self.__get_queue) or len(self.__put_queue)
+        def has_sql_events():
+            return self.__is_closed or len(self.__sql_queue)
         
-        #get connection
         self.__start()
+        try:
+            while True:
+                #wait events
+                item = None
+                with self.__sql_queue_cv:
+                    self.__sql_queue_cv.wait_for(has_sql_events)
+                    if self.__is_closed:
+                        return
+                    item = self.__sql_queue.pop(0)
 
-        #do sql
-        while True:
-            #wait events
-            with self.__req_cv:
-                self.__req_cv.wait_for(has_req_events)
-                if self.__is_closed:
-                    break
+                level, x, y, data = item
+                #put data
+                if data:
+                    try:
+                        self.__put(level, x, y, data)
+                    except Exception as ex:
+                        print("DB put data error:", str(ex))
+                #get data
+                else:
+                    res_data, res_ex = None, None
+                    try:
+                        res_data = self.__get(level, x, y)
+                        res_ex = None
+                    except Exception as ex:
+                        print("DB get data error:", str(ex))
+                        res_data = None
+                        res_ex = ex
 
-            #get data
-            item = None
-            with self.__get_lock:
-                if len(self.__get_queue):
-                    item = self.__get_queue.pop(0)
-            if item:
-                try:
-                    level, x, y = item
-                    self.__get_result = self.__get(level, x, y)
-                    self.__get_exception = None
-                except Exception as ex:
-                    self.__get_result = None
-                    self.__get_exception = ex
+                    #notify
+                    with self.__get_respose_cv:
+                        self.__get_respose = (res_data, res_ex)
+                        self.__get_respose_cv.notify()
 
-            #put data
-            item = None
-            with self.__put_lock:
-                if len(self.__put_queue):
-                    item = self.__put_queue.pop(0)
-            if item:
-                try:
-                    level, x, y, data = item
-                    self.__put(leve, x, y, data)
-                except Exception as ex:
-                    print("DB put data error:", str(ex))
-
-        #close
-        self.__close()
+        finally:
+            self.__close()
 
 if __name__ == '__main__':
     import time
