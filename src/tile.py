@@ -375,9 +375,10 @@ class FileLocalCache(LocalCache):
         return None
 
 class DBLocalCache(LocalCache):
-    def __init__(self, cache_dir, tile_map):
+    def __init__(self, cache_dir, tile_map, is_concurrency=True):
         self.__db_path = os.path.join(cache_dir, tile_map.map_id + ".db")
         self.__tile_map = tile_map
+        self.__is_concurrency = is_concurrency
         self.__conn = None
         self.__surrogate = None  #the thread do All DB operations, due to sqlite3 requiring only the same thread.
 
@@ -475,43 +476,55 @@ class DBLocalCache(LocalCache):
 
     #the interface which are called by the user
     def start(self):
-        self.__surrogate = Thread(target=self.__runSurrogate)
-        self.__surrogate.start()
+        if not self.__is_concurrency:
+            self.__start()
+        else:
+            self.__surrogate = Thread(target=self.__runSurrogate)
+            self.__surrogate.start()
 
     def close(self):
-        with self.__sql_queue_cv:
-            self.__is_closed = True
-            self.__sql_queue_cv.notify()
-        self.__surrogate.join()
+        if not self.__is_concurrency:
+            self.__close()
+        else:
+            with self.__sql_queue_cv:
+                self.__is_closed = True
+                self.__sql_queue_cv.notify()
+            self.__surrogate.join()
 
     def put(self, level, x, y, data):
-        with self.__sql_queue_cv:
-            item = (level, x, y, data)
-            self.__sql_queue.append(item)
-            self.__sql_queue_cv.notify()
-
-    def get(self, level, x, y):
-        def has_respose():
-            return self.__get_respose is not None
-
-        with self.__get_lock:  #for blocking the continuous get
-            #add req
+        if not self.__is_concurrency:
+            self.__put(level, x, y, data)
+        else:
             with self.__sql_queue_cv:
-                item = (level, x, y, None)
-                self.__sql_queue.insert(0, item)  #service first
+                item = (level, x, y, data)
+                self.__sql_queue.append(item)
                 self.__sql_queue_cv.notify()
 
-            #wait resposne
-            res = None
-            with self.__get_respose_cv:
-                self.__get_respose_cv.wait_for(has_respose)
-                res, self.__get_respose = self.__get_respose, None   #swap
+    def get(self, level, x, y):
+        if not self.__is_concurrency:
+            self.__get(level, x, y)
+        else:
+            def has_respose():
+                return self.__get_respose is not None
 
-            #return data
-            data, ex = res
-            if ex:
-                raise ex
-            return data
+            with self.__get_lock:  #for blocking the continuous get
+                #add req
+                with self.__sql_queue_cv:
+                    item = (level, x, y, None)
+                    self.__sql_queue.insert(0, item)  #service first
+                    self.__sql_queue_cv.notify()
+
+                #wait resposne
+                res = None
+                with self.__get_respose_cv:
+                    self.__get_respose_cv.wait_for(has_respose)
+                    res, self.__get_respose = self.__get_respose, None   #swap
+
+                #return data
+                data, ex = res
+                if ex:
+                    raise ex
+                return data
 
     #the Surrogate thread
     def __runSurrogate(self):
