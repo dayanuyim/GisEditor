@@ -12,7 +12,7 @@ import time
 from os import path
 from PIL import Image, ImageTk, ImageDraw, ImageFont, ImageColor
 from math import floor, ceil, sqrt
-from tkinter import messagebox, filedialog
+from tkinter import messagebox, filedialog, ttk
 from datetime import datetime
 from threading import Lock, Thread
 
@@ -26,13 +26,12 @@ from sym import SymRuleType, SymRule
 from util import GeoPoint, getPrefCornerPos, AreaSelector, AreaSizeTooLarge
 
 #print to console/log and messagebox (generalize this with LOG, moving to util.py)
-def logMsg(desc, reason):
+def logWithShow(msg):
     #Todo: log
-    msg = "%s: %s" % (desc, reason)
     print(msg)
     messagebox.showwarning('', msg)
 
-def logPrint(msg):
+def logWithPrint(msg):
     #Todo: log
     print(msg)
 
@@ -66,14 +65,14 @@ def getGpsDocument(path):
             #gps.load(filestring=gpx_string)
         return gps
     except Exception as ex:
-        logMsg("Error to open '%s'" % (path,), str(ex))
+        logWithShow("Error to open '%s': %s" % (path, str(ex)))
         return None
 
 def getPicDocument(path):
     try:
         return PicDocument(path, conf.TZ)
     except Exception as ex:
-        logMsg("cannot read the picture '%s'" % (path,), str(ex))
+        logWithShow("cannot read the picture '%s': %s" % (path, str(ex)))
     return None
 
 def __toGpx(src_path, flag):
@@ -96,13 +95,13 @@ def __toGpx(src_path, flag):
     try:
         if flag == 'string':
             cmd = '"%s" -i %s -f "%s" -o gpx,gpxver=1.1 -F -' % (exe_file, input_fmt, input_tmp_path)
-            logPrint(cmd)
+            logWithPrint(cmd)
             output = subprocess.check_output(cmd, shell=True)  #@@! pythonW.exe caused 'WinError 6: the handler is invalid'
             result = output.decode("utf-8")
         elif flag == 'file':
             output_tmp_path = os.path.join(tempfile.gettempdir(),  "giseditor_out.tmp")
             cmd = '"%s" -i %s -f "%s" -o gpx,gpxver=1.1 -F "%s"' % (exe_file, input_fmt, input_tmp_path, output_tmp_path)
-            logPrint(cmd)
+            logWithPrint(cmd)
             subprocess.call(cmd, shell=True)
             result = output_tmp_path
         else:
@@ -129,7 +128,7 @@ def __parsePath(path, gps_path, pic_path):
     elif isGpsFile(path):
         gps_path.append(path)
     else:
-        logPrint("omit the file: " + path)
+        logWithPrint("omit the file: " + path)
 
 #may generalize the method, and moving to util.py
 def parsePathes(pathes):
@@ -498,11 +497,11 @@ class MapBoard(tk.Frame):
                     self.setMapInfo(geo)
                     self.resetMap(geo)
         except Exception as ex:
-            logMsg('Add Files Error', str(ex))
+            logWithShow('Add Files Error: %s' % (str(ex),))
 
     def onAddWpt(self):
         if not self.__right_click_pos:
-            logMsg('Create Wpt Error', 'Cannot not get right click position')
+            logWithShow('Create Wpt Error: Cannot not get right click position')
             return
 
         #create wpt
@@ -1113,6 +1112,13 @@ class MapController:
     def drawTrkPoint(self, map, map_attr, pts, color, bg_color=None, draw=None, width=2):
         if pts is None or len(pts) == 0:
             return
+
+        #set to default color if invalid
+        if not (color and color.lower() in ImageColor.colormap):
+            color = 'darkmagenta'
+
+        if bg_color and bg_color.lower() not in ImageColor.colormap:
+            bg_color = 'orange'
 
         bg_width = width + 4
         _draw = draw if draw is not None else ImageDraw.Draw(map)
@@ -1776,10 +1782,15 @@ class TrkSingleBoard(tk.Toplevel):
         #trk color
         tk.Label(frame, text="Color", font=bold_font).grid(row=1, column=0, sticky='e')
         self._var_color = tk.StringVar()
-        self._var_color.trace('w', self.onColorChanged)
-        self.__color_entry = tk.Entry(frame, font=font, textvariable=self._var_color)
-        self.__color_entry.grid(row=1, column=1, sticky='w')
-        self.__color_entry_bg = self.__color_entry['bg']
+        #self._var_color.trace('w', self.onColorChanged)
+        #self.__color_entry = tk.Entry(frame, font=font, textvariable=self._var_color)
+        #self.__color_entry.grid(row=1, column=1, sticky='w')
+        #self.__color_entry_bg = self.__color_entry['bg']
+        self._var_color.trace('w', self.onColorSelected)
+        color_combo = ttk.Combobox(frame, font=font, width=20, textvariable=self._var_color)
+        color_combo.grid(row=1, column=1, sticky='w')
+        color_combo['values'] = ('White', 'Cyan', 'Magenta', 'Blue', 'Yellow', 'Green', 'Red',
+                'DarkGray', 'LightGray', 'DarkCyan', 'DarkMagenta', 'DarkBlue', 'DarkGreen', 'DarkRed', 'Black')
 
         #tk.Checkbutton(frame, text='Focus Track point', variable=self._var_focus).grid(row=2, column=1, sticky='w')
 
@@ -1826,6 +1837,14 @@ class TrkSingleBoard(tk.Toplevel):
                 self._curr_trk.color = color
                 self._is_changed = True
                 self.onAltered('trk')
+
+    def onColorSelected(self, *args):
+        color = self._var_color.get()
+        logWithPrint('Set color to ' + color)
+        if self._curr_trk.color != color:
+            self._curr_trk.color = color
+            self._is_changed = True
+            self.onAltered('trk')
 
     def onFocus(self, *args):
         is_focus = self._var_focus.get()
