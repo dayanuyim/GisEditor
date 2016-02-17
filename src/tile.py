@@ -70,13 +70,12 @@ class __TileMap:
         #set flag
         self.__is_closed = True
 
-        #stop all download workers/monitor
-        #todo: stop download workers, if any
+        #notify download monitor to exit
         with self.__workers_cv:
             self.__workers_cv.notify() #wakeup the thread 'downloader monitor'
         with self.__req_cv:
             self.__req_cv.notify()     #wakeup the thread 'downloader monitor'
-        #todo: wait download workers/monitor to stop
+        self.__download_monitor.join()
 
         #close resources
         self.__local_cache.close()
@@ -194,6 +193,7 @@ class __TileMap:
 
             self.__deliverDownloadJob()
 
+        #stop all download workers and wait
 
     def __requestTile(self, id, level, x, y, cb):
         #check and add to req queue
