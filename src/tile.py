@@ -119,19 +119,21 @@ class __TileMap:
             print('Error to download %s: %s' % (url, str(ex)))
         print('DL %s [%s]' % (url, 'SUCCESS' if tile_data else 'FAILED'))
 
-        #premature done
-        if self.__is_closed:
-            return
-
         #cache
+        #(for data coherence, do this before moving self from workers queue: if download thread is done, data is ready)
         if tile_data:
             tile_img = Image.open(BytesIO(tile_data))
             self.setRepoImage(id, (tile_img, datetime.now()))
 
         #done the download
+        #(do this before thread exit, to ensure monitor is notified)
         with self.__workers_cv:
             self.__workers.pop(id, None)
             self.__workers_cv.notify()
+
+        #premature done
+        if self.__is_closed:
+            return
 
         #side effect
         if tile_data:
@@ -172,28 +174,33 @@ class __TileMap:
 
     #The thread to handle all download requests
     def __runDownloadMonitor(self):
-        def req_events():
+        def req_or_exit():
             return self.__is_closed or len(self.__req_queue)
 
-        def worker_events():
+        def worker_or_exit():
             return self.__is_closed or len(self.__workers) < self.__MAX_WORKS
+
+        def no_worker():
+            return len(self.__workers) == 0
 
         while True:
             #wait for requests
             with self.__req_cv:
-                self.__req_cv.wait_for(req_events)
+                self.__req_cv.wait_for(req_or_exit)
             if self.__is_closed:
                 break
 
             #wait waker availabel
             with self.__workers_cv:
-                self.__workers_cv.wait_for(worker_events)
+                self.__workers_cv.wait_for(worker_or_exit)
             if self.__is_closed:
                 break
 
             self.__deliverDownloadJob()
 
-        #stop all download workers and wait
+        #todo: interrupt urllib.request.openurl to stop download workers.
+        #with self.__workers_cv:
+            #self.__workers_cv.wait_for(no_worker)
 
     def __requestTile(self, id, level, x, y, cb):
         #check and add to req queue
