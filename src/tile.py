@@ -152,6 +152,10 @@ class __TileMap:
         def no_worker():
             return len(self.__workers) == 0
 
+        #http_handler = urllib.request.HTTPHandler()
+        #opener = urllib.request.build_opener(http_handler)
+        #urllib.request.install_opener(opener)
+
         while True:
             #wait for requests
             with self.__download_cv:
@@ -173,6 +177,7 @@ class __TileMap:
                         worker.start()
 
         #todo: interrupt urllib.request.openurl to stop download workers.
+        #http_handler.close()
         #with self.__download_cv:
             #self.__download_cv.wait_for(no_worker)
 
