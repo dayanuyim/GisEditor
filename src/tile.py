@@ -51,12 +51,14 @@ class __TileMap:
 
         #download helpers
         self.__MAX_WORKS = 3
+        self.__download_lock = Lock()
+        self.__download_cv = Condition(self.__download_lock)
         self.__workers = {}
-        self.__workers_lock = Lock()
-        self.__workers_cv = Condition(self.__workers_lock)
+        #self.__workers_lock = Lock()
+        #self.__workers_cv = Condition(self.__workers_lock)
         self.__req_queue = OrderedDict()
-        self.__req_lock = Lock()
-        self.__req_cv = Condition(self.__req_lock)
+        #self.__req_lock = Lock()
+        #self.__req_cv = Condition(self.__req_lock)
         self.__download_monitor = Thread(target=self.__runDownloadMonitor)
 
     def start(self):
@@ -67,14 +69,10 @@ class __TileMap:
         self.__download_monitor.start()
 
     def close(self):
-        #set flag
-        self.__is_closed = True
-
         #notify download monitor to exit
-        with self.__workers_cv:
-            self.__workers_cv.notify() #wakeup the thread 'downloader monitor'
-        with self.__req_cv:
-            self.__req_cv.notify()     #wakeup the thread 'downloader monitor'
+        with self.__download_cv:
+            self.__is_closed = True
+            self.__download_cv.notify()
         self.__download_monitor.join()
 
         #close resources
@@ -127,9 +125,9 @@ class __TileMap:
 
         #done the download
         #(do this before thread exit, to ensure monitor is notified)
-        with self.__workers_cv:
+        with self.__download_cv:
             self.__workers.pop(id, None)
-            self.__workers_cv.notify()
+            self.__download_cv.notify()
 
         #premature done
         if self.__is_closed:
@@ -149,70 +147,45 @@ class __TileMap:
             except Exception as ex:
                 print('Error to save tile data', str(ex))
 
-    #deliver a req to a worker
-    def __deliverDownloadJob(self):
-        with self.__req_lock, self.__workers_lock:  #Be CAREFUL the order
-            #test conditions again
-            if len(self.__req_queue) == 0:
-                print("WARNING: no request in the queue!") #should not happen
-                return
-            if len(self.__workers) >= self.__MAX_WORKS:
-                print("WARNING: no available download workers!") #should not happen
-                return
-
-            #the req
-            id, (level, x, y, cb) = self.__req_queue.popitem() #LIFO
-            if id in self.__workers:
-                print("WARNING: the req is DUP and in progress.") #should not happen
-                return
-
-            #create the job and run the worker
-            job = lambda: self.__runDownloadJob(id, level, x, y, cb)
-            worker = Thread(name=id, target=job)
-            self.__workers[id] = worker
-            worker.start()
-
     #The thread to handle all download requests
     def __runDownloadMonitor(self):
-        def req_or_exit():
-            return self.__is_closed or len(self.__req_queue)
-
-        def worker_or_exit():
-            return self.__is_closed or len(self.__workers) < self.__MAX_WORKS
-
         def no_worker():
             return len(self.__workers) == 0
 
         while True:
             #wait for requests
-            with self.__req_cv:
-                self.__req_cv.wait_for(req_or_exit)
-            if self.__is_closed:
-                break
+            with self.__download_cv:
+                self.__download_cv.wait()
 
-            #wait waker availabel
-            with self.__workers_cv:
-                self.__workers_cv.wait_for(worker_or_exit)
-            if self.__is_closed:
-                break
+                if self.__is_closed:
+                    break
 
-            self.__deliverDownloadJob()
+                if len(self.__req_queue) > 0 and len(self.__workers) < self.__MAX_WORKS:
+                    #the req
+                    id, (level, x, y, cb) = self.__req_queue.popitem() #LIFO
+                    if id in self.__workers:
+                        print("WARNING: the req is DUP and in progress.") #should not happen
+                    else:
+                        #create the job and run the worker
+                        job = lambda: self.__runDownloadJob(id, level, x, y, cb)
+                        worker = Thread(name=id, target=job)
+                        self.__workers[id] = worker
+                        worker.start()
 
         #todo: interrupt urllib.request.openurl to stop download workers.
-        #with self.__workers_cv:
-            #self.__workers_cv.wait_for(no_worker)
+        #with self.__download_cv:
+            #self.__download_cv.wait_for(no_worker)
 
     def __requestTile(self, id, level, x, y, cb):
         #check and add to req queue
-        with self.__req_cv:
-            with self.__workers_lock:  #Be CAREFUL the order
-                if id in self.__req_queue:
-                    return
-                if id in self.__workers:
-                    return
+        with self.__download_cv:
+            if id in self.__req_queue:
+                return
+            if id in self.__workers:
+                return
             #add the req
             self.__req_queue[id] = (level, x, y, cb)
-            self.__req_cv.notify()
+            self.__download_cv.notify()
 
     def __getTile(self, level, x, y, auto_req=True, cb=None):
         #check level
