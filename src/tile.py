@@ -9,6 +9,7 @@ import tkinter as tk
 import urllib.request
 import shutil
 import sqlite3
+import conf
 from datetime import datetime
 from os import listdir
 from os.path import isdir, isfile, exists
@@ -63,7 +64,7 @@ class __TileMap:
 
     def start(self):
         #create cache dir for the map
-        self.__local_cache = DBLocalCache(self.__cache_dir, self)
+        self.__local_cache = DBLocalCache(self.__cache_dir, self, conf.DB_SCHEMA)
         self.__local_cache.start()
         #start download thread
         self.__download_monitor.start()
@@ -361,8 +362,9 @@ class FileLocalCache(LocalCache):
         return None
 
 class DBLocalCache(LocalCache):
-    def __init__(self, cache_dir, tile_map, is_concurrency=True):
+    def __init__(self, cache_dir, tile_map, db_schema, is_concurrency=True):
         self.__db_path = os.path.join(cache_dir, tile_map.map_id + ".db")
+        self.__db_schema = db_schema
         self.__tile_map = tile_map
         self.__is_concurrency = is_concurrency
         self.__conn = None
@@ -399,6 +401,7 @@ class DBLocalCache(LocalCache):
                           "INSERT INTO metadata(name, value) VALUES('%s', '%s')" % ('description', tm.map_title),
                           "INSERT INTO metadata(name, value) VALUES('%s', '%s')" % ('format', tm.tile_format),
                           "INSERT INTO metadata(name, value) VALUES('%s', '%s')" % ('bounds', getBoundsText(tm)),
+                          "INSERT INTO metadata(name, value) VALUES('%s', '%s')" % ('schema', self.__db_schema),
                          )
         #tiles
         tiles_create_sql = "CREATE TABLE tiles("
@@ -408,14 +411,33 @@ class DBLocalCache(LocalCache):
         tiles_create_sql += "tile_data   BLOB     NOT NULL, "
         tiles_create_sql += "PRIMARY KEY (zoom_level, tile_column, tile_row))"
 
-        #ind_create_sql = "CREATE INDEX IND on tiles (zoom_level, tile_row, tile_column)"
+        #tiles_idx
+        tiles_idx_create_sql = "CREATE INDEX tiles_idx on tiles(zoom_level, tile_column, tile_row)"
 
         #exec
         conn.execute(meta_create_sql)
         conn.execute(tiles_create_sql)
+        conn.execute(tiles_idx_create_sql)
         for sql in meta_data_sqls:
             conn.execute(sql)
 
+    def __getMetadata(self, name):
+        try:
+            sql = "SELECT value FROM metadata WHERE name=%s" % (name,)
+            cursor = self.__conn.execute(sql)
+            row = cursor.fetchone()
+            data = None if row is None else row[0]
+            return data
+        except Exception as ex:
+            print('Get mbtiles metadata error:', str(ex))
+
+        return None
+
+    def __readMetadata(self):
+        #overwrite db schema from metadta
+        schema = self.__getMetadata('schema')
+        if schema:
+            self.__db_schema = schema
 
     #the true actions which are called by Surrogate
     def __start(self):
@@ -426,14 +448,23 @@ class DBLocalCache(LocalCache):
             self.__initDB()
         else:
             self.__conn = sqlite3.connect(self.__db_path)
+            self.__readMetadata()
 
     def __close(self):
         print('Closing local cache DB...')
         self.__conn.close()
 
+    @classmethod
+    def __flipY(cls, y, z):
+        max_y = (1 << z) -1
+        return max_y - y
+
+
     def __put(self, level, x, y, data):
         ex = None
         try:
+            if self.__db_schema == 'tms':
+                y = self.__flipY(y, level)
             sql = "INSERT OR REPLACE INTO tiles(zoom_level, tile_column, tile_row, tile_data) VALUES(%d, %d, %d, ?)" % \
                     (level, x, y)
             self.__conn.execute(sql, (data,))
@@ -448,6 +479,8 @@ class DBLocalCache(LocalCache):
     def __get(self, level, x, y):
         data, ex = None, None
         try:
+            if self.__db_schema == 'tms':
+                y = self.__flipY(y, level)
             sql = "SELECT tile_data FROM tiles WHERE zoom_level=%d AND tile_column=%d AND tile_row=%d" % (level, x, y)
             cursor = self.__conn.execute(sql)
             row = cursor.fetchone()
