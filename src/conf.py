@@ -47,7 +47,7 @@ ICON_SIZE = int(__config['icon_size'])
 DEF_SYMBOL = _tosymkey(__config['def_symbol'])
 MAX_SUPP_LEVEL = int(__config['max_supp_level'])
 MIN_SUPP_LEVEL = int(__config['min_supp_level'])
-TILE_SCHEMA = __config['tile_schema']
+DB_SCHEMA = __config['db_schema']
 SPLIT_TIME_GAP = timedelta(hours=float(__config['split_time_gap']))
 SPLIT_DIST_GAP = float(__config['split_dist_gap']) #unit:km
 SELECT_AREA_X = float(__config['select_area_x'])
@@ -69,7 +69,7 @@ def save(path=GISEDITOR_CONF):
         f.write("def_symbol=%s\n" % (DEF_SYMBOL,))
         f.write("max_supp_level=%d\n" % (MAX_SUPP_LEVEL,))
         f.write("min_supp_level=%d\n" % (MIN_SUPP_LEVEL,))
-        f.write("tile_schema=%s\n" % (TILE_SCHEMA,))
+        f.write("db_schema=%s\n" % (DB_SCHEMA,))
         f.write("split_time_gap=%f\n" % (SPLIT_TIME_GAP.total_seconds()/3600,))
         f.write("split_dist_gap=%f\n" % (SPLIT_DIST_GAP,))
         f.write("select_area_x=%f\n" % (SELECT_AREA_X,))
