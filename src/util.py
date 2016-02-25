@@ -9,6 +9,13 @@ from PIL import Image, ImageTk, ImageDraw, ImageColor
 import conf
 from coord import TileSystem, CoordinateSystem
 
+def listdiff(list1, list2):
+    result = []
+    for e in list1:
+        if not e in list2:
+            result.append(e)
+    return result
+
 def mkdirSafely(path, is_recursive=True):
     if not os.path.exists(path):
         if is_recursive:

@@ -1956,7 +1956,7 @@ class SymBoard(tk.Toplevel):
         #init
         total_sym = conf.getTotalSymbols()
         self.__def_sym = conf.getDefSymList()
-        self.__ext_sym = listdiff(total_sym, self.__def_sym)
+        self.__ext_sym = util.listdiff(total_sym, self.__def_sym)
 
         sn = 0
         for sym in self.__def_sym:
@@ -2435,13 +2435,6 @@ def showRule(parent, pos=None):
     __rule_board.pos = pos
     __rule_board.show(parent)
 
-def listdiff(list1, list2):
-    result = []
-    for e in list1:
-        if not e in list2:
-            result.append(e)
-    return result
-
 def getAspectResize(img, size):
     dst_w, dst_h = size
     src_w, src_h = img.size
@@ -2471,7 +2464,7 @@ def getTextImag(text, size):
     return img
 
 
-def isExit(disp_board):
+def canExit(disp_board):
 
     if not disp_board.is_alter:
         return True
@@ -2487,20 +2480,21 @@ def isExit(disp_board):
     return False
 
 def onExit(root, disp_board):
-    if isExit(disp_board):
+    if canExit(disp_board):
         disp_board.exit()
         root.destroy()
 
-def getTitleText():
-    txt = "GisEditor"
+def getTitleText(version):
+    txt = ""
     if len(sys.argv) > 1:
-        txt += " - "
         for arg in sys.argv[1:]:
             txt += path.basename(arg)
             txt += ' '
-    return txt
+        txt += "- "
+    return txt + "GisEditor v" + version
 
 if __name__ == '__main__':
+    __version = '0.1'
     try:
         #create root
         root = tk.Tk()
@@ -2511,7 +2505,7 @@ if __name__ == '__main__':
             #icon = ImageTk.PhotoImage(conf.EXE_ICON)
             #root.tk.call('wm', 'iconphoto', root._w, icon)
 
-        root.title(getTitleText())
+        root.title(getTitleText(__version))
         root.geometry('950x700+200+0')
 
         #create display board
