@@ -363,7 +363,7 @@ class FileLocalCache(LocalCache):
 
 class DBLocalCache(LocalCache):
     def __init__(self, cache_dir, tile_map, db_schema, is_concurrency=True):
-        self.__db_path = os.path.join(cache_dir, tile_map.map_id + ".db")
+        self.__db_path = os.path.join(cache_dir, tile_map.map_id + ".mbtiles")
         self.__db_schema = db_schema
         self.__tile_map = tile_map
         self.__is_concurrency = is_concurrency
