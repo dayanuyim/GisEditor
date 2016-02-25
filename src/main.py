@@ -799,6 +799,12 @@ class MapBoard(tk.Frame):
             if self.__is_closed:
                 break  #exit
 
+"""
+            print('  ', 'map attr is None' if self.__map_attr is None else 'map attr is not None')
+            print('  ', 'fake cout=', self.__map_attr.fake_count if self.__map_attr else -1)
+            print('  ', 'time diff=%d sec' % ((datetime.now()-self.__map_req_time).seconds, ))
+            print('  ', 'has update' if self.map_has_update else 'no update')
+"""
             #update if req, prevent from frequent updating
             if self.__map_attr and self.__map_attr.fake_count and \
                (datetime.now()-self.__map_req_time).seconds >= 3 and \

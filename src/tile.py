@@ -137,7 +137,8 @@ class __TileMap:
         if tile_data:
             #notify if need
             try:
-                if cb: cb(level, x, y)
+                if cb is not None:
+                    cb(level, x, y)
             except Exception as ex:
                 print('Invoke cb of download tile error:', str(ex))
 
