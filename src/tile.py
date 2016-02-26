@@ -423,7 +423,7 @@ class DBLocalCache(LocalCache):
 
     def __getMetadata(self, name):
         try:
-            sql = "SELECT value FROM metadata WHERE name=%s" % (name,)
+            sql = 'SELECT value FROM metadata WHERE name="%s"' % (name,)
             cursor = self.__conn.execute(sql)
             row = cursor.fetchone()
             data = None if row is None else row[0]
@@ -436,11 +436,13 @@ class DBLocalCache(LocalCache):
     def __readMetadata(self):
         #overwrite db schema from metadta
         schema = self.__getMetadata('schema')
-        if schema:
+        if schema and self.__db_schema != schema:
             self.__db_schema = schema
+            print('Reset db schema to %s' % (self.__db_schema,))
 
     #the true actions which are called by Surrogate
     def __start(self):
+        print('The db schema default is %s' % (self.__db_schema,))
         if not os.path.exists(self.__db_path):
             print('Initializing local cache DB...')
             mkdirSafely(os.path.dirname(self.__db_path))
