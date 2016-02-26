@@ -799,12 +799,13 @@ class MapBoard(tk.Frame):
             if self.__is_closed:
                 break  #exit
 
-            """
+            '''
             print('  ', 'map attr is None' if self.__map_attr is None else 'map attr is not None')
             print('  ', 'fake cout=', self.__map_attr.fake_count if self.__map_attr else -1)
             print('  ', 'time diff=%d sec' % ((datetime.now()-self.__map_req_time).seconds, ))
             print('  ', 'has update' if self.map_has_update else 'no update')
-            """
+            print()
+            '''
             #update if req, prevent from frequent updating
             if self.__map_attr and self.__map_attr.fake_count and \
                (datetime.now()-self.__map_req_time).seconds >= 2 and \
@@ -970,15 +971,13 @@ class MapController:
 
         #The image attributes with which we want to create a image compatible.
         req_attr = MapAttr(level, px, py, px+width, py+height, 0)
+        self.__dirty_map_info = (req_attr, cb) #map info for update by callback
         map, attr = self.__genGpsMap(req_attr, force)
 
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  crop map")
         map = self.__genCropMap(map, attr, req_attr)
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw coord")
         self.__drawTM2Coord(map, req_attr)
-
-        #rec attr/cb or update later
-        self.__dirty_map_info = (attr, cb) if attr.fake_count and cb else None
 
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: done")
         req_attr.fake_count = attr.fake_count
