@@ -1065,22 +1065,23 @@ class MapController:
         t_lower = int((map_attr.low_py   + extra_p) / side)
         return (t_left, t_right, t_upper, t_lower)
 
-    def __updateDirtyMap(self, level, x, y):
-        def tileInAttr(level, x, y, attr):
-            #handle psudo level beyond min level or max level
-            crop_level = min(max(self.tile_min_level, attr.level), self.tile_max_level)
-            if crop_level != attr.level:
-                attr = attr.zoomToLevel(crop_level)
-            #check range
-            if level == attr.level:
-                t_left, t_right, t_upper, t_lower = box = self.__tileRangeOfAttr(attr, self.extra_p)
-                return (t_left <= x and x <= t_right) and (t_upper <= y and y <= t_lower)
-            return False
+    def __tileInAttr(self, level, x, y, attr):
+        #handle psudo level beyond min level or max level
+        crop_level = min(max(self.tile_min_level, attr.level), self.tile_max_level)
+        if crop_level != attr.level:
+            attr = attr.zoomToLevel(crop_level)
 
+        #check range
+        if level == attr.level:
+            t_left, t_right, t_upper, t_lower = box = self.__tileRangeOfAttr(attr, self.extra_p)
+            return (t_left <= x and x <= t_right) and (t_upper <= y and y <= t_lower)
+        return False
+
+    def __updateDirtyMap(self, level, x, y):
         map_info = self.dirty_map_info
         if map_info is not None:
             attr, cb = map_info
-            if tileInAttr(level, x, y, attr):
+            if self.__tileInAttr(level, x, y, attr):
                 print('UPDATE is available.')
                 cb()
 
