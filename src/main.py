@@ -894,6 +894,16 @@ class MapController:
     @level.setter
     def level(self, v): self.__level = v
 
+    @property
+    def dirty_map_info(self):
+        with self.__dirty_map_info_lock:
+            return self.__dirty_map_info
+
+    @dirty_map_info.setter
+    def dirty_map_info(self, v):
+        with self.__dirty_map_info_lock:
+            self.__dirty_map_info = v
+
     def __init__(self, parent):
         #def settings
         self.__parent = parent
@@ -910,6 +920,7 @@ class MapController:
         self.__font = conf.IMG_FONT
         self.hide_txt = False
 
+        self.__dirty_map_info_lock = Lock()
         self.__dirty_map_info = None
 
         #layer
@@ -971,7 +982,7 @@ class MapController:
 
         #The image attributes with which we want to create a image compatible.
         req_attr = MapAttr(level, px, py, px+width, py+height, 0)
-        self.__dirty_map_info = (req_attr, cb) #map info for update by callback
+        self.dirty_map_info = (req_attr, cb) #keep info for update of dirty map
         map, attr = self.__genGpsMap(req_attr, force)
 
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  crop map")
@@ -1066,12 +1077,12 @@ class MapController:
                 return (t_left <= x and x <= t_right) and (t_upper <= y and y <= t_lower)
             return False
 
-        if not self.__dirty_map_info:
-            return
-        attr, cb = self.__dirty_map_info
-        if tileInAttr(level, x, y, attr):
-            print('UPDATE is available.')
-            cb()
+        map_info = self.dirty_map_info
+        if map_info is not None:
+            attr, cb = map_info
+            if tileInAttr(level, x, y, attr):
+                print('UPDATE is available.')
+                cb()
 
     def __genTileMap(self, map_attr, extra_p):
         #get tile x, y.
