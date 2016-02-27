@@ -21,6 +21,12 @@ from io import BytesIO
 from util import mkdirSafely
 
 class __TileMap:
+    TILE_VALID      = 0
+    TILE_NOT_IN_MEM = 1
+    TILE_NOT_IN_DB  = 2
+    TILE_REQ        = 3
+    TILE_REQ_FAIL   = 4
+
     @property
     def title(self):
         return self.map_title
@@ -44,11 +50,10 @@ class __TileMap:
         if cache_dir is None:
             raise ValueError('cache_dir is None')
         self.__cache_dir = cache_dir
-        self.__local_cache = None
+        self.__disk_cache = None
 
         #memory cache
-        self.__img_repo = {}   #id -> (img, timestamp)
-        self.__img_repo_lock = Lock()
+        self.__mem_cache = MemoryCache(self.TILE_NOT_IN_MEM, is_concurrency=True)
 
         #download helpers
         self.__MAX_WORKS = 3
@@ -64,8 +69,8 @@ class __TileMap:
 
     def start(self):
         #create cache dir for the map
-        self.__local_cache = DBLocalCache(self.__cache_dir, self, conf.DB_SCHEMA)
-        self.__local_cache.start()
+        self.__disk_cache = DBDiskCache(self.__cache_dir, self, conf.DB_SCHEMA)
+        self.__disk_cache.start()
         #start download thread
         self.__download_monitor.start()
 
@@ -77,7 +82,7 @@ class __TileMap:
         self.__download_monitor.join()
 
         #close resources
-        self.__local_cache.close()
+        self.__disk_cache.close()
 
     def isSupportedLevel(self, level):
         return self.level_min <= level and level <= self.level_max
@@ -90,20 +95,6 @@ class __TileMap:
 
     def genTileUrl(self, level, x, y):
         return self.url_template % (level, x, y)
-
-    def getRepoImage(self, id):
-        with self.__img_repo_lock:
-            item = self.__img_repo.get(id)
-            if item:
-                return item
-            else:
-                item = (None, datetime.min)  #psuedo data to record timestamp
-                self.__img_repo[id] = item
-                return item
-
-    def setRepoImage(self, id, item):
-        with self.__img_repo_lock:
-            self.__img_repo[id] = item
 
     #The therad to download
     def __runDownloadJob(self, id, level, x, y, cb):
@@ -122,7 +113,9 @@ class __TileMap:
         #(for data coherence, do this before moving self from workers queue: if download thread is done, data is ready)
         if tile_data:
             tile_img = Image.open(BytesIO(tile_data))
-            self.setRepoImage(id, (tile_img, datetime.now()))
+            self.__mem_cache.set(id, self.TILE_VALID, tile_img)
+        else:
+            self.__mem_cache.set(id, self.TILE_REQ_FAIL)
 
         #done the download
         #(do this before thread exit, to ensure monitor is notified)
@@ -145,7 +138,7 @@ class __TileMap:
 
             #save file
             try:
-                self.__local_cache.put(level, x, y, tile_data)
+                self.__disk_cache.put(level, x, y, tile_data)
             except Exception as ex:
                 print('Error to save tile data', str(ex))
 
@@ -194,33 +187,46 @@ class __TileMap:
             self.__req_queue[id] = (level, x, y, cb)
             self.__download_cv.notify()
 
+    def __getTileFromDisk(self, level, x, y):
+        try:
+            data = self.__disk_cache.get(level, x, y)
+            if data is not None:
+                img = Image.open(BytesIO(data))
+                return img
+        except Exception as ex:
+            print("Error to read tile data: ", str(ex))
+        return None
+
     def __getTile(self, level, x, y, auto_req=True, cb=None):
         #check level
         if level > self.level_max or level < self.level_min:
             raise ValueError("level is out of range")
 
-        #get from cache
         id = self.genTileId(level, x, y)
-        img, ts = self.getRepoImage(id)
-        if img or (datetime.now() - ts).seconds < 60:
-            return img;
+        img, status, ts = self.__mem_cache.get(id)      #READ FROM memory
 
-        #get from disk
-        try:
-            data = self.__local_cache.get(level, x, y)
-            if data:
-                img = Image.open(BytesIO(data))
-                self.setRepoImage(id, (img, datetime.now()))
+        if status == self.TILE_NOT_IN_MEM:
+            img = self.__getTileFromDisk(level, x, y)   #READ FROM disk
+            if img is not None:
+                self.__mem_cache.set(id, self.TILE_VALID, img)
                 return img
-            else:
-                self.setRepoImage(id, (None, datetime.now())) #update timestamp
-        except Exception as ex:
-            print("Error to read tile data: ", str(ex))
+            if not auto_req:
+                self.__mem_cache.set(id, self.TILE_NOT_IN_DB)
+                return None
+            status = self.TILE_NOT_IN_DB  #go through to the next status
 
-        #async request to WMTS
-        if auto_req:
-            self.__requestTile(id, level, x, y, cb)
-        return None
+        if status == self.TILE_REQ_FAIL or status == self.TILE_NOT_IN_DB:
+            if auto_req:
+                self.__mem_cache.set(id, self.TILE_REQ)
+                self.__requestTile(id, level, x, y, cb) #READ FROM WMTS (async)
+            return None
+        elif status == self.TILE_VALID:
+            return img
+        elif status == self.TILE_REQ:
+            return None
+        else:
+            print('Error: unknown tile status: %d' % (status,))
+            return None
 
     def __genMagnifyFakeTile(self, level, x, y, diff=1):
         side = self.tile_side
@@ -319,7 +325,49 @@ def getTM25Kv4TileMap(cache_dir):
     if is_started: tm.start()
     return tm
 
-class LocalCache:
+class MemoryCache:
+    '''
+    class Item:
+        self.__init__(data=None, status=None, timestamp=None):
+        self.data = data
+        self.status = status
+        self.timestamp = timestamp
+    '''
+
+    @property
+    def is_concurrency(self):
+        return self.__repo_lock is not None
+
+    def __init__(self, init_status, is_concurrency=False):
+        self.__init_status = init_status
+        self.__repo = {}
+        self.__repo_lock = Lock() if is_concurrency else None
+
+    def __set(self, id, status, data):
+        self.__repo[id] = (data, status, datetime.now())
+
+    def __get(self, id):
+        item = self.__repo.get(id)
+        if item is None:
+            item = (None, self.__init_status, datetime.now())
+            self.__repo[id] = item
+        return item
+
+    def set(self, id, status, data=None):
+        if self.is_concurrency:
+            with self.__repo_lock:
+                self.__set(id, status, data)
+        else:
+            self.__set(id, status, data)
+
+    def get(self, id):
+        if self.is_concurrency:
+            with self.__repo_lock:
+                return self.__get(id)
+        else:
+            return self.__get(id)
+
+class DiskCache:
     def start(self):
         pass
 
@@ -332,7 +380,7 @@ class LocalCache:
     def get(self, level, x, y):
         pass
 
-class FileLocalCache(LocalCache):
+class FileDiskCache(DiskCache):
     def __init__(self, cache_dir, tile_map):
         self.__cache_dir = os.path.join(cache_dir, tile_map.map_id) #create subfolder
         self.__tile_map = tile_map
@@ -361,7 +409,7 @@ class FileLocalCache(LocalCache):
                 return file.read()
         return None
 
-class DBLocalCache(LocalCache):
+class DBDiskCache(DiskCache):
     def __init__(self, cache_dir, tile_map, db_schema, is_concurrency=True):
         self.__db_path = os.path.join(cache_dir, tile_map.map_id + ".mbtiles")
         self.__db_schema = db_schema
@@ -529,7 +577,7 @@ class DBLocalCache(LocalCache):
                 return self.__get_respose is not None
 
             with self.__get_lock:  #for blocking the continuous get
-                #add req
+                #add TILE_req
                 with self.__sql_queue_cv:
                     item = (level, x, y, None)
                     self.__sql_queue.insert(0, item)  #service first
