@@ -202,12 +202,8 @@ class __TileMap:
         #get from cache
         id = self.genTileId(level, x, y)
         img, ts = self.getRepoImage(id)
-        if img is not None:
-            return img
-
-        #guard for frequent request
-        if (datetime.now() - ts) < conf.RETRY_PERIOD:
-            return None
+        if img or (datetime.now() - ts).seconds < 60:
+            return img;
 
         #get from disk
         try:

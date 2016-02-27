@@ -48,7 +48,6 @@ DEF_SYMBOL = _tosymkey(__config['def_symbol'])
 MAX_SUPP_LEVEL = int(__config['max_supp_level'])
 MIN_SUPP_LEVEL = int(__config['min_supp_level'])
 DB_SCHEMA = __config['db_schema']
-RETRY_PERIOD = timedelta(seconds=float(__config['retry_period']))
 SPLIT_TIME_GAP = timedelta(hours=float(__config['split_time_gap']))
 SPLIT_DIST_GAP = float(__config['split_dist_gap']) #unit:km
 SELECT_AREA_X = float(__config['select_area_x'])
@@ -71,7 +70,6 @@ def save(path=GISEDITOR_CONF):
         f.write("max_supp_level=%d\n" % (MAX_SUPP_LEVEL,))
         f.write("min_supp_level=%d\n" % (MIN_SUPP_LEVEL,))
         f.write("db_schema=%s\n" % (DB_SCHEMA,))
-        f.write("retry_period=%f\n" % (RETRY_PERIOD.total_seconds(),))
         f.write("split_time_gap=%f\n" % (SPLIT_TIME_GAP.total_seconds()/3600,))
         f.write("split_dist_gap=%f\n" % (SPLIT_DIST_GAP,))
         f.write("select_area_x=%f\n" % (SELECT_AREA_X,))
