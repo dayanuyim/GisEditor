@@ -16,7 +16,19 @@ def __readConfig(conf_path):
     conf = {}
     with open(conf_path) as conf_file:
         for line in conf_file:
-            k, v = line.rstrip().split('=', 1)
+            line = line.rstrip()
+
+            #omit comments and space line
+            if line.startswith('#') or line.isspace():
+                continue
+
+            #filter out invalid format
+            tokens = line.split('=', 1)
+            if len(tokens) != 2:
+                print('invalid format for conf line: %s' % (line,))
+                continue
+
+            k, v = tokens
             conf[k] = v
     return conf
 
