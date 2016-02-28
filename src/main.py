@@ -158,6 +158,16 @@ class MapBoard(tk.Frame):
         with self.__map_has_update_lock:
             self.__map_has_update = v
 
+    @property
+    def version(self):
+        return self.__version
+
+    @version.setter
+    def version(self, v):
+        self.__version = v
+        self.__ver_label['text'] = 'ver. ' + v
+
+
     def __init__(self, master):
         super().__init__(master)
 
@@ -178,6 +188,7 @@ class MapBoard(tk.Frame):
         self.__pref_geo = None
         self.__left_click_pos = None
         self.__right_click_pos = None
+        self.__version = ''
         Thread(target=self.__runMapUpdater).start()
 
         #canvas items
@@ -295,6 +306,10 @@ class MapBoard(tk.Frame):
         font = 'Arialuni 10'
         bg='lightgray'
         frame = tk.Frame(self, relief='ridge', bd=1, bg=bg)
+
+        self.__ver_label = tk.Label(frame, font=font, bg=bg)
+        self.__ver_label.pack(side='right', expand=0, anchor='ne')
+
         self.__status_label = tk.Label(frame, font=font, bg=bg)
         self.__status_label.pack(side='left', expand=0, anchor='nw')
         return frame
@@ -2495,14 +2510,14 @@ def onExit(root, disp_board):
         disp_board.exit()
         root.destroy()
 
-def getTitleText(version):
+def getTitleText():
     txt = ""
     if len(sys.argv) > 1:
         for arg in sys.argv[1:]:
             txt += path.basename(arg)
             txt += ' '
         txt += "- "
-    return txt + "GisEditor v" + version
+    return txt + "GisEditor"
 
 if __name__ == '__main__':
     __version = '0.1'
@@ -2516,12 +2531,13 @@ if __name__ == '__main__':
             #icon = ImageTk.PhotoImage(conf.EXE_ICON)
             #root.tk.call('wm', 'iconphoto', root._w, icon)
 
-        root.title(getTitleText(__version))
+        root.title(getTitleText())
         root.geometry('950x700+200+0')
 
         #create display board
         pad_ = 2
         disp_board = MapBoard(root)
+        disp_board.version = __version
         disp_board.pack(side='right', anchor='se', expand=1, fill='both', padx=pad_, pady=pad_)
         root.protocol('WM_DELETE_WINDOW', lambda: onExit(root, disp_board))
 
