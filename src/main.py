@@ -23,7 +23,7 @@ import util
 from gpx import GpsDocument, WayPoint
 from pic import PicDocument
 from sym import SymRuleType, SymRule
-from util import GeoPoint, getPrefCornerPos, AreaSelector, AreaSizeTooLarge
+from util import GeoPoint, getPrefCornerPos, AreaSelector, AreaSizeTooLarge, DrawGuard
 
 #print to console/log and messagebox (generalize this with LOG, moving to util.py)
 def logWithShow(msg):
@@ -1129,17 +1129,13 @@ class MapController:
         if len(self.gpx_layers) == 0:
             return
 
-        draw = ImageDraw.Draw(map)
-
-        for gpx in self.gpx_layers:
-            #draw tracks
-            #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw gpx...")
-            for trk in gpx.tracks:
-                if self.isTrackInImage(trk, map_attr):
-                    self.drawTrkPoint(map, map_attr, trk, trk.color, draw=draw)
-
-        #recycle draw object
-        del draw
+        with DrawGuard(map) as draw:
+            for gpx in self.gpx_layers:
+                #draw tracks
+                #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw gpx...")
+                for trk in gpx.tracks:
+                    if self.isTrackInImage(trk, map_attr):
+                        self.drawTrkPoint(map, map_attr, trk, trk.color, draw=draw)
 
     def drawTrkPoint(self, map, map_attr, pts, color, bg_color=None, draw=None, width=3):
         if pts is None or len(pts) == 0:
@@ -1154,33 +1150,33 @@ class MapController:
 
         bg_width = width + 4
         _draw = draw if draw is not None else ImageDraw.Draw(map)
+        try:
+            if len(pts) == 1:
+                #print('draw trk point')
+                (px, py) = pts[0].pixel(map_attr.level)
+                px -= map_attr.left_px
+                py -= map_attr.up_py
 
-        if len(pts) == 1:
-            #print('draw trk point')
-            (px, py) = pts[0].pixel(map_attr.level)
-            px -= map_attr.left_px
-            py -= map_attr.up_py
+                #r = int(bg_width/2)
+                #_draw.ellipse((px-r, py-r, px+r, py+r), fill=bg_color)
 
-            #r = int(bg_width/2)
-            #_draw.ellipse((px-r, py-r, px+r, py+r), fill=bg_color)
+                r = int(width/2)
+                _draw.ellipse((px-r, py-r, px+r, py+r), fill=color, outline=bg_color)
+            else:
+                #print('draw trk seg')
+                xy = []
+                for pt in pts:
+                    (px, py) = pt.pixel(map_attr.level)
+                    xy.append(px - map_attr.left_px)
+                    xy.append(py - map_attr.up_py)
 
-            r = int(width/2)
-            _draw.ellipse((px-r, py-r, px+r, py+r), fill=color, outline=bg_color)
-        else:
-            #print('draw trk seg')
-            xy = []
-            for pt in pts:
-                (px, py) = pt.pixel(map_attr.level)
-                xy.append(px - map_attr.left_px)
-                xy.append(py - map_attr.up_py)
+                if bg_color is not None:
+                    _draw.line(xy, fill=bg_color, width=width+4)
 
-            if bg_color is not None:
-                _draw.line(xy, fill=bg_color, width=width+4)
-
-            _draw.line(xy, fill=color, width=width)
-
-        if draw is None:
-            del _draw
+                _draw.line(xy, fill=color, width=width)
+        finally:
+            if draw is None:
+                del _draw
 
 
     #disable for now, because the algo will be broken if two pt across the image
@@ -1201,11 +1197,10 @@ class MapController:
         if len(wpts) == 0:
             return
 
-        draw = ImageDraw.Draw(map)
-        for wpt in wpts:
-            (px, py) = wpt.pixel(map_attr.level)
-            self.drawWayPoint(map, map_attr, wpt, "black", draw=draw)
-        del draw
+        with DrawGuard(map) as draw:
+            for wpt in wpts:
+                (px, py) = wpt.pixel(map_attr.level)
+                self.drawWayPoint(map, map_attr, wpt, "black", draw=draw)
 
     def drawWayPoint(self, map, map_attr, wpt, txt_color, bg_color=None, draw=None):
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw wpt'", wpt.name, "'")
@@ -1220,39 +1215,39 @@ class MapController:
 
         #get draw
         _draw = draw if draw is not None else ImageDraw.Draw(map)
+        try:
+            if bg_color is not None:
+                r = ceil(conf.ICON_SIZE/sqrt(2))
+                _draw.ellipse((px-r, py-r, px+r, py+r), fill=bg_color, outline='gray')
 
-        if bg_color is not None:
-            r = ceil(conf.ICON_SIZE/sqrt(2))
-            _draw.ellipse((px-r, py-r, px+r, py+r), fill=bg_color, outline='gray')
+            #paste icon
+            if wpt.sym is not None:
+                icon = conf.getIcon(wpt.sym)
+                if icon is not None:
+                    if icon.mode == 'RGBA':
+                        map.paste(icon, (px-adj, py-adj), icon)
+                    elif icon.mode == 'LA' or (icon.mode == 'P' and 'transparency' in icon.info):
+                        mask = icon.convert('RGBA')
+                        map.paste(icon, (px-adj, py-adj), mask)
+                    else:
+                        print("Warning: Icon for '%s' with mode %s is not ransparency" % (wpt.sym, icon.mode))
+                        map.paste(icon, (px-adj, py-adj))
 
-        #paste icon
-        if wpt.sym is not None:
-            icon = conf.getIcon(wpt.sym)
-            if icon is not None:
-                if icon.mode == 'RGBA':
-                    map.paste(icon, (px-adj, py-adj), icon)
-                elif icon.mode == 'LA' or (icon.mode == 'P' and 'transparency' in icon.info):
-                    mask = icon.convert('RGBA')
-                    map.paste(icon, (px-adj, py-adj), mask)
-                else:
-                    print("Warning: Icon for '%s' with mode %s is not ransparency" % (wpt.sym, icon.mode))
-                    map.paste(icon, (px-adj, py-adj))
+            #draw point   //replace by icon
+            #n = self.pt_size
+            #_draw.ellipse((px-n, py-n, px+n, py+n), fill=color, outline='white')
 
-        #draw point   //replace by icon
-        #n = self.pt_size
-        #_draw.ellipse((px-n, py-n, px+n, py+n), fill=color, outline='white')
-
-        #draw text
-        if not self.hide_txt:
-            txt = wpt.name
-            font = self.__font
-            px, py = px +adj, py -adj  #adjust position for aligning icon
-            _draw.text((px+1, py+1), txt, fill="white", font=font)
-            _draw.text((px-1, py-1), txt, fill="white", font=font)
-            _draw.text((px, py), txt, fill=txt_color, font=font)
-
-        if draw is None:
-            del _draw
+            #draw text
+            if not self.hide_txt:
+                txt = wpt.name
+                font = self.__font
+                px, py = px +adj, py -adj  #adjust position for aligning icon
+                _draw.text((px+1, py+1), txt, fill="white", font=font)
+                _draw.text((px-1, py-1), txt, fill="white", font=font)
+                _draw.text((px, py), txt, fill=txt_color, font=font)
+        finally:
+            if draw is None:
+                del _draw
 
 
     def __genCropMap(self, map, src_attr, dst_attr):
@@ -1271,29 +1266,27 @@ class MapController:
         #set draw
         py_shift = 20
         font = self.__font
-        draw = ImageDraw.Draw(map)
 
-        #get xy of TM2
-        (left_x, up_y) = self.getTWD67TM2ByPixcelXY(attr.left_px, attr.up_py, attr.level)
-        (right_x, low_y) = self.getTWD67TM2ByPixcelXY(attr.right_px, attr.low_py, attr.level)
+        with DrawGuard(map) as draw:
+            #get xy of TM2
+            (left_x, up_y) = self.getTWD67TM2ByPixcelXY(attr.left_px, attr.up_py, attr.level)
+            (right_x, low_y) = self.getTWD67TM2ByPixcelXY(attr.right_px, attr.low_py, attr.level)
 
-        #draw TM2' x per KM
-        for x in range(ceil(left_x/1000), floor(right_x/1000) +1):
-            #print("tm: ", x)
-            (px, py) = self.getPixcelXYByTWD67TM2(x*1000, low_y, attr.level)
-            px -= attr.left_px
-            py -= attr.up_py
-            draw.text((px, py - py_shift), str(x), fill="black", font=font)
+            #draw TM2' x per KM
+            for x in range(ceil(left_x/1000), floor(right_x/1000) +1):
+                #print("tm: ", x)
+                (px, py) = self.getPixcelXYByTWD67TM2(x*1000, low_y, attr.level)
+                px -= attr.left_px
+                py -= attr.up_py
+                draw.text((px, py - py_shift), str(x), fill="black", font=font)
 
-        #draw TM2' y per KM
-        for y in range(ceil(low_y/1000), floor(up_y/1000) +1):
-            #print("tm: ", y)
-            (px, py) = self.getPixcelXYByTWD67TM2(left_x, y*1000, attr.level)
-            px -= attr.left_px
-            py -= attr.up_py
-            draw.text((px, py -py_shift), str(y), fill="black", font=font)
-
-        del draw
+            #draw TM2' y per KM
+            for y in range(ceil(low_y/1000), floor(up_y/1000) +1):
+                #print("tm: ", y)
+                (px, py) = self.getPixcelXYByTWD67TM2(left_x, y*1000, attr.level)
+                px -= attr.left_px
+                py -= attr.up_py
+                draw.text((px, py -py_shift), str(y), fill="black", font=font)
 
 
     @staticmethod
@@ -2483,9 +2476,8 @@ def getAspectResize(img, size):
 def getTextImag(text, size):
     w, h = size
     img = Image.new("RGBA", size)
-    draw = ImageDraw.Draw(img)
-    draw.text( (int(w/2-20), int(h/2)), text, fill='lightgray', font=conf.IMG_FONT)
-    del draw
+    with DrawGuard(img) as draw:
+        draw.text( (int(w/2-20), int(h/2)), text, fill='lightgray', font=conf.IMG_FONT)
 
     return img
 

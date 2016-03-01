@@ -9,6 +9,18 @@ from PIL import Image, ImageTk, ImageDraw, ImageColor
 import conf
 from coord import TileSystem, CoordinateSystem
 
+class DrawGuard:
+    def __init__(self, img):
+        self.__img = img
+
+    def __enter__(self):
+        self.__draw = ImageDraw.Draw(self.__img)
+        return self.__draw
+
+    def __exit__(self, type, value, traceback):
+        if self.__draw is not None:
+            del self.__draw
+
 def listdiff(list1, list2):
     result = []
     for e in list1:
@@ -683,4 +695,8 @@ class GeoPoint:
         self.__checkTWD97TM2()
         return self.__twd97_y
 
+if __name__ == '__main__':
+    img = Image.new('RGBA', (400,300), (255, 255, 255, 96))  #transparent
+    with DrawGuard(img) as draw:
+        print('...processing')
 
