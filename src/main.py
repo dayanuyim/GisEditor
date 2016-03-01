@@ -186,6 +186,7 @@ class MapBoard(tk.Frame):
         self.__alter_time = None
         self.__pref_dir = None
         self.__pref_geo = None
+        self.__some_geo = GeoPoint(lon=121.334754, lat=24.987969)
         self.__left_click_pos = None
         self.__right_click_pos = None
         self.__version = ''
@@ -397,16 +398,6 @@ class MapBoard(tk.Frame):
         if wpt is not None:
             self.map_ctrl.addWpt(wpt)
 
-    #deprecated
-    '''
-    def initDisp(self):
-        print('initDisp', self.winfo_width(), self.winfo_height())
-        pt = self.__getPrefGeoPt()
-        disp_w = self.__init_w
-        disp_h = self.__init_h
-        self.resetMap(pt, disp_w, disp_h)
-   '''
-
     def __getPrefGeoPt(self):
         #prefer track point
         for trk in self.map_ctrl.getAllTrks():
@@ -487,7 +478,7 @@ class MapBoard(tk.Frame):
         for path in pic_path:
             self.addWpt(getPicDocument(path))
 
-        #also set preferred dir if needed
+        #also update preferred dir if needed
         def getPrefDir(pathes):
             return None if not len(pathes) else os.path.dirname(pathes[0])
         if not self.__pref_dir:
@@ -497,20 +488,22 @@ class MapBoard(tk.Frame):
 
     #{{ Right click actions
     def onAddFiles(self):
+        def to_ask(init_dir):
+            return filedialog.askopenfilenames(initialdir=init_dir)
         try:
             #add filenames
-            def to_ask(init_dir):
-                return filedialog.askopenfilenames(initialdir=init_dir)
             filenames = self.withPreferredDir(to_ask)
+            if not filenames:
+                return
             self.addFiles(filenames)
 
-            #go to pref geo, if no init_geo before
+            #show, may go to preffered geo
             if not self.__pref_geo:
-                geo = self.__getPrefGeoPt()
-                if geo:
-                    self.__pref_geo = geo
-                    self.setMapInfo(geo)
-                    self.resetMap(geo)
+                self.__pref_geo = self.__getPrefGeoPt()
+                self.setMapInfo(self.__pref_geo)
+                self.resetMap(self.__pref_geo)
+            else:
+                self.setAlter('all')
         except Exception as ex:
             logWithShow('Add Files Error: %s' % (str(ex),))
 
@@ -794,10 +787,8 @@ class MapBoard(tk.Frame):
         disp = self.disp_canvas
         if e.widget == disp:
             if not hasattr(disp, 'image'):  #init
-                geo = self.__getPrefGeoPt()
-                self.__pref_geo = geo  #rec
-                if not geo:
-                    geo = self.map_ctrl.geo
+                self.__pref_geo = self.__getPrefGeoPt()
+                geo = self.__pref_geo if self.__pref_geo is not None else self.__some_geo
                 self.setMapInfo(geo)
                 self.resetMap(geo)
             elif e.width != disp.image.width() or e.height != disp.image.height():
