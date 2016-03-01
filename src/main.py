@@ -1141,7 +1141,7 @@ class MapController:
         #recycle draw object
         del draw
 
-    def drawTrkPoint(self, map, map_attr, pts, color, bg_color=None, draw=None, width=2):
+    def drawTrkPoint(self, map, map_attr, pts, color, bg_color=None, draw=None, width=3):
         if pts is None or len(pts) == 0:
             return
 
