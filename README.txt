@@ -2,7 +2,7 @@
 Please reference manual.pdf for using and installation.
 
 Windows 環境亦有免安裝檔可供下載。
-There are portable versions to downloader on Windows.
+There are portable versions to download on Windows.
   [32bit版] https://drive.google.com/file/d/0B7ryOauZNjlbd0pmVFJmYWVNTkU/view?usp=sharing
   [64bit版] https://drive.google.com/file/d/0B7ryOauZNjlbSE9mOFZvVjhVOWs/view?usp=sharing
 
