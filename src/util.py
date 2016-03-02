@@ -7,8 +7,33 @@ from PIL import Image, ImageTk, ImageDraw, ImageColor
 
 #my modules
 import conf
-from tile import TileSystem
-from coord import CoordinateSystem
+from coord import TileSystem, CoordinateSystem
+
+class DrawGuard:
+    def __init__(self, img):
+        self.__img = img
+
+    def __enter__(self):
+        self.__draw = ImageDraw.Draw(self.__img)
+        return self.__draw
+
+    def __exit__(self, type, value, traceback):
+        if self.__draw is not None:
+            del self.__draw
+
+def listdiff(list1, list2):
+    result = []
+    for e in list1:
+        if not e in list2:
+            result.append(e)
+    return result
+
+def mkdirSafely(path, is_recursive=True):
+    if not os.path.exists(path):
+        if is_recursive:
+            os.makedirs(path)
+        else:
+            os.mkdir(path)
 
 '''
 import Xlib.display as display
@@ -634,15 +659,19 @@ class GeoPoint:
     def pixel(self, level):
         return (self.px(level), self.py(level))
 
-    def incPixel(self, px, py, level):
+    #utility
+    def addPixel(self, px, py, level):  # add (px, py) to get a GeoPoint
         px = self.px(level) + px
         py = self.py(level) + py
         return GeoPoint(px=px, py=py, level=level)
 
-    def diffPixel(self, geo, level):
+    def diffPixel(self, geo, level):    # minus a GeoPoint to get the diff of (px, py)
         dpx = self.px(level) - geo.px(level)
         dpy = self.py(level) - geo.py(level)
         return (dpx, dpy)
+
+    def tile_xy(self, level):
+        return TileSystem.getTileXYByPixcelXY(self.px(level), self.py(level))
 
     #accesor TWD67 TM2 ==========
     @property
@@ -666,4 +695,8 @@ class GeoPoint:
         self.__checkTWD97TM2()
         return self.__twd97_y
 
+if __name__ == '__main__':
+    img = Image.new('RGBA', (400,300), (255, 255, 255, 96))  #transparent
+    with DrawGuard(img) as draw:
+        print('...processing')
 

@@ -7,6 +7,7 @@ icon_size=32
 def_symbol=Waypoint
 max_supp_level=18
 min_supp_level=7
+db_schema=tms
 split_time_gap=4.000000
 split_dist_gap=200.000000
 select_area_x=7.000000

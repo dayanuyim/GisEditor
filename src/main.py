@@ -12,7 +12,7 @@ import time
 from os import path
 from PIL import Image, ImageTk, ImageDraw, ImageFont, ImageColor
 from math import floor, ceil, sqrt
-from tkinter import messagebox, filedialog
+from tkinter import messagebox, filedialog, ttk
 from datetime import datetime
 from threading import Lock, Thread
 
@@ -20,20 +20,18 @@ from threading import Lock, Thread
 import tile
 import conf
 import util
-from tile import TileSystem
 from gpx import GpsDocument, WayPoint
 from pic import PicDocument
 from sym import SymRuleType, SymRule
-from util import GeoPoint, getPrefCornerPos, AreaSelector, AreaSizeTooLarge
+from util import GeoPoint, getPrefCornerPos, AreaSelector, AreaSizeTooLarge, DrawGuard
 
 #print to console/log and messagebox (generalize this with LOG, moving to util.py)
-def logMsg(desc, reason):
+def logWithShow(msg):
     #Todo: log
-    msg = "%s: %s" % (desc, reason)
     print(msg)
     messagebox.showwarning('', msg)
 
-def logPrint(msg):
+def logWithPrint(msg):
     #Todo: log
     print(msg)
 
@@ -41,12 +39,7 @@ def logPrint(msg):
 def isGpsFile(path):
     (fname, ext) = os.path.splitext(path)
     ext = ext.lower()
-    if ext == '.gpx':
-        return True
-    if ext == '.gdb':
-        return True
-    #assue the file is a gps file!
-    return True
+    return ext in conf.gpsbabel_ext_fmt
 
 def isPicFile(path):
     (fname, ext) = os.path.splitext(path)
@@ -72,41 +65,49 @@ def getGpsDocument(path):
             #gps.load(filestring=gpx_string)
         return gps
     except Exception as ex:
-        logMsg("Error to open '%s'" % (path,), str(ex))
+        logWithShow("Error to open '%s': %s" % (path, str(ex)))
         return None
 
 def getPicDocument(path):
     try:
         return PicDocument(path, conf.TZ)
     except Exception as ex:
-        logMsg("cannot read the picture '%s'" % (path,), str(ex))
+        logWithShow("cannot read the picture '%s': %s" % (path, str(ex)))
     return None
 
-def __toGpx(src_path, output):
+def __toGpx(src_path, flag):
+    exe_file = conf.GPSBABEL_EXE
+
+    #input format
     (fname, ext) = os.path.splitext(src_path)
     if ext == '':
-        raise ValueError("cannot identify input format")
+        raise ValueError("cannot identify gps format deu to no file extension")
+    input_fmt = conf.gpsbabel_ext_fmt.get(ext)
+    if not input_fmt:
+        raise ValueError("cannot identify gps format for the file extension: " + ext)
+    if len(input_fmt) > 1:
+        raise ValueError("cannot identify gps format, candidates are " + str(input_fmt))
+    input_fmt = input_fmt[0]
 
-    exe_file = conf.GPSBABEL_EXE
-    tmp_in_path = os.path.join(tempfile.gettempdir(),  "giseditor_in.tmp")
-
-    shutil.copyfile(src_path, tmp_in_path)  #to work around the problem of gpsbabel connot read non-ascii filename
-
-    if output == 'string':
-        cmd = '"%s" -i %s -f "%s" -o gpx,gpxver=1.1 -F -' % (exe_file, ext[1:], tmp_in_path)
-        logPrint(cmd)
-        output = subprocess.check_output(cmd, shell=True)  #@@! pythonW.exe caused 'WinError 6: the handler is invalid'
-        result = output.decode("utf-8")
-    elif output == 'file':
-        tmp_out_path = os.path.join(tempfile.gettempdir(),  "giseditor_out.tmp")
-        cmd = '"%s" -i %s -f "%s" -o gpx,gpxver=1.1 -F "%s"' % (exe_file, ext[1:], tmp_in_path, tmp_out_path)
-        logPrint(cmd)
-        subprocess.call(cmd, shell=True)
-        result = tmp_out_path
-    else:
-        raise ValueError('Unknow type to convert to gpx: ' + output)
-
-    os.remove(tmp_in_path) #clean tmp file before return
+    #input path: to work around the problem of gpsbabel connot read non-ascii filename
+    input_tmp_path = os.path.join(tempfile.gettempdir(),  "giseditor_in.tmp")
+    shutil.copyfile(src_path, input_tmp_path)  
+    try:
+        if flag == 'string':
+            cmd = '"%s" -i %s -f "%s" -o gpx,gpxver=1.1 -F -' % (exe_file, input_fmt, input_tmp_path)
+            logWithPrint(cmd)
+            output = subprocess.check_output(cmd, shell=True)  #@@! pythonW.exe caused 'WinError 6: the handler is invalid'
+            result = output.decode("utf-8")
+        elif flag == 'file':
+            output_tmp_path = os.path.join(tempfile.gettempdir(),  "giseditor_out.tmp")
+            cmd = '"%s" -i %s -f "%s" -o gpx,gpxver=1.1 -F "%s"' % (exe_file, input_fmt, input_tmp_path, output_tmp_path)
+            logWithPrint(cmd)
+            subprocess.call(cmd, shell=True)
+            result = output_tmp_path
+        else:
+            raise ValueError('Unknow type to convert to gpx by ' + flag)
+    finally:
+        os.remove(input_tmp_path) #clean tmp file before return
     return result
 
 def toGpxFile(src_path):
@@ -126,6 +127,8 @@ def __parsePath(path, gps_path, pic_path):
         pic_path.append(path)
     elif isGpsFile(path):
         gps_path.append(path)
+    else:
+        logWithPrint("omit the file: " + path)
 
 #may generalize the method, and moving to util.py
 def parsePathes(pathes):
@@ -145,6 +148,26 @@ class MapBoard(tk.Frame):
     @property
     def alter_time(self): return self.__alter_time
 
+    @property
+    def map_has_update(self):
+        with self.__map_has_update_lock:
+            return self.__map_has_update
+
+    @map_has_update.setter
+    def map_has_update(self, v):
+        with self.__map_has_update_lock:
+            self.__map_has_update = v
+
+    @property
+    def version(self):
+        return self.__version
+
+    @version.setter
+    def version(self, v):
+        self.__version = v
+        self.__ver_label['text'] = 'ver. ' + v
+
+
     def __init__(self, master):
         super().__init__(master)
 
@@ -157,14 +180,17 @@ class MapBoard(tk.Frame):
         self.__focused_geo = None
         self.__map = None         #buffer disp image for restore map
         self.__map_attr = None
-        self.__map_req = False
         self.__map_req_time = None
+        self.__map_has_update = False
+        self.__map_has_update_lock = Lock()
         self.__alter_time = None
         self.__pref_dir = None
         self.__pref_geo = None
+        self.__some_geo = GeoPoint(lon=121.334754, lat=24.987969)
         self.__left_click_pos = None
         self.__right_click_pos = None
-        Thread(target=self.mapUpdater).start()
+        self.__version = ''
+        Thread(target=self.__runMapUpdater).start()
 
         #canvas items
         self.__canvas_map = None
@@ -281,6 +307,10 @@ class MapBoard(tk.Frame):
         font = 'Arialuni 10'
         bg='lightgray'
         frame = tk.Frame(self, relief='ridge', bd=1, bg=bg)
+
+        self.__ver_label = tk.Label(frame, font=font, bg=bg)
+        self.__ver_label.pack(side='right', expand=0, anchor='ne')
+
         self.__status_label = tk.Label(frame, font=font, bg=bg)
         self.__status_label.pack(side='left', expand=0, anchor='nw')
         return frame
@@ -368,16 +398,6 @@ class MapBoard(tk.Frame):
         if wpt is not None:
             self.map_ctrl.addWpt(wpt)
 
-    #deprecated
-    '''
-    def initDisp(self):
-        print('initDisp', self.winfo_width(), self.winfo_height())
-        pt = self.__getPrefGeoPt()
-        disp_w = self.__init_w
-        disp_h = self.__init_h
-        self.resetMap(pt, disp_w, disp_h)
-   '''
-
     def __getPrefGeoPt(self):
         #prefer track point
         for trk in self.map_ctrl.getAllTrks():
@@ -458,7 +478,7 @@ class MapBoard(tk.Frame):
         for path in pic_path:
             self.addWpt(getPicDocument(path))
 
-        #also set preferred dir if needed
+        #also update preferred dir if needed
         def getPrefDir(pathes):
             return None if not len(pathes) else os.path.dirname(pathes[0])
         if not self.__pref_dir:
@@ -468,26 +488,28 @@ class MapBoard(tk.Frame):
 
     #{{ Right click actions
     def onAddFiles(self):
+        def to_ask(init_dir):
+            return filedialog.askopenfilenames(initialdir=init_dir)
         try:
             #add filenames
-            def to_ask(init_dir):
-                return filedialog.askopenfilenames(initialdir=init_dir)
             filenames = self.withPreferredDir(to_ask)
+            if not filenames:
+                return
             self.addFiles(filenames)
 
-            #go to pref geo, if no init_geo before
+            #show, may go to preffered geo
             if not self.__pref_geo:
-                geo = self.__getPrefGeoPt()
-                if geo:
-                    self.__pref_geo = geo
-                    self.setMapInfo(geo)
-                    self.resetMap(geo)
+                self.__pref_geo = self.__getPrefGeoPt()
+                self.setMapInfo(self.__pref_geo)
+                self.resetMap(self.__pref_geo)
+            else:
+                self.setAlter('all')
         except Exception as ex:
-            logMsg('Add Files Error', str(ex))
+            logWithShow('Add Files Error: %s' % (str(ex),))
 
     def onAddWpt(self):
         if not self.__right_click_pos:
-            logMsg('Create Wpt Error', 'Cannot not get right click position')
+            logWithShow('Create Wpt Error: Cannot not get right click position')
             return
 
         #create wpt
@@ -505,7 +527,7 @@ class MapBoard(tk.Frame):
         if name is not None:
             wpt_list = sorted(wpt_list, key=lambda wpt: wpt.name)
         elif time is not None:
-            wpt_list = sorted(wpt_list, key=lambda wpt: wpt.time)
+            wpt_list = sorted(wpt_list, key=lambda wpt: wpt.time if wpt.time else datetime.min)
 
         sn = 0
         for wpt in wpt_list:
@@ -605,7 +627,7 @@ class MapBoard(tk.Frame):
         #pos adjuster to align twd67
         def twd67PosAdjuster(pos):
             level = self.map_ctrl.level
-            sel_geo = self.map_ctrl.geo.incPixel(pos[0], pos[1], level)
+            sel_geo = self.map_ctrl.geo.addPixel(pos[0], pos[1], level)
             #adjust to twd67
             x = round(sel_geo.twd67_x/1000)*1000
             y = round(sel_geo.twd67_y/1000)*1000
@@ -615,7 +637,7 @@ class MapBoard(tk.Frame):
         #convert Geo Diff to Pixel diff, x/y->w/h
         def twd67GeoScaler(xy):
             level = self.map_ctrl.level
-            #sel_geo = self.map_ctrl.geo.incPixel(pos[0], pos[1], level)
+            #sel_geo = self.map_ctrl.geo.addPixel(pos[0], pos[1], level)
             sel_geo = self.map_ctrl.geo #use pos(0,0) as ref
             x = sel_geo.twd67_x + xy[0]*1000
             y = sel_geo.twd67_y - xy[1]*1000
@@ -647,8 +669,8 @@ class MapBoard(tk.Frame):
             w, h = self.__canvas_sel_area.size
             x, y = self.__canvas_sel_area.pos
             #bounding geo
-            sel_geo = self.map_ctrl.geo.incPixel(x, y, org_level)  #upper-left
-            ext_geo = sel_geo.incPixel(w, h, org_level)            #lower-right
+            sel_geo = self.map_ctrl.geo.addPixel(x, y, org_level)  #upper-left
+            ext_geo = sel_geo.addPixel(w, h, org_level)            #lower-right
             dx, dy = ext_geo.diffPixel(sel_geo, out_level)
             #get map
             map, attr = self.map_ctrl.getMap(dx, dy, geo=sel_geo, level=out_level)
@@ -765,10 +787,8 @@ class MapBoard(tk.Frame):
         disp = self.disp_canvas
         if e.widget == disp:
             if not hasattr(disp, 'image'):  #init
-                geo = self.__getPrefGeoPt()
-                self.__pref_geo = geo  #rec
-                if not geo:
-                    geo = self.map_ctrl.geo
+                self.__pref_geo = self.__getPrefGeoPt()
+                geo = self.__pref_geo if self.__pref_geo is not None else self.__some_geo
                 self.setMapInfo(geo)
                 self.resetMap(geo)
             elif e.width != disp.image.width() or e.height != disp.image.height():
@@ -778,17 +798,24 @@ class MapBoard(tk.Frame):
             if self.inSaveMode():
                 self.disp_canvas.tag_raise('AS')
 
-    def mapUpdater(self):
+    def __runMapUpdater(self):
         while not self.__is_closed:
-            #sleep 3sec
+            #check per second
             time.sleep(1)
             if self.__is_closed:
                 break  #exit
 
+            '''
+            print('  ', 'map attr is None' if self.__map_attr is None else 'map attr is not None')
+            print('  ', 'fake cout=', self.__map_attr.fake_count if self.__map_attr else -1)
+            print('  ', 'time diff=%d sec' % ((datetime.now()-self.__map_req_time).seconds, ))
+            print('  ', 'has update' if self.map_has_update else 'no update')
+            print()
+            '''
             #update if req, prevent from frequent updating
             if self.__map_attr and self.__map_attr.fake_count and \
-               self.__map_req and \
-               (datetime.now()-self.__map_req_time).seconds >= 3:
+               (datetime.now()-self.__map_req_time).seconds >= 2 and \
+               self.map_has_update:
                 try:
                     self.resetMap()
                 except Exception as ex:
@@ -803,10 +830,10 @@ class MapBoard(tk.Frame):
             self.map_ctrl.shiftGeoPixel(-w/2, -h/2)
 
         def refreshMap():
-            self.__map_req = True
+            self.map_has_update = True
 
         #request map
-        self.__map_req = False #reset flag
+        self.map_has_update = False #reset flag
         self.__map_req_time = datetime.now()
         self.__map, self.__map_attr = self.map_ctrl.getMap(w, h, force, cb=refreshMap)  #buffer the image
 
@@ -873,10 +900,20 @@ class MapController:
     @level.setter
     def level(self, v): self.__level = v
 
+    @property
+    def dirty_map_info(self):
+        with self.__dirty_map_info_lock:
+            return self.__dirty_map_info
+
+    @dirty_map_info.setter
+    def dirty_map_info(self, v):
+        with self.__dirty_map_info_lock:
+            self.__dirty_map_info = v
+
     def __init__(self, parent):
         #def settings
         self.__parent = parent
-        self.__tile_map = tile.getTM25Kv3TileMap(cache_dir=conf.CACHE_DIR)
+        self.__tile_map = tile.getTM25Kv3TileMap(cache_dir=conf.CACHE_DIR, is_started=True)
         self.__geo = GeoPoint(lon=121.334754, lat=24.987969)  #default location
         self.__level = 14
 
@@ -889,6 +926,7 @@ class MapController:
         self.__font = conf.IMG_FONT
         self.hide_txt = False
 
+        self.__dirty_map_info_lock = Lock()
         self.__dirty_map_info = None
 
         #layer
@@ -901,7 +939,7 @@ class MapController:
         self.__tile_map.close()
 
     def shiftGeoPixel(self, px, py):
-        self.geo = self.geo.incPixel(int(px), int(py), self.__level)
+        self.geo = self.geo.addPixel(int(px), int(py), self.__level)
 
     def addGpxLayer(self, gpx):
         self.gpx_layers.append(gpx)
@@ -950,15 +988,13 @@ class MapController:
 
         #The image attributes with which we want to create a image compatible.
         req_attr = MapAttr(level, px, py, px+width, py+height, 0)
+        self.dirty_map_info = (req_attr, cb) #keep info for update of dirty map
         map, attr = self.__genGpsMap(req_attr, force)
 
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  crop map")
         map = self.__genCropMap(map, attr, req_attr)
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw coord")
         self.__drawTM2Coord(map, req_attr)
-
-        #rec attr/cb or update later
-        self.__dirty_map_info = (attr, cb) if attr.fake_count and cb else None
 
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: done")
         req_attr.fake_count = attr.fake_count
@@ -1028,28 +1064,32 @@ class MapController:
 
     #return tile no. of left, right, upper, lower
     def __tileRangeOfAttr(self, map_attr, extra_p=0):
-        (t_left, t_upper) = TileSystem.getTileXYByPixcelXY(map_attr.left_px - extra_p, map_attr.up_py - extra_p)
-        (t_right, t_lower) = TileSystem.getTileXYByPixcelXY(map_attr.right_px + extra_p, map_attr.low_py + extra_p)
+        side = self.__tile_map.tile_side
+        t_left  = int((map_attr.left_px  - extra_p) / side)
+        t_right = int((map_attr.right_px + extra_p) / side)
+        t_upper = int((map_attr.up_py    - extra_p) / side)
+        t_lower = int((map_attr.low_py   + extra_p) / side)
         return (t_left, t_right, t_upper, t_lower)
 
-    def __updateDirtyMap(self, level, x, y):
-        def tileInAttr(level, x, y, attr):
-            #handle psudo level beyond min level or max level
-            crop_level = min(max(self.tile_min_level, attr.level), self.tile_max_level)
-            if crop_level != attr.level:
-                attr = attr.zoomToLevel(crop_level)
-            #check range
-            if level == attr.level:
-                t_left, t_right, t_upper, t_lower = box = self.__tileRangeOfAttr(attr, self.extra_p)
-                return (t_left <= x and x <= t_right) and (t_upper <= y and y <= t_lower)
-            return False
+    def __tileInAttr(self, level, x, y, attr):
+        #handle psudo level beyond min level or max level
+        crop_level = min(max(self.tile_min_level, attr.level), self.tile_max_level)
+        if crop_level != attr.level:
+            attr = attr.zoomToLevel(crop_level)
 
-        if not self.__dirty_map_info:
-            return
-        attr, cb = self.__dirty_map_info
-        if tileInAttr(level, x, y, attr):
-            print('UPDATE is available.')
-            cb()
+        #check range
+        if level == attr.level:
+            t_left, t_right, t_upper, t_lower = box = self.__tileRangeOfAttr(attr, self.extra_p)
+            return (t_left <= x and x <= t_right) and (t_upper <= y and y <= t_lower)
+        return False
+
+    def __updateDirtyMap(self, level, x, y):
+        map_info = self.dirty_map_info
+        if map_info is not None:
+            attr, cb = map_info
+            if self.__tileInAttr(level, x, y, attr):
+                print('UPDATE is available.')
+                cb()
 
     def __genTileMap(self, map_attr, extra_p):
         #get tile x, y.
@@ -1080,51 +1120,54 @@ class MapController:
         if len(self.gpx_layers) == 0:
             return
 
-        draw = ImageDraw.Draw(map)
+        with DrawGuard(map) as draw:
+            for gpx in self.gpx_layers:
+                #draw tracks
+                #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw gpx...")
+                for trk in gpx.tracks:
+                    if self.isTrackInImage(trk, map_attr):
+                        self.drawTrkPoint(map, map_attr, trk, trk.color, draw=draw)
 
-        for gpx in self.gpx_layers:
-            #draw tracks
-            #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw gpx...")
-            for trk in gpx.tracks:
-                if self.isTrackInImage(trk, map_attr):
-                    self.drawTrkPoint(map, map_attr, trk, trk.color, draw=draw)
-
-        #recycle draw object
-        del draw
-
-    def drawTrkPoint(self, map, map_attr, pts, color, bg_color=None, draw=None, width=2):
+    def drawTrkPoint(self, map, map_attr, pts, color, bg_color=None, draw=None, width=3):
         if pts is None or len(pts) == 0:
             return
 
+        #set to default color if invalid
+        if not (color and color.lower() in ImageColor.colormap):
+            color = 'darkmagenta'
+
+        if bg_color and bg_color.lower() not in ImageColor.colormap:
+            bg_color = 'orange'
+
         bg_width = width + 4
         _draw = draw if draw is not None else ImageDraw.Draw(map)
+        try:
+            if len(pts) == 1:
+                #print('draw trk point')
+                (px, py) = pts[0].pixel(map_attr.level)
+                px -= map_attr.left_px
+                py -= map_attr.up_py
 
-        if len(pts) == 1:
-            #print('draw trk point')
-            (px, py) = pts[0].pixel(map_attr.level)
-            px -= map_attr.left_px
-            py -= map_attr.up_py
+                #r = int(bg_width/2)
+                #_draw.ellipse((px-r, py-r, px+r, py+r), fill=bg_color)
 
-            #r = int(bg_width/2)
-            #_draw.ellipse((px-r, py-r, px+r, py+r), fill=bg_color)
+                r = int(width/2)
+                _draw.ellipse((px-r, py-r, px+r, py+r), fill=color, outline=bg_color)
+            else:
+                #print('draw trk seg')
+                xy = []
+                for pt in pts:
+                    (px, py) = pt.pixel(map_attr.level)
+                    xy.append(px - map_attr.left_px)
+                    xy.append(py - map_attr.up_py)
 
-            r = int(width/2)
-            _draw.ellipse((px-r, py-r, px+r, py+r), fill=color, outline=bg_color)
-        else:
-            #print('draw trk seg')
-            xy = []
-            for pt in pts:
-                (px, py) = pt.pixel(map_attr.level)
-                xy.append(px - map_attr.left_px)
-                xy.append(py - map_attr.up_py)
+                if bg_color is not None:
+                    _draw.line(xy, fill=bg_color, width=width+4)
 
-            if bg_color is not None:
-                _draw.line(xy, fill=bg_color, width=width+4)
-
-            _draw.line(xy, fill=color, width=width)
-
-        if draw is None:
-            del _draw
+                _draw.line(xy, fill=color, width=width)
+        finally:
+            if draw is None:
+                del _draw
 
 
     #disable for now, because the algo will be broken if two pt across the image
@@ -1145,11 +1188,10 @@ class MapController:
         if len(wpts) == 0:
             return
 
-        draw = ImageDraw.Draw(map)
-        for wpt in wpts:
-            (px, py) = wpt.pixel(map_attr.level)
-            self.drawWayPoint(map, map_attr, wpt, "black", draw=draw)
-        del draw
+        with DrawGuard(map) as draw:
+            for wpt in wpts:
+                (px, py) = wpt.pixel(map_attr.level)
+                self.drawWayPoint(map, map_attr, wpt, "black", draw=draw)
 
     def drawWayPoint(self, map, map_attr, wpt, txt_color, bg_color=None, draw=None):
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw wpt'", wpt.name, "'")
@@ -1164,39 +1206,39 @@ class MapController:
 
         #get draw
         _draw = draw if draw is not None else ImageDraw.Draw(map)
+        try:
+            if bg_color is not None:
+                r = ceil(conf.ICON_SIZE/sqrt(2))
+                _draw.ellipse((px-r, py-r, px+r, py+r), fill=bg_color, outline='gray')
 
-        if bg_color is not None:
-            r = ceil(conf.ICON_SIZE/sqrt(2))
-            _draw.ellipse((px-r, py-r, px+r, py+r), fill=bg_color, outline='gray')
+            #paste icon
+            if wpt.sym is not None:
+                icon = conf.getIcon(wpt.sym)
+                if icon is not None:
+                    if icon.mode == 'RGBA':
+                        map.paste(icon, (px-adj, py-adj), icon)
+                    elif icon.mode == 'LA' or (icon.mode == 'P' and 'transparency' in icon.info):
+                        mask = icon.convert('RGBA')
+                        map.paste(icon, (px-adj, py-adj), mask)
+                    else:
+                        print("Warning: Icon for '%s' with mode %s is not ransparency" % (wpt.sym, icon.mode))
+                        map.paste(icon, (px-adj, py-adj))
 
-        #paste icon
-        if wpt.sym is not None:
-            icon = conf.getIcon(wpt.sym)
-            if icon is not None:
-                if icon.mode == 'RGBA':
-                    map.paste(icon, (px-adj, py-adj), icon)
-                elif icon.mode == 'LA' or (icon.mode == 'P' and 'transparency' in icon.info):
-                    mask = icon.convert('RGBA')
-                    map.paste(icon, (px-adj, py-adj), mask)
-                else:
-                    print("Warning: Icon for '%s' with mode %s is not ransparency" % (wpt.sym, icon.mode))
-                    map.paste(icon, (px-adj, py-adj))
+            #draw point   //replace by icon
+            #n = self.pt_size
+            #_draw.ellipse((px-n, py-n, px+n, py+n), fill=color, outline='white')
 
-        #draw point   //replace by icon
-        #n = self.pt_size
-        #_draw.ellipse((px-n, py-n, px+n, py+n), fill=color, outline='white')
-
-        #draw text
-        if not self.hide_txt:
-            txt = wpt.name
-            font = self.__font
-            px, py = px +adj, py -adj  #adjust position for aligning icon
-            _draw.text((px+1, py+1), txt, fill="white", font=font)
-            _draw.text((px-1, py-1), txt, fill="white", font=font)
-            _draw.text((px, py), txt, fill=txt_color, font=font)
-
-        if draw is None:
-            del _draw
+            #draw text
+            if not self.hide_txt:
+                txt = wpt.name
+                font = self.__font
+                px, py = px +adj, py -adj  #adjust position for aligning icon
+                _draw.text((px+1, py+1), txt, fill="white", font=font)
+                _draw.text((px-1, py-1), txt, fill="white", font=font)
+                _draw.text((px, py), txt, fill=txt_color, font=font)
+        finally:
+            if draw is None:
+                del _draw
 
 
     def __genCropMap(self, map, src_attr, dst_attr):
@@ -1215,29 +1257,27 @@ class MapController:
         #set draw
         py_shift = 20
         font = self.__font
-        draw = ImageDraw.Draw(map)
 
-        #get xy of TM2
-        (left_x, up_y) = self.getTWD67TM2ByPixcelXY(attr.left_px, attr.up_py, attr.level)
-        (right_x, low_y) = self.getTWD67TM2ByPixcelXY(attr.right_px, attr.low_py, attr.level)
+        with DrawGuard(map) as draw:
+            #get xy of TM2
+            (left_x, up_y) = self.getTWD67TM2ByPixcelXY(attr.left_px, attr.up_py, attr.level)
+            (right_x, low_y) = self.getTWD67TM2ByPixcelXY(attr.right_px, attr.low_py, attr.level)
 
-        #draw TM2' x per KM
-        for x in range(ceil(left_x/1000), floor(right_x/1000) +1):
-            #print("tm: ", x)
-            (px, py) = self.getPixcelXYByTWD67TM2(x*1000, low_y, attr.level)
-            px -= attr.left_px
-            py -= attr.up_py
-            draw.text((px, py - py_shift), str(x), fill="black", font=font)
+            #draw TM2' x per KM
+            for x in range(ceil(left_x/1000), floor(right_x/1000) +1):
+                #print("tm: ", x)
+                (px, py) = self.getPixcelXYByTWD67TM2(x*1000, low_y, attr.level)
+                px -= attr.left_px
+                py -= attr.up_py
+                draw.text((px, py - py_shift), str(x), fill="black", font=font)
 
-        #draw TM2' y per KM
-        for y in range(ceil(low_y/1000), floor(up_y/1000) +1):
-            #print("tm: ", y)
-            (px, py) = self.getPixcelXYByTWD67TM2(left_x, y*1000, attr.level)
-            px -= attr.left_px
-            py -= attr.up_py
-            draw.text((px, py -py_shift), str(y), fill="black", font=font)
-
-        del draw
+            #draw TM2' y per KM
+            for y in range(ceil(low_y/1000), floor(up_y/1000) +1):
+                #print("tm: ", y)
+                (px, py) = self.getPixcelXYByTWD67TM2(left_x, y*1000, attr.level)
+                px -= attr.left_px
+                py -= attr.up_py
+                draw.text((px, py -py_shift), str(y), fill="black", font=font)
 
 
     @staticmethod
@@ -1758,10 +1798,15 @@ class TrkSingleBoard(tk.Toplevel):
         #trk color
         tk.Label(frame, text="Color", font=bold_font).grid(row=1, column=0, sticky='e')
         self._var_color = tk.StringVar()
-        self._var_color.trace('w', self.onColorChanged)
-        self.__color_entry = tk.Entry(frame, font=font, textvariable=self._var_color)
-        self.__color_entry.grid(row=1, column=1, sticky='w')
-        self.__color_entry_bg = self.__color_entry['bg']
+        #self._var_color.trace('w', self.onColorChanged)
+        #self.__color_entry = tk.Entry(frame, font=font, textvariable=self._var_color)
+        #self.__color_entry.grid(row=1, column=1, sticky='w')
+        #self.__color_entry_bg = self.__color_entry['bg']
+        self._var_color.trace('w', self.onColorSelected)
+        color_combo = ttk.Combobox(frame, font=font, width=20, textvariable=self._var_color)
+        color_combo.grid(row=1, column=1, sticky='w')
+        color_combo['values'] = ('White', 'Cyan', 'Magenta', 'Blue', 'Yellow', 'Green', 'Red',
+                'DarkGray', 'LightGray', 'DarkCyan', 'DarkMagenta', 'DarkBlue', 'DarkGreen', 'DarkRed', 'Black')
 
         #tk.Checkbutton(frame, text='Focus Track point', variable=self._var_focus).grid(row=2, column=1, sticky='w')
 
@@ -1808,6 +1853,14 @@ class TrkSingleBoard(tk.Toplevel):
                 self._curr_trk.color = color
                 self._is_changed = True
                 self.onAltered('trk')
+
+    def onColorSelected(self, *args):
+        color = self._var_color.get()
+        logWithPrint('Set color to ' + color)
+        if self._curr_trk.color != color:
+            self._curr_trk.color = color
+            self._is_changed = True
+            self.onAltered('trk')
 
     def onFocus(self, *args):
         is_focus = self._var_focus.get()
@@ -1911,9 +1964,9 @@ class SymBoard(tk.Toplevel):
         self.protocol('WM_DELETE_WINDOW', lambda: self.onClosed(None))
 
         #init
-        dir_sym = conf.getIconPath().keys()
+        total_sym = conf.getTotalSymbols()
         self.__def_sym = conf.getDefSymList()
-        self.__ext_sym = listdiff(dir_sym, self.__def_sym)
+        self.__ext_sym = util.listdiff(total_sym, self.__def_sym)
 
         sn = 0
         for sym in self.__def_sym:
@@ -2392,13 +2445,6 @@ def showRule(parent, pos=None):
     __rule_board.pos = pos
     __rule_board.show(parent)
 
-def listdiff(list1, list2):
-    result = []
-    for e in list1:
-        if not e in list2:
-            result.append(e)
-    return result
-
 def getAspectResize(img, size):
     dst_w, dst_h = size
     src_w, src_h = img.size
@@ -2421,14 +2467,13 @@ def getAspectResize(img, size):
 def getTextImag(text, size):
     w, h = size
     img = Image.new("RGBA", size)
-    draw = ImageDraw.Draw(img)
-    draw.text( (int(w/2-20), int(h/2)), text, fill='lightgray', font=conf.IMG_FONT)
-    del draw
+    with DrawGuard(img) as draw:
+        draw.text( (int(w/2-20), int(h/2)), text, fill='lightgray', font=conf.IMG_FONT)
 
     return img
 
 
-def isExit(disp_board):
+def canExit(disp_board):
 
     if not disp_board.is_alter:
         return True
@@ -2444,20 +2489,21 @@ def isExit(disp_board):
     return False
 
 def onExit(root, disp_board):
-    if isExit(disp_board):
+    if canExit(disp_board):
         disp_board.exit()
         root.destroy()
 
 def getTitleText():
-    txt = "GisEditor"
+    txt = ""
     if len(sys.argv) > 1:
-        txt += " - "
         for arg in sys.argv[1:]:
             txt += path.basename(arg)
             txt += ' '
-    return txt
+        txt += "- "
+    return txt + "GisEditor"
 
 if __name__ == '__main__':
+    __version = '0.1'
     try:
         #create root
         root = tk.Tk()
@@ -2474,6 +2520,7 @@ if __name__ == '__main__':
         #create display board
         pad_ = 2
         disp_board = MapBoard(root)
+        disp_board.version = __version
         disp_board.pack(side='right', anchor='se', expand=1, fill='both', padx=pad_, pady=pad_)
         root.protocol('WM_DELETE_WINDOW', lambda: onExit(root, disp_board))
 

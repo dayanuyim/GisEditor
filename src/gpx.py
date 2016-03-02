@@ -7,7 +7,7 @@ from xml.etree import ElementTree as ET
 from datetime import datetime
 from PIL import Image
 import xml.dom.minidom
-from tile import TileSystem
+from coord import TileSystem
 from util import GeoPoint
 
 class GpsDocument:
@@ -87,39 +87,31 @@ class GpsDocument:
             return
 
         for wpt_elem in wpt_elems:
+            #read lat, lon, necessarily
             wpt = WayPoint(
                 float(wpt_elem.attrib['lat']),
                 float(wpt_elem.attrib['lon']))
 
-            #child element
+            #read info from child elements, if any
             elem = wpt_elem.find("./gpx:ele", self.ns)
-            if elem is not None and elem.text is not None:
-                wpt.ele = float(elem.text)
+            wpt.ele = float(elem.text) if elem is not None and elem.text else 0.0
 
             elem = wpt_elem.find("./gpx:time", self.ns)
-            if elem is not None and elem.text is not None:
-                wpt.time = datetime.strptime(elem.text, "%Y-%m-%dT%H:%M:%SZ")
-            else:
-                wpt.time = self.toUTC(datetime.now())
+            wpt.time = datetime.strptime(elem.text, "%Y-%m-%dT%H:%M:%SZ") if elem is not None and elem.text else None
 
             elem = wpt_elem.find("./gpx:name", self.ns)
-            if elem is not None and elem.text is not None:
-                wpt.name = elem.text
-
-            elem = wpt_elem.find("./gpx:cmt", self.ns)
-            if elem is not None and elem.text is not None:
-                wpt.cmt = elem.text
-
-            elem = wpt_elem.find("./gpx:desc", self.ns)
-            if elem is not None and elem.text is not None:
-                wpt.desc = elem.text
+            wpt.name = elem.text if elem is not None and elem.text is not None else ""
 
             elem = wpt_elem.find("./gpx:sym", self.ns)
-            if elem is not None and elem.text is not None:
-                wpt.sym = elem.text
+            wpt.sym = elem.text if elem is not None and elem.text else ""
+
+            elem = wpt_elem.find("./gpx:cmt", self.ns)
+            wpt.cmt = elem.text if elem is not None and elem.text else ""
+
+            elem = wpt_elem.find("./gpx:desc", self.ns)
+            wpt.desc = elem.text if elem is not None and elem.text else ""
 
             self.addWpt(wpt)
-            
 
     def loadTrk(self, xml_root):
         trk_elems = xml_root.findall("./gpx:trk", self.ns)
@@ -254,22 +246,23 @@ class GpsDocument:
             ele = ET.SubElement(wpt, "ele");
             ele.text = str(w.ele);
 
-            time = ET.SubElement(wpt, "time");
-            time.text = w.time.strftime("%Y-%m-%dT%H:%M:%SZ");
+            if w.time:
+                time = ET.SubElement(wpt, "time");
+                time.text = w.time.strftime("%Y-%m-%dT%H:%M:%SZ");
 
             name = ET.SubElement(wpt, "name");
             name.text = w.name;
 
-            if len(w.cmt) > 0:
+            sym = ET.SubElement(wpt, "sym");
+            sym.text = w.sym;
+
+            if w.cmt:
                 cmt = ET.SubElement(wpt, "cmt");
                 cmt.text = w.cmt;
 
-            if len(w.desc) > 0:
+            if w.desc:
                 desc = ET.SubElement(wpt, "desc");
                 desc.text = w.desc;
-
-            sym = ET.SubElement(wpt, "sym");
-            sym.text = w.sym;
 
             #extension =====
             extensions = ET.SubElement(wpt, "extensions");
