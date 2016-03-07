@@ -2,6 +2,7 @@
 
 import os
 import platform
+import logging
 from os import path
 from PIL import ImageFont, Image
 from sym import SymbolRules
@@ -25,7 +26,7 @@ def __readConfig(conf_path):
             #filter out invalid format
             tokens = line.split('=', 1)
             if len(tokens) != 2:
-                print('invalid format for conf line: %s' % (line,))
+                logging.warning('invalid format for conf line: %s' % (line,))
                 continue
 
             k, v = tokens
@@ -189,7 +190,7 @@ def __getSymIcons():
                 sym = _tosymkey(name)
                 sym_icons[sym] = (p, None)
     except Exception as ex:
-        print('read icons error:', str(ex))
+        logging.error('read icons error: ' + str(ex))
     return sym_icons
 
 #sym->icon_path, icon_image

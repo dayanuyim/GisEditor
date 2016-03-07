@@ -9,6 +9,7 @@ import urllib.request
 import shutil
 import tempfile
 import time
+import logging
 from os import path
 from PIL import Image, ImageTk, ImageDraw, ImageFont, ImageColor
 from math import floor, ceil, sqrt
@@ -26,14 +27,9 @@ from sym import SymRuleType, SymRule
 from util import GeoPoint, getPrefCornerPos, AreaSelector, AreaSizeTooLarge, DrawGuard
 
 #print to console/log and messagebox (generalize this with LOG, moving to util.py)
-def logWithShow(msg):
-    #Todo: log
-    print(msg)
+def showmsg(msg):
+    logging.error(msg)
     messagebox.showwarning('', msg)
-
-def logWithPrint(msg):
-    #Todo: log
-    print(msg)
 
 #read pathes
 def isGpsFile(path):
@@ -65,14 +61,14 @@ def getGpsDocument(path):
             #gps.load(filestring=gpx_string)
         return gps
     except Exception as ex:
-        logWithShow("Error to open '%s': %s" % (path, str(ex)))
+        showmsg("Error to open '%s': %s" % (path, str(ex)))
         return None
 
 def getPicDocument(path):
     try:
         return PicDocument(path, conf.TZ)
     except Exception as ex:
-        logWithShow("cannot read the picture '%s': %s" % (path, str(ex)))
+        showmsg("cannot read the picture '%s': %s" % (path, str(ex)))
     return None
 
 def __toGpx(src_path, flag):
@@ -95,13 +91,13 @@ def __toGpx(src_path, flag):
     try:
         if flag == 'string':
             cmd = '"%s" -i %s -f "%s" -o gpx,gpxver=1.1 -F -' % (exe_file, input_fmt, input_tmp_path)
-            logWithPrint(cmd)
+            logging.info(cmd)
             output = subprocess.check_output(cmd, shell=True)  #@@! pythonW.exe caused 'WinError 6: the handler is invalid'
             result = output.decode("utf-8")
         elif flag == 'file':
             output_tmp_path = os.path.join(tempfile.gettempdir(),  "giseditor_out.tmp")
             cmd = '"%s" -i %s -f "%s" -o gpx,gpxver=1.1 -F "%s"' % (exe_file, input_fmt, input_tmp_path, output_tmp_path)
-            logWithPrint(cmd)
+            logging.info(cmd)
             subprocess.call(cmd, shell=True)
             result = output_tmp_path
         else:
@@ -128,7 +124,7 @@ def __parsePath(path, gps_path, pic_path):
     elif isGpsFile(path):
         gps_path.append(path)
     else:
-        logWithPrint("omit the file: " + path)
+        logging.info("omit the file: " + path)
 
 #may generalize the method, and moving to util.py
 def parsePathes(pathes):
@@ -505,11 +501,11 @@ class MapBoard(tk.Frame):
             else:
                 self.setAlter('all')
         except Exception as ex:
-            logWithShow('Add Files Error: %s' % (str(ex),))
+            showmsg('Add Files Error: %s' % (str(ex),))
 
     def onAddWpt(self):
         if not self.__right_click_pos:
-            logWithShow('Create Wpt Error: Cannot not get right click position')
+            showmsg('Create Wpt Error: Cannot not get right click position')
             return
 
         #create wpt
@@ -705,7 +701,7 @@ class MapBoard(tk.Frame):
     #}} Right click actions
 
     def setAlter(self, alter):
-        print(alter, 'is altered')
+        logging.debug(alter + " is altered")
         self.__alter_time = datetime.now()
         self.resetMap(force=alter)
 
@@ -819,7 +815,7 @@ class MapBoard(tk.Frame):
                 try:
                     self.resetMap()
                 except Exception as ex:
-                    print("Auto reset map error: ", str(ex))
+                    showmsg("Auto reset map error: ", str(ex))
 
     def resetMap(self, geo=None, w=None, h=None, force=None):
         if w is None: w = self.disp_canvas.winfo_width()
@@ -843,10 +839,10 @@ class MapBoard(tk.Frame):
         #set status
         if self.__map_attr.fake_count:
             txt = "Map Loading...(%d)" % (self.__map_attr.fake_count,)
-            print(txt)
+            logging.info(txt)
             self.setStatus(txt)
         else:
-            print("Map Loading...OK")
+            logging.info("Map Loading...OK")
             self.setStatus('')
 
     def restore(self):
@@ -1088,7 +1084,7 @@ class MapController:
         if map_info is not None:
             attr, cb = map_info
             if self.__tileInAttr(level, x, y, attr):
-                print('UPDATE is available.')
+                logging.info('UPDATE is available.')
                 cb()
 
     def __genTileMap(self, map_attr, extra_p):
@@ -1221,7 +1217,7 @@ class MapController:
                         mask = icon.convert('RGBA')
                         map.paste(icon, (px-adj, py-adj), mask)
                     else:
-                        print("Warning: Icon for '%s' with mode %s is not ransparency" % (wpt.sym, icon.mode))
+                        logging.warning("Warning: Icon for '%s' with mode %s is not ransparency" % (wpt.sym, icon.mode))
                         map.paste(icon, (px-adj, py-adj))
 
             #draw point   //replace by icon
@@ -1856,7 +1852,7 @@ class TrkSingleBoard(tk.Toplevel):
 
     def onColorSelected(self, *args):
         color = self._var_color.get()
-        logWithPrint('Set color to ' + color)
+        logging.debug('Set color to ' + color)
         if self._curr_trk.color != color:
             self._curr_trk.color = color
             self._is_changed = True
@@ -2504,6 +2500,8 @@ def getTitleText():
 
 if __name__ == '__main__':
     __version = '0.1'
+    logging.basicConfig(level=logging.DEBUG, format="%(asctime)s [%(levelname)s] %(message)s")
+    logging.info("Initialize GisEditor version " + __version);
     try:
         #create root
         root = tk.Tk()

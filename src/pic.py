@@ -2,10 +2,11 @@
 
 """ handle pic """
 
+import logging
+import conf
 from PIL import Image, ExifTags
 from gpx import WayPoint
 from datetime import datetime
-import conf
 
 class PicDocument(WayPoint):
     @property
@@ -53,7 +54,7 @@ class PicDocument(WayPoint):
                 time -= self.__tz  #to utc
             return time
         except Exception as ex:
-            print('Parsing Exif DateTime Error:', str(ex))
+            logging.error('Parsing Exif DateTime Error: ' + str(ex))
             #not to raise exception, may return None
             return def_value
 
@@ -66,7 +67,7 @@ class PicDocument(WayPoint):
                 return -dec
             return dec
         except Exception as ex:
-            print('Parsing Exif Degree Error:', str(ex))
+            logging.error('Parsing Exif Degree Error: ' + str(ex))
             if def_value:
                 return def_value
             raise ex
@@ -80,7 +81,7 @@ class PicDocument(WayPoint):
                 ref = struct.unpack('B', ref)[0]  #bytes -> unsigned int
             return ref + alt[0]/alt[1]
         except Exception as ex:
-            print('Parsing Exif Altitude Error:', str(ex))
+            logging.error('Parsing Exif Altitude Error: ' +  str(ex))
             if def_value:
                 return def_value
             raise ex

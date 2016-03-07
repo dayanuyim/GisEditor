@@ -10,6 +10,7 @@ import urllib.request
 import shutil
 import sqlite3
 import conf
+import logging
 from datetime import datetime
 from os import listdir
 from os.path import isdir, isfile, exists
@@ -102,12 +103,12 @@ class __TileMap:
         tile_data = None
         try:
             url = self.genTileUrl(level, x, y)
-            print('DL', url)
+            logging.info("DL " + url)
             with urllib.request.urlopen(url, timeout=30) as response:
                 tile_data = response.read()
         except Exception as ex:
-            print('Error to download %s: %s' % (url, str(ex)))
-        print('DL %s [%s]' % (url, 'SUCCESS' if tile_data else 'FAILED'))
+            logging.warning('Error to download %s: %s' % (url, str(ex)))
+        logging.info('DL %s [%s]' % (url, 'SUCCESS' if tile_data else 'FAILED'))
 
         #cache
         #(for data coherence, do this before moving self from workers queue: if download thread is done, data is ready)
@@ -134,13 +135,13 @@ class __TileMap:
                 if cb is not None:
                     cb(level, x, y)
             except Exception as ex:
-                print('Invoke cb of download tile error:', str(ex))
+                logging.warning('Invoke cb of download tile error: ' + str(ex))
 
             #save file
             try:
                 self.__disk_cache.put(level, x, y, tile_data)
             except Exception as ex:
-                print('Error to save tile data', str(ex))
+                logging.error('Error to save tile data ' + str(ex))
 
     #The thread to handle all download requests
     def __runDownloadMonitor(self):
@@ -163,7 +164,7 @@ class __TileMap:
                     #the req
                     id, (level, x, y, cb) = self.__req_queue.popitem() #LIFO
                     if id in self.__workers:
-                        print("WARNING: the req is DUP and in progress.") #should not happen
+                        logging.warning("WARNING: the req is DUP and in progress.") #should not happen
                     else:
                         #create the job and run the worker
                         job = lambda: self.__runDownloadJob(id, level, x, y, cb)
@@ -194,7 +195,7 @@ class __TileMap:
                 img = Image.open(BytesIO(data))
                 return img
         except Exception as ex:
-            print("Error to read tile data: ", str(ex))
+            logging.warning("Error to read tile data: " + str(ex))
         return None
 
     def __getTile(self, level, x, y, auto_req=True, cb=None):
@@ -225,7 +226,7 @@ class __TileMap:
         elif status == self.TILE_REQ:
             return None
         else:
-            print('Error: unknown tile status: %d' % (status,))
+            logging.error('Error: unknown tile status: %d' % (status,))
             return None
 
     def __genMagnifyFakeTile(self, level, x, y, diff=1):
@@ -477,7 +478,7 @@ class DBDiskCache(DiskCache):
             data = None if row is None else row[0]
             return data
         except Exception as ex:
-            print('Get mbtiles metadata error:', str(ex))
+            logging.warning('Get mbtiles metadata error: ' + str(ex))
 
         return None
 
@@ -486,13 +487,13 @@ class DBDiskCache(DiskCache):
         schema = self.__getMetadata('schema')
         if schema and self.__db_schema != schema:
             self.__db_schema = schema
-            print('Reset db schema to %s' % (self.__db_schema,))
+            logging.info('Reset db schema to %s' % (self.__db_schema,))
 
     #the true actions which are called by Surrogate
     def __start(self):
-        print('The db schema default is %s' % (self.__db_schema,))
+        logging.info('The db schema default is %s' % (self.__db_schema,))
         if not os.path.exists(self.__db_path):
-            print('Initializing local cache DB...')
+            logging.info('Initializing local cache DB...')
             mkdirSafely(os.path.dirname(self.__db_path))
             self.__conn = sqlite3.connect(self.__db_path)
             self.__initDB()
@@ -501,7 +502,7 @@ class DBDiskCache(DiskCache):
             self.__readMetadata()
 
     def __close(self):
-        print('Closing local cache DB...')
+        logging.info('Closing local cache DB...')
         self.__conn.close()
 
     @classmethod
@@ -522,7 +523,7 @@ class DBDiskCache(DiskCache):
         except Exception as _ex:
             ex = _ex
 
-        print("%s [%s]" % (sql, ("Fail" if ex else "OK")))
+        logging.info("%s [%s]" % (sql, ("Fail" if ex else "OK")))
         if ex:
             raise ex
 
@@ -538,7 +539,7 @@ class DBDiskCache(DiskCache):
         except Exception as _ex:
             ex = _ex
 
-        print("%s [%s]" % (sql, ("Fail" if ex else "OK" if data else "NA")))
+        logging.info("%s [%s]" % (sql, ("Fail" if ex else "OK" if data else "NA")))
         if ex:
             raise ex
         return data
@@ -617,7 +618,7 @@ class DBDiskCache(DiskCache):
                     try:
                         self.__put(level, x, y, data)
                     except Exception as ex:
-                        print("DB put data error:", str(ex))
+                        logging.error("DB put data error: " + str(ex))
                 #get data
                 else:
                     res_data, res_ex = None, None
@@ -625,7 +626,7 @@ class DBDiskCache(DiskCache):
                         res_data = self.__get(level, x, y)
                         res_ex = None
                     except Exception as ex:
-                        print("DB get data error:", str(ex))
+                        logging.error("DB get data error: " + str(ex))
                         res_data = None
                         res_ex = ex
 

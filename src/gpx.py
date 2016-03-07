@@ -3,6 +3,7 @@
 """ handle gpx file """
 
 import os
+import logging
 from xml.etree import ElementTree as ET
 from datetime import datetime
 from PIL import Image
@@ -57,7 +58,7 @@ class GpsDocument:
             ns, name = xml_root.tag[1:].split("}")
             self.ns["gpx"] = ns 
             if name != "gpx":
-                print("Warning: the root element's namespace is not 'gpx'")
+                logging.warning("Warning: the root element's namespace is not 'gpx'")
 
         #load data
         self.loadMetadata(xml_root)
