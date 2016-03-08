@@ -10,6 +10,7 @@ import shutil
 import tempfile
 import time
 import logging
+import argparse
 from os import path
 from PIL import Image, ImageTk, ImageDraw, ImageFont, ImageColor
 from math import floor, ceil, sqrt
@@ -801,13 +802,11 @@ class MapBoard(tk.Frame):
             if self.__is_closed:
                 break  #exit
 
-            '''
-            print('  ', 'map attr is None' if self.__map_attr is None else 'map attr is not None')
-            print('  ', 'fake cout=', self.__map_attr.fake_count if self.__map_attr else -1)
-            print('  ', 'time diff=%d sec' % ((datetime.now()-self.__map_req_time).seconds, ))
-            print('  ', 'has update' if self.map_has_update else 'no update')
-            print()
-            '''
+            logging.debug("[MapUpdater] %s" % ('map attr is None' if self.__map_attr is None else 'map attr is not None',))
+            logging.debug("[MapUpdater] fake cout=%s" % (str(self.__map_attr.fake_count) if self.__map_attr else "NA",))
+            logging.debug("[MapUpdater] time diff=%d sec" % ((datetime.now()-self.__map_req_time).seconds,))
+            logging.debug("[MapUpdater] %s" % ('has update' if self.map_has_update else 'no update',))
+
             #update if req, prevent from frequent updating
             if self.__map_attr and self.__map_attr.fake_count and \
                (datetime.now()-self.__map_req_time).seconds >= 2 and \
@@ -2489,18 +2488,30 @@ def onExit(root, disp_board):
         disp_board.exit()
         root.destroy()
 
-def getTitleText():
+def getTitleText(files):
     txt = ""
-    if len(sys.argv) > 1:
-        for arg in sys.argv[1:]:
-            txt += path.basename(arg)
+    if len(files) > 0:
+        for f in files:
+            txt += path.basename(f)
             txt += ' '
         txt += "- "
     return txt + "GisEditor"
 
+def initArguments():
+    parser = argparse.ArgumentParser(description='ref https://github.com/dayanuyim/GisEditor')
+    parser.add_argument("-v", "--verbose", help="show detail information", action="count", default=0)
+    parser.add_argument('files', nargs='*', help="Gps or photo files to parse")
+    return parser.parse_args()
+
 if __name__ == '__main__':
     __version = '0.1'
-    logging.basicConfig(level=logging.DEBUG, format="%(asctime)s [%(levelname)s] %(message)s")
+    args = initArguments()
+
+    #init logging
+    log_level = logging.DEBUG if args.verbose >= 2 else logging.INFO if args.verbose == 1 else logging.WARNING
+    logging.basicConfig(level=log_level,
+            format="%(asctime)s.%(msecs)03d [%(levelname)s] [%(module)s] %(message)s", datefmt="%H:%M:%S")
+
     logging.info("Initialize GisEditor version " + __version);
     try:
         #create root
@@ -2512,7 +2523,7 @@ if __name__ == '__main__':
             #icon = ImageTk.PhotoImage(conf.EXE_ICON)
             #root.tk.call('wm', 'iconphoto', root._w, icon)
 
-        root.title(getTitleText())
+        root.title(getTitleText(args.files))
         root.geometry('950x700+200+0')
 
         #create display board
@@ -2523,7 +2534,7 @@ if __name__ == '__main__':
         root.protocol('WM_DELETE_WINDOW', lambda: onExit(root, disp_board))
 
         #add files
-        disp_board.addFiles(sys.argv[1:])
+        disp_board.addFiles(args.files)
 
         #show
         root.update()
