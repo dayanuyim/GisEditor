@@ -22,11 +22,10 @@ from io import BytesIO
 from util import mkdirSafely
 
 class __TileMap:
-    TILE_VALID      = 0
-    TILE_NOT_IN_MEM = 1
-    TILE_NOT_IN_DB  = 2
-    TILE_REQ        = 3
-    TILE_REQ_FAIL   = 4
+    TILE_VALID       = 0
+    TILE_NOT_IN_MEM  = 1
+    TILE_NOT_IN_DISK = 2
+    TILE_REQ         = 3
 
     @property
     def title(self):
@@ -116,7 +115,7 @@ class __TileMap:
             tile_img = Image.open(BytesIO(tile_data))
             self.__mem_cache.set(id, self.TILE_VALID, tile_img)
         else:
-            self.__mem_cache.set(id, self.TILE_REQ_FAIL)
+            self.__mem_cache.set(id, self.TILE_NOT_IN_DISK)
 
         #done the download
         #(do this before thread exit, to ensure monitor is notified)
@@ -212,11 +211,11 @@ class __TileMap:
                 self.__mem_cache.set(id, self.TILE_VALID, img)
                 return img
             if not auto_req:
-                self.__mem_cache.set(id, self.TILE_NOT_IN_DB)
+                self.__mem_cache.set(id, self.TILE_NOT_IN_DISK)
                 return None
-            status = self.TILE_NOT_IN_DB  #go through to the next status
+            status = self.TILE_NOT_IN_DISK  #go through to the next status
 
-        if status == self.TILE_REQ_FAIL or status == self.TILE_NOT_IN_DB:
+        if status == self.TILE_NOT_IN_DISK:
             if auto_req:
                 self.__mem_cache.set(id, self.TILE_REQ)
                 self.__requestTile(id, level, x, y, cb) #READ FROM WMTS (async)
@@ -295,6 +294,10 @@ class __TileMap:
             return img
 
         return None
+
+def load(filepath, is_started=False):
+    cache_dir = os.path.dirname(filepath)
+    return getTM25Kv3TileMap(cache_dir, is_started)
 
 def getTM25Kv3TileMap(cache_dir, is_started=False):
     tm = __TileMap(cache_dir=cache_dir)
