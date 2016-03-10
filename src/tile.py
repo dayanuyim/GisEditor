@@ -11,6 +11,7 @@ import shutil
 import sqlite3
 import conf
 import logging
+from xml.etree import ElementTree as ET
 from datetime import datetime
 from os import listdir
 from os.path import isdir, isfile, exists
@@ -31,18 +32,10 @@ class __TileMap:
     def title(self):
         return self.map_title
 
-    def __init__(self, cache_dir):
+    def __init__(self, filepath):
         #The attributes needed to be initialized outside
-        self.uid = None
-        self.map_id = None
-        self.map_title = None
-        self.lower_corner = None
-        self.upper_corner = None
-        self.url_template = None
-        self.level_min = None
-        self.level_max = None
-        self.tile_side = None
-        self.tile_format = None
+
+        self.__load(filepath)
 
         self.__is_closed = False
 
@@ -66,6 +59,88 @@ class __TileMap:
         #self.__req_lock = Lock()
         #self.__req_cv = Condition(self.__req_lock)
         self.__download_monitor = Thread(target=self.__runDownloadMonitor)
+
+    @classmethod
+    def __getElemText(cls, root, tag_path, def_value=None):
+        elem = root.find(tag_path)
+        return elem.text if elem is not None else def_value
+
+    @classmethod
+    def __cropValue(cls, val, low, up, errmsg=None):
+        if val < low or val > up:
+            if errmsg:
+                logging.warning(errmsg)
+            val = min(max(low, val), up)
+        return val
+
+    @classmethod
+    def __parseLatlon(cls, latlon_str, def_latlon):
+        tokens = latlon_str.split(' ')
+        if len(tokens) != 2:
+            logging.warning("not valid lat lon string: '%s'" % (latlon_str,))
+            return def_latlon
+
+        try:
+            lat = float(tokens[0])
+            lon = float(tokens[1])
+            lat = __cropValue(lat, -180, 180, "not valid lat value: %f" % (lat,))
+            lon = __cropValue(lon, -85, 85, "not valid lon value: %f" % (lon,))
+            return (lat, lon)
+        except Exception as ex:
+            logging.error("parsing latlon string '%s' error: '%s'" % (latlon_str, str(ex)))
+
+        return def_latlon
+
+    def load(self, filepath, is_started=False):
+        if filepath is None:
+            raise ValueError("filepath of the map description is None")
+        if len(filepath) == 0:
+            raise ValueError("filepath of the map description is Empty")
+        if not os.path.exists(filepath):
+            raise ValueError("filepath of the map description does not exist: %s" % (filepath,))
+
+        #get filename as map id
+        basename = os.path.basename(filepath)
+        filename = os.path.sliptext(basename)[0]
+        if not filename:
+            raise ValueError("filename of the map description is Empty")
+
+        #parsing xml
+        xml_root = ET.parse(filepath).getroot()
+
+        name = __getElemText(xml_root, "./name", "");
+        if not name:
+            raise ValueError("[map description '%s'] no map name" % (basename,))
+
+        min_zoom = int(__getElemText(xml_root, "./minZoom", "0"))
+        if not min_zoom:
+            raise ValueError("[map description '%s'] no min_zoom" % (basename,))
+
+        max_zoom = int(__getElemText(xml_root, "./maxZoom", "0"))
+        if not max_zoom:
+            raise ValueError("[map description '%s'] no max_zoom" % (basename,))
+
+        tile_type = __getElemText(xml_root, "./tileType", "")
+        if tile_type not in ("jpg", "png") :
+            raise ValueError("[map description '%s'] not support tile format '%s'" % (basename, tile_type))
+
+        url = __getElemText(xml_root, "./url", "")
+        if not url or ("{$x}" not in url) or ("{$y}" not in url) or ("{$z}" not in url):
+            raise ValueError("[map description '%s'] url not catains {$x}, {$y}, or {$z}: %s" % (basename, url))
+
+        lower_corner = __parseLatlon(__getElemText(xml_root, "./lowerCorner", ""), (-180, -85))
+        upper_corner = __parseLatlon(__getElemText(xml_root, "./upperCorner", ""), (180, 85))
+
+        #collection data
+        self.map_id = filename
+        self.map_title = name
+        self.level_min = min_zoom
+        self.level_max = max_zoom
+        self.url_template = url
+        self.lower_corner = lower_corner
+        self.upper_corner = upper_corner
+        self.tile_format = tile_type
+        self.tile_side = 256
 
     def start(self):
         #create cache dir for the map
@@ -295,9 +370,6 @@ class __TileMap:
 
         return None
 
-def load(filepath, is_started=False):
-    cache_dir = os.path.dirname(filepath)
-    return getTM25Kv3TileMap(cache_dir, is_started)
 
 def getTM25Kv3TileMap(cache_dir, is_started=False):
     tm = __TileMap(cache_dir=cache_dir)
@@ -642,51 +714,6 @@ class DBDiskCache(DiskCache):
             self.__close()
 
 if __name__ == '__main__':
-    import time
-
-    root = tk.Tk()
-
-    level = 14
-    x, y = TileSystem.getTileXYByLatLon(24.988625, 121.313181, 14)
-    print('level, x, y:', level, x, y) #14, 13713, 7016
-
-    def showim(img, title=''):
-        top = tk.Toplevel(root)
-        top.title(title)
-        if img:
-            img = ImageTk.PhotoImage(img)
-            label = tk.Label(top, image=img)
-            label.image = img
-            label.pack(expand=1, fill='both')
-        else:
-            print('oops, img is none')
-        top.update()
-
-    def downloadImage(tm, title):
-        while True:
-            tile = tm.getTile(level, x, y)
-            showim(tile, title)
-            if tile.is_fake:
-                time.sleep(3)
-            else:
-                break
-
-    def test(cache_dir):
-        tm = getTM25Kv3TileMap(cache_dir, True)
-        downloadImage(tm, cache_dir.split('/')[-1])
-        tm.close()
-
-    #test('test/tile/noop')
-    #test('test/tile/normal')
-
-    #test('test/tile/magnify_13')
-    #test('test/tile/magnify_12')
-    #test('test/tile/magnify_11')
-
-    #test('test/tile/minify')
-    test('test/tile/minify_part')
-
-    #tm = getTM25Kv3TileMap('test/tile/minify_magnify')
-    #showim(tm.getTile(14, x, y), 'minify_magnify')
-
-    root.mainloop()
+    print(os.path.splitext('mapcache/TM25K_2001.xml'))
+    #load('mapcache/TM25K_2001.xml')
+    #load('mapcache/TWMAP.xml')
