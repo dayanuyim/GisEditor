@@ -19,13 +19,13 @@ from datetime import datetime
 from threading import Lock, Thread
 
 #my modules
-import tile
 import conf
 import util
 from gpx import GpsDocument, WayPoint
 from pic import PicDocument
 from sym import SymRuleType, SymRule
 from util import GeoPoint, getPrefCornerPos, AreaSelector, AreaSizeTooLarge, DrawGuard
+from tile import TileAgent
 
 #print to console/log and messagebox (generalize this with LOG, moving to util.py)
 def showmsg(msg):
@@ -272,7 +272,7 @@ class MapBoard(tk.Frame):
         #title
         info_mapname = tk.Label(frame, font=bfont, bg='lightgray')
         info_mapname.pack(side='left', expand=0, anchor='nw')
-        info_mapname['text'] = self.map_ctrl.tile_map.title
+        info_mapname['text'] = self.map_ctrl.map_title
 
         #level
         self.__info_level = self.__genInfoWidget(frame, font, 'Level', 2, self.onSetLevel)
@@ -365,8 +365,8 @@ class MapBoard(tk.Frame):
             raise ValueError("Code flow error to set location")
 
         #check
-        min_lon, min_lat = self.map_ctrl.tile_map.lower_corner
-        max_lon, max_lat = self.map_ctrl.tile_map.upper_corner
+        min_lon, min_lat = self.map_ctrl.lower_corner
+        max_lon, max_lat = self.map_ctrl.upper_corner
         if not (min_lat <= geo.lat and geo.lat <= max_lat and min_lon <= geo.lon and geo.lon <= max_lon):
             messagebox.showwarning('Invalid Location', 'Please check location')
             return
@@ -865,13 +865,19 @@ class MapController:
 
     #{{ properties
     @property
-    def tile_map(self): return self.__tile_map
+    def map_title(self): return self.__tile_agent.map_title
 
     @property
-    def tile_max_level(self): return self.__tile_map.level_max
+    def lower_corner(serlf): return self.__tile_agent.lower_corner
 
     @property
-    def tile_min_level(self): return self.__tile_map.level_min
+    def upper_corner(serlf): return self.__tile_agent.upper_corner
+
+    @property
+    def tile_max_level(self): return self.__tile_agent.level_max
+
+    @property
+    def tile_min_level(self): return self.__tile_agent.level_min
 
     @property
     def geo(self): return self.__geo
@@ -908,7 +914,7 @@ class MapController:
     def __init__(self, parent):
         #def settings
         self.__parent = parent
-        self.__tile_map = tile.load(os.path.join(conf.CACHE_DIR, "TM25K_2001.xml"), is_started=True)
+        self.__tile_agent = TileAgent(os.path.join(conf.CACHE_DIR, "TM25K_2001.xml"), auto_start=True)
         self.__geo = GeoPoint(lon=121.334754, lat=24.987969)  #default location
         self.__level = 14
 
@@ -931,7 +937,7 @@ class MapController:
         self.gpx_layers.append(self.__pseudo_gpx)
 
     def close(self):
-        self.__tile_map.close()
+        self.__tile_agent.close()
 
     def shiftGeoPixel(self, px, py):
         self.geo = self.geo.addPixel(int(px), int(py), self.__level)
@@ -1059,7 +1065,7 @@ class MapController:
 
     #return tile no. of left, right, upper, lower
     def __tileRangeOfAttr(self, map_attr, extra_p=0):
-        side = self.__tile_map.tile_side
+        side = self.__tile_agent.tile_side
         t_left  = int((map_attr.left_px  - extra_p) / side)
         t_right = int((map_attr.right_px + extra_p) / side)
         t_upper = int((map_attr.up_py    - extra_p) / side)
@@ -1099,7 +1105,7 @@ class MapController:
         self.__paste_count = tx_num*ty_num
         for x in range(tx_num):
             for y in range(ty_num):
-                tile = self.__tile_map.getTile(map_attr.level, t_left +x, t_upper +y, self.__updateDirtyMap)
+                tile = self.__tile_agent.getTile(map_attr.level, t_left +x, t_upper +y, self.__updateDirtyMap)
                 if tile.is_fake:
                     fake_count += 1
                 disp_map.paste(tile, (x*256, y*256))

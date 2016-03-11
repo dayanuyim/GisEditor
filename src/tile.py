@@ -22,27 +22,23 @@ from collections import OrderedDict
 from io import BytesIO
 from util import mkdirSafely
 
-class __TileMap:
+'''
+The agent for getting tiles, using memory cache and db to be efficient.
+'''
+class TileAgent:
     TILE_VALID       = 0
     TILE_NOT_IN_MEM  = 1
     TILE_NOT_IN_DISK = 2
     TILE_REQ         = 3
 
-    @property
-    def title(self):
-        return self.map_title
-
-    def __init__(self, filepath):
-        #The attributes needed to be initialized outside
-
+    def __init__(self, filepath, auto_start=False):
+        #load map description xml
         self.__load(filepath)
 
         self.__is_closed = False
 
         #local cache
-        if cache_dir is None:
-            raise ValueError('cache_dir is None')
-        self.__cache_dir = cache_dir
+        self.__cache_dir = os.path.dirname(filepath)
         self.__disk_cache = None
 
         #memory cache
@@ -59,6 +55,9 @@ class __TileMap:
         #self.__req_lock = Lock()
         #self.__req_cv = Condition(self.__req_lock)
         self.__download_monitor = Thread(target=self.__runDownloadMonitor)
+
+        if auto_start:
+            self.start()
 
     @classmethod
     def __getElemText(cls, root, tag_path, def_value=None):
@@ -83,15 +82,15 @@ class __TileMap:
         try:
             lat = float(tokens[0])
             lon = float(tokens[1])
-            lat = __cropValue(lat, -180, 180, "not valid lat value: %f" % (lat,))
-            lon = __cropValue(lon, -85, 85, "not valid lon value: %f" % (lon,))
+            lat = cls.__cropValue(lat, -180, 180, "not valid lat value: %f" % (lat,))
+            lon = cls.__cropValue(lon, -85, 85, "not valid lon value: %f" % (lon,))
             return (lat, lon)
         except Exception as ex:
             logging.error("parsing latlon string '%s' error: '%s'" % (latlon_str, str(ex)))
 
         return def_latlon
 
-    def load(self, filepath, is_started=False):
+    def __load(self, filepath):
         if filepath is None:
             raise ValueError("filepath of the map description is None")
         if len(filepath) == 0:
@@ -101,35 +100,35 @@ class __TileMap:
 
         #get filename as map id
         basename = os.path.basename(filepath)
-        filename = os.path.sliptext(basename)[0]
+        filename = os.path.splitext(basename)[0]
         if not filename:
             raise ValueError("filename of the map description is Empty")
 
         #parsing xml
         xml_root = ET.parse(filepath).getroot()
 
-        name = __getElemText(xml_root, "./name", "");
+        name = self.__getElemText(xml_root, "./name", "");
         if not name:
             raise ValueError("[map description '%s'] no map name" % (basename,))
 
-        min_zoom = int(__getElemText(xml_root, "./minZoom", "0"))
+        min_zoom = int(self.__getElemText(xml_root, "./minZoom", "0"))
         if not min_zoom:
             raise ValueError("[map description '%s'] no min_zoom" % (basename,))
 
-        max_zoom = int(__getElemText(xml_root, "./maxZoom", "0"))
+        max_zoom = int(self.__getElemText(xml_root, "./maxZoom", "0"))
         if not max_zoom:
             raise ValueError("[map description '%s'] no max_zoom" % (basename,))
 
-        tile_type = __getElemText(xml_root, "./tileType", "")
+        tile_type = self.__getElemText(xml_root, "./tileType", "")
         if tile_type not in ("jpg", "png") :
             raise ValueError("[map description '%s'] not support tile format '%s'" % (basename, tile_type))
 
-        url = __getElemText(xml_root, "./url", "")
+        url = self.__getElemText(xml_root, "./url", "")
         if not url or ("{$x}" not in url) or ("{$y}" not in url) or ("{$z}" not in url):
             raise ValueError("[map description '%s'] url not catains {$x}, {$y}, or {$z}: %s" % (basename, url))
 
-        lower_corner = __parseLatlon(__getElemText(xml_root, "./lowerCorner", ""), (-180, -85))
-        upper_corner = __parseLatlon(__getElemText(xml_root, "./upperCorner", ""), (180, 85))
+        lower_corner = self.__parseLatlon(self.__getElemText(xml_root, "./lowerCorner", ""), (-180, -85))
+        upper_corner = self.__parseLatlon(self.__getElemText(xml_root, "./upperCorner", ""), (180, 85))
 
         #collection data
         self.map_id = filename
@@ -157,7 +156,8 @@ class __TileMap:
         self.__download_monitor.join()
 
         #close resources
-        self.__disk_cache.close()
+        if self.__disk_cache is not None:
+            self.__disk_cache.close()
 
     def isSupportedLevel(self, level):
         return self.level_min <= level and level <= self.level_max
@@ -169,7 +169,11 @@ class __TileMap:
         return "%s-%d-%d-%d" % (self.map_id, level, x, y)
 
     def genTileUrl(self, level, x, y):
-        return self.url_template % (level, x, y)
+        url = self.url_template;
+        url = url.replace("{$x}", str(x))
+        url = url.replace("{$y}", str(y))
+        url = url.replace("{$z}", str(level))
+        return url
 
     #The therad to download
     def __runDownloadJob(self, id, level, x, y, cb):
@@ -370,37 +374,6 @@ class __TileMap:
 
         return None
 
-
-def getTM25Kv3TileMap(cache_dir, is_started=False):
-    tm = __TileMap(cache_dir=cache_dir)
-    tm.uid = 210
-    tm.map_id = "TM25K_2001"
-    tm.map_title = "2001-臺灣經建3版地形圖-1:25,000"
-    tm.lower_corner = (117.84953432, 21.65607265)
-    tm.upper_corner = (123.85924109, 25.64233621)
-    tm.url_template = "http://gis.sinica.edu.tw/tileserver/file-exists.php?img=TM25K_2001-jpg-%d-%d-%d"
-    tm.level_min = 7
-    tm.level_max = 16
-    tm.tile_side = 256
-    tm.tile_format = 'jpg'
-    if is_started: tm.start()
-    return tm
-
-def getTM25Kv4TileMap(cache_dir):
-    tm = __TileMap(cache_dir=cache_dir, is_started=False)
-    tm.uid = 211
-    tm.map_id = "TM25K_2003"
-    tm.map_title = "2001-臺灣經建4版地形圖-1:25,000"
-    tm.lower_corner = (117.84953432, 21.65607265)
-    tm.upper_corner = (123.85924109, 25.64233621)
-    tm.url_template = "http://gis.sinica.edu.tw/tileserver/file-exists.php?img=TM25K_2003-jpg-%d-%d-%d"
-    tm.level_min = 5
-    tm.level_max = 17
-    tm.tile_side = 256
-    tm.tile_format = 'jpg'
-    if is_started: tm.start()
-    return tm
-
 class MemoryCache:
     '''
     class Item:
@@ -457,9 +430,9 @@ class DiskCache:
         pass
 
 class FileDiskCache(DiskCache):
-    def __init__(self, cache_dir, tile_map):
-        self.__cache_dir = os.path.join(cache_dir, tile_map.map_id) #create subfolder
-        self.__tile_map = tile_map
+    def __init__(self, cache_dir, tile_agent):
+        self.__cache_dir = os.path.join(cache_dir, tile_agent.map_id) #create subfolder
+        self.__tile_agent = tile_agent
 
     def __genTilePath(self, level, x, y):
         #add extra folder layer 'x' to lower the number of files within a folder
@@ -486,10 +459,10 @@ class FileDiskCache(DiskCache):
         return None
 
 class DBDiskCache(DiskCache):
-    def __init__(self, cache_dir, tile_map, db_schema, is_concurrency=True):
-        self.__db_path = os.path.join(cache_dir, tile_map.map_id + ".mbtiles")
+    def __init__(self, cache_dir, tile_agent, db_schema, is_concurrency=True):
+        self.__db_path = os.path.join(cache_dir, tile_agent.map_id + ".mbtiles")
         self.__db_schema = db_schema
-        self.__tile_map = tile_map
+        self.__tile_agent = tile_agent
         self.__is_concurrency = is_concurrency
         self.__conn = None
         self.__surrogate = None  #the thread do All DB operations, due to sqlite3 requiring only the same thread.
@@ -508,13 +481,13 @@ class DBDiskCache(DiskCache):
         self.__get_respose_cv = Condition(self.__get_respose_lock)
 
     def __initDB(self):
-        def getBoundsText(tile_map):
-            left, bottom = tile_map.lower_corner
-            right, top   = tile_map.upper_corner
+        def getBoundsText(tile_agent):
+            left, bottom = tile_agent.lower_corner
+            right, top   = tile_agent.upper_corner
             bounds = "%f,%f,%f,%f" % (left, bottom, right, top) #OpenLayers Bounds format
             return bounds
 
-        tm = self.__tile_map
+        tm = self.__tile_agent
         conn = self.__conn
 
         #meatadata
