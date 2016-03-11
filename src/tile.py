@@ -22,43 +22,28 @@ from collections import OrderedDict
 from io import BytesIO
 from util import mkdirSafely
 
-'''
-The agent for getting tiles, using memory cache and db to be efficient.
-'''
-class TileAgent:
-    TILE_VALID       = 0
-    TILE_NOT_IN_MEM  = 1
-    TILE_NOT_IN_DISK = 2
-    TILE_REQ         = 3
+class MapDescriptor:
+    #should construct from static methods.
+    def __init__(self):
+        pass
 
-    def __init__(self, filepath, auto_start=False):
-        #load map description xml
-        self.__load(filepath)
+    def save(self, filepath):
+        pass
 
-        self.__is_closed = False
+    def clone(self):
+        desc = MapDescriptor()
+        desc.map_id = self.map_id
+        desc.map_title = self.map_title
+        desc.level_min = self.level_min
+        desc.level_max = self.level_max
+        desc.url_template = self.url_template
+        desc.lower_corner = self.lower_corner
+        desc.upper_corner = self.upper_corner
+        desc.tile_format = self.tile_format
+        desc.tile_side = self.tile_side
+        return desc
 
-        #local cache
-        self.__cache_dir = os.path.dirname(filepath)
-        self.__disk_cache = None
-
-        #memory cache
-        self.__mem_cache = MemoryCache(self.TILE_NOT_IN_MEM, is_concurrency=True)
-
-        #download helpers
-        self.__MAX_WORKS = 3
-        self.__download_lock = Lock()
-        self.__download_cv = Condition(self.__download_lock)
-        self.__workers = {}
-        #self.__workers_lock = Lock()
-        #self.__workers_cv = Condition(self.__workers_lock)
-        self.__req_queue = OrderedDict()
-        #self.__req_lock = Lock()
-        #self.__req_cv = Condition(self.__req_lock)
-        self.__download_monitor = Thread(target=self.__runDownloadMonitor)
-
-        if auto_start:
-            self.start()
-
+    # satic method #######################################
     @classmethod
     def __getElemText(cls, root, tag_path, def_value=None):
         elem = root.find(tag_path)
@@ -90,56 +75,120 @@ class TileAgent:
 
         return def_latlon
 
-    def __load(self, filepath):
-        if filepath is None:
-            raise ValueError("filepath of the map description is None")
-        if len(filepath) == 0:
-            raise ValueError("filepath of the map description is Empty")
-        if not os.path.exists(filepath):
-            raise ValueError("filepath of the map description does not exist: %s" % (filepath,))
+    @classmethod
+    def __parseXML(cls, xml_root, id):
+        if not id:
+            raise ValueError("[map info] map id is empty")
 
-        #get filename as map id
-        basename = os.path.basename(filepath)
-        filename = os.path.splitext(basename)[0]
-        if not filename:
-            raise ValueError("filename of the map description is Empty")
-
-        #parsing xml
-        xml_root = ET.parse(filepath).getroot()
-
-        name = self.__getElemText(xml_root, "./name", "");
+        name = cls.__getElemText(xml_root, "./name", "")
         if not name:
-            raise ValueError("[map description '%s'] no map name" % (basename,))
+            raise ValueError("[map info '%s'] no map name" % (id,))
 
-        min_zoom = int(self.__getElemText(xml_root, "./minZoom", "0"))
+        min_zoom = int(cls.__getElemText(xml_root, "./minZoom", "0"))
         if not min_zoom:
-            raise ValueError("[map description '%s'] no min_zoom" % (basename,))
+            raise ValueError("[map info '%s'] no min_zoom" % (id,))
 
-        max_zoom = int(self.__getElemText(xml_root, "./maxZoom", "0"))
+        max_zoom = int(cls.__getElemText(xml_root, "./maxZoom", "0"))
         if not max_zoom:
-            raise ValueError("[map description '%s'] no max_zoom" % (basename,))
+            raise ValueError("[map info '%s'] no max_zoom" % (id,))
 
-        tile_type = self.__getElemText(xml_root, "./tileType", "")
+        tile_type = cls.__getElemText(xml_root, "./tileType", "")
         if tile_type not in ("jpg", "png") :
-            raise ValueError("[map description '%s'] not support tile format '%s'" % (basename, tile_type))
+            raise ValueError("[map info '%s'] not support tile format '%s'" % (id, tile_type))
 
-        url = self.__getElemText(xml_root, "./url", "")
+        url = cls.__getElemText(xml_root, "./url", "")
         if not url or ("{$x}" not in url) or ("{$y}" not in url) or ("{$z}" not in url):
-            raise ValueError("[map description '%s'] url not catains {$x}, {$y}, or {$z}: %s" % (basename, url))
+            raise ValueError("[map info '%s'] url not catains {$x}, {$y}, or {$z}: %s" % (id, url))
 
-        lower_corner = self.__parseLatlon(self.__getElemText(xml_root, "./lowerCorner", ""), (-180, -85))
-        upper_corner = self.__parseLatlon(self.__getElemText(xml_root, "./upperCorner", ""), (180, 85))
+        lower_corner = cls.__parseLatlon(cls.__getElemText(xml_root, "./lowerCorner", ""), (-180, -85))
+        upper_corner = cls.__parseLatlon(cls.__getElemText(xml_root, "./upperCorner", ""), (180, 85))
 
         #collection data
-        self.map_id = filename
-        self.map_title = name
-        self.level_min = min_zoom
-        self.level_max = max_zoom
-        self.url_template = url
-        self.lower_corner = lower_corner
-        self.upper_corner = upper_corner
-        self.tile_format = tile_type
-        self.tile_side = 256
+        desc = MapDescriptor()
+        desc.map_id = id
+        desc.map_title = name
+        desc.level_min = min_zoom
+        desc.level_max = max_zoom
+        desc.url_template = url
+        desc.lower_corner = lower_corner
+        desc.upper_corner = upper_corner
+        desc.tile_format = tile_type
+        desc.tile_side = 256
+        return desc
+
+    @classmethod
+    def parseXML(cls, filepath=None, xmlstr=None, id=None):
+        if filepath is not None:
+            xml_root = ET.parse(filepath).getroot()
+            if not id:
+                id = os.path.splitext(os.path.basename(filepath))[0]
+            return cls.__parseXML(xml_root, id)
+        elif xmlstr is not None:
+            xml_root = ET.fromstring(xmlstr)
+            return cls.__parseXML(xml_root, id)
+        else:
+            return None
+
+    @classmethod
+    def parseWMTS(cls, filepath):
+        pass
+
+
+'''
+The agent for getting tiles, using memory cache and db to be efficient.
+'''
+class TileAgent:
+    TILE_VALID       = 0
+    TILE_NOT_IN_MEM  = 1
+    TILE_NOT_IN_DISK = 2
+    TILE_REQ         = 3
+
+    #properties from map_desc
+    @property
+    def map_id(self): return self.__map_desc.map_id
+    @property
+    def map_title(self): return self.__map_desc.map_title
+    @property
+    def level_min(self): return self.__map_desc.level_min
+    @property
+    def level_max(self): return self.__map_desc.level_max
+    @property
+    def url_template(self): return self.__map_desc.url_template
+    @property
+    def lower_corner(self): return self.__map_desc.lower_corner
+    @property
+    def upper_corner(self): return self.__map_desc.upper_corner
+    @property
+    def tile_format(self): return self.__map_desc.tile_format
+    @property
+    def tile_side(self): return self.__map_desc.tile_side
+
+    def __init__(self, map_desc, cache_dir, auto_start=False):
+        self.__map_desc = map_desc.clone()
+
+        self.__is_closed = False
+
+        #local cache
+        self.__cache_dir = cache_dir
+        self.__disk_cache = None
+
+        #memory cache
+        self.__mem_cache = MemoryCache(self.TILE_NOT_IN_MEM, is_concurrency=True)
+
+        #download helpers
+        self.__MAX_WORKS = 3
+        self.__download_lock = Lock()
+        self.__download_cv = Condition(self.__download_lock)
+        self.__workers = {}
+        #self.__workers_lock = Lock()
+        #self.__workers_cv = Condition(self.__workers_lock)
+        self.__req_queue = OrderedDict()
+        #self.__req_lock = Lock()
+        #self.__req_cv = Condition(self.__req_lock)
+        self.__download_monitor = Thread(target=self.__runDownloadMonitor)
+
+        if auto_start:
+            self.start()
 
     def start(self):
         #create cache dir for the map

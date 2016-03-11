@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf8 -*-
 
 import os
 import subprocess
@@ -25,7 +26,7 @@ from gpx import GpsDocument, WayPoint
 from pic import PicDocument
 from sym import SymRuleType, SymRule
 from util import GeoPoint, getPrefCornerPos, AreaSelector, AreaSizeTooLarge, DrawGuard
-from tile import TileAgent
+from tile import TileAgent, MapDescriptor
 
 #print to console/log and messagebox (generalize this with LOG, moving to util.py)
 def showmsg(msg):
@@ -864,20 +865,25 @@ class MapBoard(tk.Frame):
 class MapController:
 
     #{{ properties
+    #properties from map_desc
     @property
-    def map_title(self): return self.__tile_agent.map_title
-
+    def map_id(self): return self.__map_desc.map_id
     @property
-    def lower_corner(serlf): return self.__tile_agent.lower_corner
-
+    def map_title(self): return self.__map_desc.map_title
     @property
-    def upper_corner(serlf): return self.__tile_agent.upper_corner
-
+    def level_min(self): return self.__map_desc.level_min
     @property
-    def tile_max_level(self): return self.__tile_agent.level_max
-
+    def level_max(self): return self.__map_desc.level_max
     @property
-    def tile_min_level(self): return self.__tile_agent.level_min
+    def url_template(self): return self.__map_desc.url_template
+    @property
+    def lower_corner(self): return self.__map_desc.lower_corner
+    @property
+    def upper_corner(self): return self.__map_desc.upper_corner
+    @property
+    def tile_format(self): return self.__map_desc.tile_format
+    @property
+    def tile_side(self): return self.__map_desc.tile_side
 
     @property
     def geo(self): return self.__geo
@@ -914,7 +920,8 @@ class MapController:
     def __init__(self, parent):
         #def settings
         self.__parent = parent
-        self.__tile_agent = TileAgent(os.path.join(conf.CACHE_DIR, "TM25K_2001.xml"), auto_start=True)
+        self.__map_desc = MapDescriptor.parseXML(os.path.join(conf.CACHE_DIR, "TM25K_2001.xml"))
+        self.__tile_agent = TileAgent(self.__map_desc, conf.CACHE_DIR, auto_start=True)
         self.__geo = GeoPoint(lon=121.334754, lat=24.987969)  #default location
         self.__level = 14
 
@@ -1028,7 +1035,7 @@ class MapController:
             return (self.__cache_basemap, self.__cache_attr)
 
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  gen base map")
-        level = min(max(self.tile_min_level, req_attr.level), self.tile_max_level)
+        level = min(max(self.level_min, req_attr.level), self.level_max)
 
         if req_attr.level == level:
             tile_map = self.__genTileMap(req_attr, self.extra_p)
@@ -1074,7 +1081,7 @@ class MapController:
 
     def __tileInAttr(self, level, x, y, attr):
         #handle psudo level beyond min level or max level
-        crop_level = min(max(self.tile_min_level, attr.level), self.tile_max_level)
+        crop_level = min(max(self.level_min, attr.level), self.level_max)
         if crop_level != attr.level:
             attr = attr.zoomToLevel(crop_level)
 
