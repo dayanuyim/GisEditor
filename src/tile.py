@@ -11,6 +11,7 @@ import shutil
 import sqlite3
 import conf
 import logging
+import util
 from xml.etree import ElementTree as ET
 from datetime import datetime
 from os import listdir
@@ -20,15 +21,47 @@ from threading import Thread, Lock, Condition
 from math import tan, sin, cos, radians, degrees
 from collections import OrderedDict
 from io import BytesIO
-from util import mkdirSafely
+from util import mkdirSafely, saveXml
 
 class MapDescriptor:
     #should construct from static methods.
     def __init__(self):
         pass
 
-    def save(self, filepath):
-        pass
+    def save(self, dirpath, id=None):
+        root = ET.Element("customMapSource")
+
+        name = ET.SubElement(root, "name")
+        name.text = self.map_title
+
+        min_zoom = ET.SubElement(root, "minZoom")
+        min_zoom.text = str(self.level_min)
+
+        max_zoom = ET.SubElement(root, "maxZoom")
+        max_zoom.text = str(self.level_max)
+
+        tile_type = ET.SubElement(root, "tileType")
+        tile_type.text = self.tile_format
+
+        tile_update = ET.SubElement(root, "tileUpdate")
+        tile_update.text = "IfNotMatch"
+
+        url = ET.SubElement(root, "url")
+        url.text = self.url_template
+
+        lower_corner = ET.SubElement(root, "lowerCorner")
+        lower_corner.text = "%.9f %.9f" % self.lower_corner
+
+        upper_corner = ET.SubElement(root, "upperCorner")
+        upper_corner.text = "%.9f %.9f" % self.upper_corner
+
+        bgcolor = ET.SubElement(root, "backgroundColor")
+        bgcolor.text = "#000000"
+
+        #write to file
+        filename = id if id else self.map_id
+        filepath = os.path.join(dirpath, filename) + ".xml"
+        util.saveXml(root, filepath)
 
     def clone(self):
         desc = MapDescriptor()
@@ -76,7 +109,7 @@ class MapDescriptor:
         return def_latlon
 
     @classmethod
-    def __parseXML(cls, xml_root, id):
+    def __parseXml(cls, xml_root, id):
         if not id:
             raise ValueError("[map info] map id is empty")
 
@@ -117,21 +150,22 @@ class MapDescriptor:
         return desc
 
     @classmethod
-    def parseXML(cls, filepath=None, xmlstr=None, id=None):
+    def parseXml(cls, filepath=None, xmlstr=None, id=None):
         if filepath is not None:
             xml_root = ET.parse(filepath).getroot()
             if not id:
                 id = os.path.splitext(os.path.basename(filepath))[0]
-            return cls.__parseXML(xml_root, id)
+            return cls.__parseXml(xml_root, id)
         elif xmlstr is not None:
             xml_root = ET.fromstring(xmlstr)
-            return cls.__parseXML(xml_root, id)
+            return cls.__parseXml(xml_root, id)
         else:
             return None
 
+    #todo
     @classmethod
-    def parseWMTS(cls, filepath):
-        pass
+    def parseWMTS(cls, filepath, xmlstr=None):
+        return []
 
 
 '''
@@ -736,6 +770,6 @@ class DBDiskCache(DiskCache):
             self.__close()
 
 if __name__ == '__main__':
-    print(os.path.splitext('mapcache/TM25K_2001.xml'))
-    #load('mapcache/TM25K_2001.xml')
-    #load('mapcache/TWMAP.xml')
+    desc = MapDescriptor.parseXml("mapcache/TM25K_2001.xml")
+    desc.save("mapcache", id="TM25K_2001-2")
+    desc.save(".")

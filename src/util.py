@@ -2,6 +2,8 @@
 import os
 import platform
 import tkinter as tk
+import xml.dom.minidom
+from xml.etree import ElementTree as ET
 from threading import Timer
 from PIL import Image, ImageTk, ImageDraw, ImageColor
 
@@ -20,6 +22,17 @@ class DrawGuard:
     def __exit__(self, type, value, traceback):
         if self.__draw is not None:
             del self.__draw
+
+def saveXml(xml_root, filepath, enc="UTF-8"):
+    #no fromat
+    #tree = ET.ElementTree(element=root)
+    #tree.write(filepath, encoding=enc, xml_declaration=True)
+
+    #pretty format
+    txt = ET.tostring(xml_root, method='xml', encoding=enc)
+    txt = xml.dom.minidom.parseString(txt).toprettyxml(encoding=enc) #the encoding is for xml-declaration
+    with open(filepath, 'wb') as f:
+        f.write(txt)
 
 def listdiff(list1, list2):
     result = []
