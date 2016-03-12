@@ -234,7 +234,7 @@ class TileAgent:
 
     def start(self):
         #create cache dir for the map
-        self.__disk_cache = DBDiskCache(self.__cache_dir, self, conf.DB_SCHEMA)
+        self.__disk_cache = DBDiskCache(self.__cache_dir, self.__map_desc, conf.DB_SCHEMA)
         self.__disk_cache.start()
         #start download thread
         self.__download_monitor.start()
@@ -521,9 +521,9 @@ class DiskCache:
         pass
 
 class FileDiskCache(DiskCache):
-    def __init__(self, cache_dir, tile_agent):
-        self.__cache_dir = os.path.join(cache_dir, tile_agent.map_id) #create subfolder
-        self.__tile_agent = tile_agent
+    def __init__(self, cache_dir, map_desc):
+        self.__cache_dir = os.path.join(cache_dir, map_desc.map_id) #create subfolder
+        self.__map_desc = map_desc
 
     def __genTilePath(self, level, x, y):
         #add extra folder layer 'x' to lower the number of files within a folder
@@ -550,10 +550,10 @@ class FileDiskCache(DiskCache):
         return None
 
 class DBDiskCache(DiskCache):
-    def __init__(self, cache_dir, tile_agent, db_schema, is_concurrency=True):
-        self.__db_path = os.path.join(cache_dir, tile_agent.map_id + ".mbtiles")
+    def __init__(self, cache_dir, map_desc, db_schema, is_concurrency=True):
+        self.__db_path = os.path.join(cache_dir, map_desc.map_id + ".mbtiles")
         self.__db_schema = db_schema
-        self.__tile_agent = tile_agent
+        self.__map_desc = map_desc
         self.__is_concurrency = is_concurrency
         self.__conn = None
         self.__surrogate = None  #the thread do All DB operations, due to sqlite3 requiring only the same thread.
@@ -572,23 +572,23 @@ class DBDiskCache(DiskCache):
         self.__get_respose_cv = Condition(self.__get_respose_lock)
 
     def __initDB(self):
-        def getBoundsText(tile_agent):
-            left, bottom = tile_agent.lower_corner
-            right, top   = tile_agent.upper_corner
+        def getBoundsText(map_desc):
+            left, bottom = map_desc.lower_corner
+            right, top   = map_desc.upper_corner
             bounds = "%f,%f,%f,%f" % (left, bottom, right, top) #OpenLayers Bounds format
             return bounds
 
-        tm = self.__tile_agent
+        desc = self.__map_desc
         conn = self.__conn
 
         #meatadata
         meta_create_sql = "CREATE TABLE metadata(name TEXT PRIMARY KEY, value TEXT)"
-        meta_data_sqls = ("INSERT INTO metadata(name, value) VALUES('%s', '%s')" % ('name', tm.map_id),
+        meta_data_sqls = ("INSERT INTO metadata(name, value) VALUES('%s', '%s')" % ('name', desc.map_id),
                           "INSERT INTO metadata(name, value) VALUES('%s', '%s')" % ('type', 'overlayer'),
                           "INSERT INTO metadata(name, value) VALUES('%s', '%s')" % ('version', '1.0'),
-                          "INSERT INTO metadata(name, value) VALUES('%s', '%s')" % ('description', tm.map_title),
-                          "INSERT INTO metadata(name, value) VALUES('%s', '%s')" % ('format', tm.tile_format),
-                          "INSERT INTO metadata(name, value) VALUES('%s', '%s')" % ('bounds', getBoundsText(tm)),
+                          "INSERT INTO metadata(name, value) VALUES('%s', '%s')" % ('description', desc.map_title),
+                          "INSERT INTO metadata(name, value) VALUES('%s', '%s')" % ('format', desc.tile_format),
+                          "INSERT INTO metadata(name, value) VALUES('%s', '%s')" % ('bounds', getBoundsText(desc)),
                           "INSERT INTO metadata(name, value) VALUES('%s', '%s')" % ('schema', self.__db_schema),
                          )
         #tiles
@@ -608,6 +608,7 @@ class DBDiskCache(DiskCache):
         conn.execute(tiles_idx_create_sql)
         for sql in meta_data_sqls:
             conn.execute(sql)
+        conn.commit()
 
     def __getMetadata(self, name):
         try:
