@@ -1,0 +1,10 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<customMapSource>
+    <name>Google衛星影像</name>
+    <minZoom>0</minZoom>
+    <maxZoom>22</maxZoom>
+    <tileType>jpg</tileType>
+    <tileUpdate>Google Map API</tileUpdate>
+    <url>http://gis.sinica.edu.tw/worldmap/file-exists.php?img=GSatellite-jpg-{$z}-{$x}-{$y}</url>
+    <backgroundColor>#000000</backgroundColor>
+</customMapSource>

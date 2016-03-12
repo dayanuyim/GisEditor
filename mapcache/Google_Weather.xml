@@ -1,0 +1,10 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<customMapSource>
+    <name>Google天氣圖</name>
+    <minZoom>0</minZoom>
+    <maxZoom>22</maxZoom>
+    <tileType>png</tileType>
+    <tileUpdate>Google Map API</tileUpdate>
+    <url>http://mts0.google.com/mapslt?x={$x}&amp;y={$y}&amp;z={$z}&amp;s=Galileo&amp;lyrs=m@239000000,weather_c_kph|invert:1&amp;w=256&amp;h=256&amp;gl=tw&amp;hl=zh-TW</url>
+    <backgroundColor>#000000</backgroundColor>
+</customMapSource>

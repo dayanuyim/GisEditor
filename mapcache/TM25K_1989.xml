@@ -1,0 +1,10 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<customMapSource>
+    <name>1989-臺灣經建1版地形圖-1:25,000</name>
+    <minZoom>7</minZoom>
+    <maxZoom>15</maxZoom>
+    <tileType>jpg</tileType>
+    <tileUpdate>Academia Sinica WMTS</tileUpdate>
+    <url>http://gis.sinica.edu.tw/tileserver/wmts?SERVICE=WMTS&amp;REQUEST=GetTile&amp;VERSION=1.0.0&amp;LAYER=TM25K_1989&amp;STYLE=_null&amp;TILEMATRIXSET=GoogleMapsCompatible&amp;TILEMATRIX={$z}&amp;TILEROW={$y}&amp;TILECOL={$x}&amp;FORMAT=image/jpeg</url>
+    <backgroundColor>#000000</backgroundColor>
+</customMapSource>
