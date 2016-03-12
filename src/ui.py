@@ -5,6 +5,7 @@ import Pmw as pmw
 import platform
 from PIL import ImageTk
 from tkinter import ttk, messagebox
+from tile import MapDescriptor
 
 class Dialog(tk.Toplevel):
     def __init__(self, master):
@@ -490,33 +491,27 @@ class SingleEditBoard(Dialog):
             self.__left_btn.config(state=('disabled' if idx == 0 else 'normal'))
             self.__right_btn.config(state=('disabled' if idx == sz-1 else 'normal'))
 
-class MapSel:
-    def __init__(self, desc, alpha, enabled):
-        self.desc = desc
-        self.alpha = alpha
-        self.enabled = enabled
-
 class MapRow(tk.Frame):
     @property
-    def map_sel(self):
-        return self.__map_sel
+    def map_desc(self):
+        return self.__map_desc
 
     @property
     def enabled(self):
-        return self.__map_sel.enabled
+        return self.__map_desc.enabled
 
     @enabled.setter
     def enabled(self, v):
-        self.__map_sel.enabled = v
+        self.__map_desc.enabled = v
         self.__setBtnTxt()
 
-    def __init__(self, master, map_sel, action):
+    def __init__(self, master, map_desc, action):
         super().__init__(master)
 
         FONT = "Arialuni 12"
         BFONT = FONT + " bold"
 
-        self.__map_sel = map_sel
+        self.__map_desc = map_desc
 
         cmd = lambda:action(self) if action is not None else None
         self.__btn = tk.Button(self, command=cmd)
@@ -526,8 +521,8 @@ class MapRow(tk.Frame):
         A_MIN = 0
         A_MAX = 100
         #variable
-        map_sel.alpha = min(max(A_MIN, map_sel.alpha), A_MAX)
-        self.__alpha_var = tk.IntVar(value=map_sel.alpha)
+        map_desc.alpha = min(max(A_MIN, map_desc.alpha), A_MAX)
+        self.__alpha_var = tk.IntVar(value=map_desc.alpha)
         self.__alpha_var.trace('w', self.onAlphaChanged)
         #spin
         alpha_label = tk.Label(self, text="%")
@@ -539,33 +534,33 @@ class MapRow(tk.Frame):
                 #resolution=1, showvalue=0, variable=self.__alpha_var)
         #alpha_scale.pack(side='right', anchor='e', expand=0, fill='x')
 
-        label = tk.Label(self, text=map_sel.desc.map_title, font=BFONT, anchor='w')
+        label = tk.Label(self, text=map_desc.map_title, font=BFONT, anchor='w')
         label.pack(side='left', anchor='w', expand='1', fill='x')
 
     def __setBtnTxt(self):
-        self.__btn['text'] = '-' if self.__map_sel.enabled else '+'
+        self.__btn['text'] = '-' if self.__map_desc.enabled else '+'
 
     def onAlphaChanged(self, *args):
-        self.__map_sel.alpha = self.__alpha_var.get()
+        self.__map_desc.alpha = self.__alpha_var.get()
 
 class MapSelector(pmw.ScrolledFrame):
     @property
-    def map_selection(self):
-        map_sels = []
+    def map_descriptors(self):
+        descs = []
         for row in self.__rows:
-            map_sels.append(row.map_sel)
-        return map_sels
+            descs.append(row.map_desc)
+        return descs
 
-    def __init__(self, master, map_selection):
+    def __init__(self, master, map_descriptors):
         super().__init__(master, usehullsize=1, hull_width=450, hull_height=600)
 
         #enabled maps are put at head
-        map_selection = sorted(map_selection, key=lambda sel:sel.enabled, reverse=True)
+        map_descriptors = sorted(map_descriptors, key=lambda desc:desc.enabled, reverse=True)
 
         #create widgets
         self.__rows = []
-        for sel in map_selection:
-            row = MapRow(self.interior(), sel, self.onMapTrigger)
+        for desc in map_descriptors:
+            row = MapRow(self.interior(), desc, self.onMapTrigger)
             self.__rows.append(row)
 
         self.__splitor = tk.Frame(self.interior(), bg='darkgray', height=10, border=1)
@@ -577,7 +572,7 @@ class MapSelector(pmw.ScrolledFrame):
         show_once = False
 
         for row in self.__rows:
-            if not show_once and not row.map_sel.enabled:
+            if not show_once and not row.map_desc.enabled:
                 self.__splitor.pack(side='top', anchor='nw', expand=1, fill='x')
                 show_once = True
 
@@ -625,27 +620,22 @@ def testMapSelector():
         if os.path.splitext(f)[1].lower() == ".xml":
             try:
                 desc = MapDescriptor.parseXml(os.path.join(mapcache, f))
+                if desc.map_id in ('TM25K_2001',  'JM25K_1921'):
+                    desc.enabled = True
+                    desc.alpha = 75
                 map_descs.append(desc)
             except Exception as ex:
                 print("parse file '%s' error: %s" % (f, str(ex)))
-
-    #create selection
     map_descs = sorted(map_descs, key=lambda d:d.map_title)
-    map_selection = []
-    for desc in map_descs:
-        sel = MapSel(desc, 50, desc.map_id in ('TM25K_2001',  'JM25K_1921'))
-        map_selection.append(sel)
 
     #show
     dialog = Dialog(root)
-    selector = MapSelector(dialog, map_selection)
+    selector = MapSelector(dialog, map_descs)
     selector.pack(side='top', anchor='nw', expand=0)
     dialog.show()
 
-    for sel in selector.map_selection:
-        print(sel.desc.map_id, sel.alpha, sel.enabled)
-
-    print('........')
+    for desc in selector.map_descriptors:
+        print(desc.map_id, desc.alpha, desc.enabled)
 
     root.mainloop()
 

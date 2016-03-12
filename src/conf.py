@@ -43,6 +43,7 @@ ICON_DIR = os.path.join(HOME_DIR, 'icon')
 GISEDITOR_CONF = os.path.join(CONF_DIR, 'giseditor.conf')
 DEF_SYMS_CONF = os.path.join(CONF_DIR, 'def_syms.conf')
 SYM_RULE_CONF = os.path.join(CONF_DIR, 'sym_rule.conf')
+USER_MAP_CONF = os.path.join(CONF_DIR, 'giseditor.map.conf')
 EXE_ICON = os.path.join(DATA_DIR, 'giseditor.ico')
 
 #read conf

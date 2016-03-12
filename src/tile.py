@@ -26,7 +26,10 @@ from util import mkdirSafely, saveXml
 class MapDescriptor:
     #should construct from static methods.
     def __init__(self):
-        pass
+        #fields loaded from xml
+        #....
+        self.enabled = False
+        self.alpha = 50
 
     def save(self, dirpath, id=None):
         root = ET.Element("customMapSource")
@@ -74,6 +77,8 @@ class MapDescriptor:
         desc.upper_corner = self.upper_corner
         desc.tile_format = self.tile_format
         desc.tile_side = self.tile_side
+        desc.alpha = self.alpha
+        desc.enabled = self.enabled
         return desc
 
     # satic method #######################################

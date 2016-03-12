@@ -165,11 +165,63 @@ class MapBoard(tk.Frame):
         self.__version = v
         self.__ver_label['text'] = 'ver. ' + v
 
+    @classmethod
+    def __getUserMapConf(cls, filepath):
+        enabled_maps = []
+        if os.path.exists(filepath):
+            try:
+                with open(filepath, 'r') as map_conf:
+                    for line in map_conf:
+                        line = line.rstrip()
+                        if line.startswith('#') or line.isspace():
+                            continue
+                        id, alpha = line.split(',')
+                        item = (id, int(alpha))
+                        enabled_maps.append(item)
+            except Exception as ex:
+                logging.error('Read user map conf error: %s' % (str(ex),))
+        return enabled_maps;
+
+    @classmethod
+    def __loadMapDescriptors(cls, dirpath):
+        map_descs = []
+        for f in os.listdir(dirpath):
+            if os.path.splitext(f)[1].lower() == ".xml":
+                try:
+                    desc = MapDescriptor.parseXml(os.path.join(dirpath, f))
+                    map_descs.append(desc)
+                except Exception as ex:
+                    logging.error("parse file '%s' error: %s" % (f, str(ex)))
+        return sorted(map_descs, key=lambda d:d.map_title)
+
+    @classmethod
+    def __findMapDescriptor(cls, descs, id):
+        for d in descs:
+            if d.map_id == id:
+                return d
+        return None
+
+    @classmethod
+    def __getUserMapDescriptors(cls):
+        user_enabled_map = cls.__getUserMapConf(conf.USER_MAP_CONF)
+        map_descs = cls.__loadMapDescriptors(conf.CACHE_DIR)
+
+        user_descs = []
+        for id, alpha in user_enabled_map:
+            desc = cls.__findMapDescriptor(map_descs, id)
+            if desc is not None:
+                map_descs.remove(desc)
+                desc.enabled = True
+                desc.alpha = alpha
+                user_descs.append(desc)
+        user_descs.extend(map_descs)
+        return user_descs
 
     def __init__(self, master):
         super().__init__(master)
 
-        self.map_ctrl = MapController(self)
+        self.__map_descs = self.__getUserMapDescriptors()
+        self.map_ctrl = MapController(self, self.__map_descs)
 
         #board
         self.__is_closed = False
@@ -917,10 +969,10 @@ class MapController:
         with self.__dirty_map_info_lock:
             self.__dirty_map_info = v
 
-    def __init__(self, parent):
+    def __init__(self, parent, map_descs):
         #def settings
         self.__parent = parent
-        self.__map_desc = MapDescriptor.parseXml(os.path.join(conf.CACHE_DIR, "TM25K_2001.xml"))
+        self.__map_desc = map_descs[0] #todo: load multi map
         self.__tile_agent = TileAgent(self.__map_desc, conf.CACHE_DIR, auto_start=True)
         self.__geo = GeoPoint(lon=121.334754, lat=24.987969)  #default location
         self.__level = 14
@@ -2554,4 +2606,7 @@ if __name__ == '__main__':
         root.deiconify()
         root.mainloop()
     except Exception as ex:
+        logging.error("Startup failed: %s" % str(ex,))
         messagebox.showwarning('Startup failed', str(ex))
+        raise ex
+
