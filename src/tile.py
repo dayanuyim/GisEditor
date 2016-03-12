@@ -78,17 +78,21 @@ class MapDescriptor:
 
     # satic method #######################################
     @classmethod
-    def __getElemText(cls, root, tag_path, def_value=None):
+    def __getElemText(cls, root, tag_path, def_value=None, errmsg=None):
         elem = root.find(tag_path)
-        return elem.text if elem is not None else def_value
+        if elem is not None:
+            return elem.text
+        else:
+            if errmsg:
+                logging.warning(errmsg)
+            return def_value
 
     @classmethod
     def __cropValue(cls, val, low, up, errmsg=None):
-        if val < low or val > up:
-            if errmsg:
-                logging.warning(errmsg)
-            val = min(max(low, val), up)
-        return val
+        _val = min(max(low, val), up)
+        if _val != val and errmsg:
+            logging.warning(errmsg)
+        return _val
 
     @classmethod
     def __parseLatlon(cls, latlon_str, def_latlon):
@@ -117,13 +121,12 @@ class MapDescriptor:
         if not name:
             raise ValueError("[map info '%s'] no map name" % (id,))
 
-        min_zoom = int(cls.__getElemText(xml_root, "./minZoom", "0"))
-        if not min_zoom:
-            raise ValueError("[map info '%s'] no min_zoom" % (id,))
-
-        max_zoom = int(cls.__getElemText(xml_root, "./maxZoom", "0"))
-        if not max_zoom:
-            raise ValueError("[map info '%s'] no max_zoom" % (id,))
+        min_zoom = int(cls.__getElemText(xml_root, "./minZoom", "0", "[map info '%s'] invalid min zoom, set to 0" % (id,)))
+        max_zoom = int(cls.__getElemText(xml_root, "./maxZoom", "24","[map info '%s'] invalid max zoom, set to 24" % (id,)))
+        min_zoom = cls.__cropValue(min_zoom, 0, 24, "[map info '%s'] min zoom should be in 0~24" % (id,))
+        max_zoom = cls.__cropValue(max_zoom, 0, 24, "[map info '%s'] max zoom should be in 0~24" % (id,))
+        if min_zoom > max_zoom:
+            raise ValueError("[map info '%s'] min_zoom(%d) is larger tahn max_zoom(%d)" % (id, min_zoom, max_zoom))
 
         tile_type = cls.__getElemText(xml_root, "./tileType", "")
         if tile_type not in ("jpg", "png") :

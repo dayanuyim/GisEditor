@@ -4,6 +4,7 @@ import tkinter as tk
 import Pmw as pmw
 import platform
 from PIL import ImageTk
+from tkinter import ttk, messagebox
 
 class Dialog(tk.Toplevel):
     def __init__(self, master):
@@ -485,12 +486,81 @@ class SingleEditBoard(Dialog):
             self.__left_btn.config(state=('disabled' if idx == 0 else 'normal'))
             self.__right_btn.config(state=('disabled' if idx == sz-1 else 'normal'))
 
+class MapRow(tk.Frame):
+    def __init__(self, master, desc, alpha, btn_txt, btn_action):
+        super().__init__(master)
 
-if __name__ == '__main__':
-    import conf
+        self['bg'] = 'red'
+        font = "Arialuni 12"
+        bfont = font + " bold"
+
+        cmd = lambda:btn_action(self) if btn_action is not None else None
+        btn = tk.Button(self, text=btn_txt, command=cmd)
+        btn.pack(side='right', anchor='e', expand=0)
+
+        A_MIN = 0
+        A_MAX = 100
+        #variable
+        alpha = min(max(A_MIN, alpha), A_MAX)
+        self.__alpha_var = tk.IntVar(value=alpha)
+        self.__alpha_var.trace('w', self.onAlphaChanged)
+        #spin
+        alpha_label = tk.Label(self, text="%")
+        alpha_label.pack(side='right', anchor='e', expand=0)
+        alpha_spin = tk.Spinbox(self, from_=A_MIN, to=A_MAX, width=3, textvariable=self.__alpha_var)
+        alpha_spin.pack(side='right', anchor='e', expand=0)
+        #sacle
+        #alpha_scale = tk.Scale(self, label="Transparency", from_=A_MIN, to=A_MAX, orient='horizontal',
+                #resolution=1, showvalue=0, variable=self.__alpha_var)
+        #alpha_scale.pack(side='right', anchor='e', expand=0, fill='x')
+
+        label = tk.Label(self, text=desc, font=bfont, anchor='w')
+        label.pack(side='left', anchor='w', expand='1', fill='x')
+
+
+    def onAlphaChanged(self, *args):
+        print('alpha=', self.__alpha_var.get())
+        
+
+def testMapSelector():
+    import os
+    import sys
+    sys.path.insert(0, 'src')
+    from tile import MapDescriptor
 
     root = tk.Tk()
 
+    def action(widget):
+        messagebox.showwarning('', 'click map ' + widget.tag.map_id)
+
+    #desc
+    map_descs = []
+    mapcache = "mapcache"
+    for f in os.listdir(mapcache):
+        if os.path.splitext(f)[1].lower() == ".xml":
+            try:
+                desc = MapDescriptor.parseXml(os.path.join(mapcache, f))
+                map_descs.append(desc)
+            except Exception as ex:
+                print("parse file '%s' error: %s" % (f, str(ex)))
+
+    #sort by name
+    map_descs = sorted(map_descs, key=lambda d:d.map_title)
+
+    #show
+    for desc in map_descs:
+        row = MapRow(root, desc.map_title, 50, "+", action)
+        row.tag = desc
+        row.pack(side='top', anchor='nw', expand=1, fill='x')
+
+    root.mainloop()
+
+if __name__ == '__main__':
+
+    testMapSelector()
+
+    '''
+    import conf
     hdr1 = (EditBoard.COL_TYPE_BOOL, 'COL1', True)
     hdr2 = (EditBoard.COL_TYPE_PIC, 'COL2', False)
     hdr3 = (EditBoard.COL_TYPE_STR, 'COL3', True)
@@ -502,6 +572,5 @@ if __name__ == '__main__':
     brd.addRow((True, conf.getIcon('summit'), 'Editable Str', 'UnEditable Str'))
     brd.title('I am Dialog')
     brd.show()
-
-    #root.mainloop()
+    '''
 

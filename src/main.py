@@ -920,7 +920,7 @@ class MapController:
     def __init__(self, parent):
         #def settings
         self.__parent = parent
-        self.__map_desc = MapDescriptor.parseXML(os.path.join(conf.CACHE_DIR, "TM25K_2001.xml"))
+        self.__map_desc = MapDescriptor.parseXml(os.path.join(conf.CACHE_DIR, "TM25K_2001.xml"))
         self.__tile_agent = TileAgent(self.__map_desc, conf.CACHE_DIR, auto_start=True)
         self.__geo = GeoPoint(lon=121.334754, lat=24.987969)  #default location
         self.__level = 14
