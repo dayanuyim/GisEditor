@@ -10,9 +10,8 @@ class Dialog(tk.Toplevel):
     def __init__(self, master):
         super().__init__(master)
 
-
         #handler
-        self._handlers = {}
+        #self._handlers = {}
 
         #board
         self.geometry('+0+0')
@@ -36,17 +35,22 @@ class Dialog(tk.Toplevel):
         self.grab_set()   #disalbe interact of parent
         self.master.wait_variable(self._visible)
 
-    def _onClosed(self, e):
-        self.onClosed()
-        
+    def hidden(self):
         if self.master is not None:
             self.master.focus_set()
         self.grab_release()
 
-        self.destroy()
-        #self.withdraw()
+        self.withdraw()
         self._visible.set(False)
 
+    def close(self):
+        self._onClosed(None)
+
+    def _onClosed(self, e):
+        self.hidden()
+        self.destroy()
+
+    '''
     #{{ handler
     def invokeHandler(self, name):
         if name in self._handlers:
@@ -54,8 +58,8 @@ class Dialog(tk.Toplevel):
 
     def addClosedHandler(self, h): self._handlers['closed'] = h;
     def onClosed(self): self.invokeHandler('closed')
-
-        #}} handler
+    #}} handler
+    '''
 
 class EditBoard(Dialog):
     COL_TYPE_STR= 0
@@ -486,23 +490,44 @@ class SingleEditBoard(Dialog):
             self.__left_btn.config(state=('disabled' if idx == 0 else 'normal'))
             self.__right_btn.config(state=('disabled' if idx == sz-1 else 'normal'))
 
+class MapSel:
+    def __init__(self, desc, alpha, enabled):
+        self.desc = desc
+        self.alpha = alpha
+        self.enabled = enabled
+
 class MapRow(tk.Frame):
-    def __init__(self, master, desc, alpha, btn_txt, btn_action):
+    @property
+    def map_sel(self):
+        return self.__map_sel
+
+    @property
+    def enabled(self):
+        return self.__map_sel.enabled
+
+    @enabled.setter
+    def enabled(self, v):
+        self.__map_sel.enabled = v
+        self.__setBtnTxt()
+
+    def __init__(self, master, map_sel, action):
         super().__init__(master)
 
-        self['bg'] = 'red'
-        font = "Arialuni 12"
-        bfont = font + " bold"
+        FONT = "Arialuni 12"
+        BFONT = FONT + " bold"
 
-        cmd = lambda:btn_action(self) if btn_action is not None else None
-        btn = tk.Button(self, text=btn_txt, command=cmd)
-        btn.pack(side='right', anchor='e', expand=0)
+        self.__map_sel = map_sel
+
+        cmd = lambda:action(self) if action is not None else None
+        self.__btn = tk.Button(self, command=cmd)
+        self.__setBtnTxt()
+        self.__btn.pack(side='right', anchor='e', expand=0)
 
         A_MIN = 0
         A_MAX = 100
         #variable
-        alpha = min(max(A_MIN, alpha), A_MAX)
-        self.__alpha_var = tk.IntVar(value=alpha)
+        map_sel.alpha = min(max(A_MIN, map_sel.alpha), A_MAX)
+        self.__alpha_var = tk.IntVar(value=map_sel.alpha)
         self.__alpha_var.trace('w', self.onAlphaChanged)
         #spin
         alpha_label = tk.Label(self, text="%")
@@ -514,12 +539,75 @@ class MapRow(tk.Frame):
                 #resolution=1, showvalue=0, variable=self.__alpha_var)
         #alpha_scale.pack(side='right', anchor='e', expand=0, fill='x')
 
-        label = tk.Label(self, text=desc, font=bfont, anchor='w')
+        label = tk.Label(self, text=map_sel.desc.map_title, font=BFONT, anchor='w')
         label.pack(side='left', anchor='w', expand='1', fill='x')
 
+    def __setBtnTxt(self):
+        self.__btn['text'] = '-' if self.__map_sel.enabled else '+'
 
     def onAlphaChanged(self, *args):
-        print('alpha=', self.__alpha_var.get())
+        self.__map_sel.alpha = self.__alpha_var.get()
+
+class MapSelector(pmw.ScrolledFrame):
+    @property
+    def map_selection(self):
+        map_sels = []
+        for row in self.__rows:
+            map_sels.append(row.map_sel)
+        return map_sels
+
+    def __init__(self, master, map_selection):
+        super().__init__(master, usehullsize=1, hull_width=450, hull_height=600)
+
+        #enabled maps are put at head
+        map_selection = sorted(map_selection, key=lambda sel:sel.enabled, reverse=True)
+
+        #create widgets
+        self.__rows = []
+        for sel in map_selection:
+            row = MapRow(self.interior(), sel, self.onMapTrigger)
+            self.__rows.append(row)
+
+        self.__splitor = tk.Frame(self.interior(), bg='darkgray', height=10, border=1)
+
+        #show
+        self.__pack()
+
+    def __pack(self):
+        show_once = False
+
+        for row in self.__rows:
+            if not show_once and not row.map_sel.enabled:
+                self.__splitor.pack(side='top', anchor='nw', expand=1, fill='x')
+                show_once = True
+
+            row.pack(side='top', anchor='nw', expand=1, fill='x')
+
+    def __unpack(self):
+        self.__splitor.pack_forget()
+        for row in self.__rows:
+            row.pack_forget()
+
+    def __getEnabledCount(self):
+        count = 0
+        for row in self.__rows:
+            if not row.enabled:
+                break;
+            count += 1
+        return count
+
+    def onMapTrigger(self, row):
+        #trigger enabled
+        row.enabled = not row.enabled
+
+        #reorder
+        self.__rows.remove(row)
+        idx = self.__getEnabledCount()
+        self.__rows.insert(idx, row)
+
+        #pack again
+        self.__unpack()
+        self.__pack()
         
 
 def testMapSelector():
@@ -529,9 +617,6 @@ def testMapSelector():
     from tile import MapDescriptor
 
     root = tk.Tk()
-
-    def action(widget):
-        messagebox.showwarning('', 'click map ' + widget.tag.map_id)
 
     #desc
     map_descs = []
@@ -544,14 +629,23 @@ def testMapSelector():
             except Exception as ex:
                 print("parse file '%s' error: %s" % (f, str(ex)))
 
-    #sort by name
+    #create selection
     map_descs = sorted(map_descs, key=lambda d:d.map_title)
+    map_selection = []
+    for desc in map_descs:
+        sel = MapSel(desc, 50, desc.map_id in ('TM25K_2001',  'JM25K_1921'))
+        map_selection.append(sel)
 
     #show
-    for desc in map_descs:
-        row = MapRow(root, desc.map_title, 50, "+", action)
-        row.tag = desc
-        row.pack(side='top', anchor='nw', expand=1, fill='x')
+    dialog = Dialog(root)
+    selector = MapSelector(dialog, map_selection)
+    selector.pack(side='top', anchor='nw', expand=0)
+    dialog.show()
+
+    for sel in selector.map_selection:
+        print(sel.desc.map_id, sel.alpha, sel.enabled)
+
+    print('........')
 
     root.mainloop()
 
