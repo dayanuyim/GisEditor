@@ -914,9 +914,143 @@ class MapBoard(tk.Frame):
             self.disp_canvas.delete(tmp)
         self.disp_canvas['state'] = 'normal'
 
+class MapAgent:
+    #properties from map_desc
+    @property
+    def map_id(self): return self.__map_desc.map_id
+    @property
+    def map_title(self): return self.__map_desc.map_title
+    @property
+    def level_min(self): return self.__map_desc.level_min
+    @property
+    def level_max(self): return self.__map_desc.level_max
+    @property
+    def url_template(self): return self.__map_desc.url_template
+    @property
+    def lower_corner(self): return self.__map_desc.lower_corner
+    @property
+    def upper_corner(self): return self.__map_desc.upper_corner
+    @property
+    def tile_format(self): return self.__map_desc.tile_format
+    @property
+    def tile_side(self): return self.__map_desc.tile_side
+
+    def __init__(self, map_desc, tile_cache_dir):
+        self.__map_desc = map_desc
+        self.__cache_basemap = None
+        self.__cache_attr = None
+        self.__extra_p = 0
+        self.__tile_agent = TileAgent(map_desc, tile_cache_dir, auto_start=True)
+
+    def close(self):
+        self.__tile_agent.close()
+
+    #todo: refine this to reduce repeat
+    def __isCacheValid(self, req_attr):
+        cache_map = self.__cache_basemap
+        cache_attr = self.__cache_attr
+        return cache_map is not None and \
+               cache_attr is not None and \
+               not cache_attr.fake_count and \
+               cache_attr.containsImgae(req_attr)
+
+    def genMap(self, req_attr):
+        if self.__isCacheValid(req_attr):
+            return (self.__cache_basemap, self.__cache_attr)
+
+        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  gen base map")
+        level = min(max(self.level_min, req_attr.level), self.level_max)
+
+        if req_attr.level == level:
+            tile_map = self.__genTileMap(req_attr, self.__extra_p)
+        else:
+            #get approx map
+            aprx_attr = req_attr.zoomToLevel(level)
+            extra_p = self.__extra_p * 2**(level - req_attr.level)
+            aprx_map, aprx_attr = self.__genTileMap(aprx_attr, extra_p)
+            #zoom to request level
+            tile_map = self.__genZoomMap(aprx_map, aprx_attr, req_attr.level)
+
+        #cache
+        self.__cache_basemap, self.__cache_attr = tile_map
+        return tile_map
+
+    def __genZoomMap(self, map, attr, level):
+        s = level - attr.level
+        if s == 0:
+            return (map, attr)
+        elif s > 0:
+            w = (attr.right_px - attr.left_px) << s
+            h = (attr.low_py - attr.up_py) << s
+        else:
+            w = (attr.right_px - attr.left_px) >> (-s)
+            h = (attr.low_py - attr.up_py) >> (-s)
+
+        #Image.NEAREST, Image.BILINEAR, Image.BICUBIC, or Image.LANCZOS 
+        zoom_img = map.resize((w,h), Image.BILINEAR)
+
+        #the attr of resized image
+        zoom_attr = attr.zoomToLevel(level)
+
+        return (zoom_img, zoom_attr)
+
+    #return tile no. of left, right, upper, lower
+    def __tileRangeOfAttr(self, map_attr, extra_p=0):
+        side = self.tile_side
+        t_left  = int((map_attr.left_px  - extra_p) / side)
+        t_right = int((map_attr.right_px + extra_p) / side)
+        t_upper = int((map_attr.up_py    - extra_p) / side)
+        t_lower = int((map_attr.low_py   + extra_p) / side)
+        return (t_left, t_right, t_upper, t_lower)
+
+    def __tileInAttr(self, level, x, y, attr):
+        #handle psudo level beyond min level or max level
+        crop_level = min(max(self.level_min, attr.level), self.level_max)
+        if crop_level != attr.level:
+            attr = attr.zoomToLevel(crop_level)
+
+        #check range
+        if level == attr.level:
+            t_left, t_right, t_upper, t_lower = box = self.__tileRangeOfAttr(attr, self.__extra_p)
+            return (t_left <= x and x <= t_right) and (t_upper <= y and y <= t_lower)
+        return False
+
+    def __updateDirtyMap(self, level, x, y):
+        map_info = self.dirty_map_info
+        if map_info is not None:
+            attr, cb = map_info
+            if self.__tileInAttr(level, x, y, attr):
+                logging.info('UPDATE is available.')
+                cb()
+
+    def __genTileMap(self, map_attr, extra_p):
+        #get tile x, y.
+        t_left, t_right, t_upper, t_lower = self.__tileRangeOfAttr(map_attr, extra_p)
+        tx_num = t_right - t_left +1
+        ty_num = t_lower - t_upper +1
+
+        #gen image
+        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "paste tile...")
+        disp_map = Image.new("RGBA", (tx_num*256, ty_num*256))
+        fake_count = 0
+        self.__paste_count = tx_num*ty_num
+        for x in range(tx_num):
+            for y in range(ty_num):
+                tile = self.__tile_agent.getTile(map_attr.level, t_left +x, t_upper +y, self.__updateDirtyMap)
+                if tile.is_fake:
+                    fake_count += 1
+                disp_map.paste(tile, (x*256, y*256))
+        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "paste tile...done")
+
+        #reset map_attr
+        disp_attr = MapAttr(map_attr.level, t_left*256, t_upper*256, (t_right+1)*256 -1, (t_lower+1)*256 -1, fake_count)
+
+        return  (disp_map, disp_attr)
+
 class MapController:
 
     #{{ properties
+    #todo: should REMOVE map desc's properties later
     #properties from map_desc
     @property
     def map_id(self): return self.__map_desc.map_id
@@ -973,15 +1107,13 @@ class MapController:
         #def settings
         self.__parent = parent
         self.__map_desc = map_descs[0] #todo: load multi map
-        self.__tile_agent = TileAgent(self.__map_desc, conf.CACHE_DIR, auto_start=True)
+        self.__map_agent = MapAgent(self.__map_desc, conf.CACHE_DIR)
         self.__geo = GeoPoint(lon=121.334754, lat=24.987969)  #default location
         self.__level = 14
 
         #image
         self.__cache_gpsmap = None
-        self.__cache_basemap = None
         self.__cache_attr = None
-        self.extra_p = 0
         self.pt_size = 3
         self.__font = conf.IMG_FONT
         self.hide_txt = False
@@ -996,7 +1128,7 @@ class MapController:
         self.gpx_layers.append(self.__pseudo_gpx)
 
     def close(self):
-        self.__tile_agent.close()
+        self.__map_agent.close()
 
     def shiftGeoPixel(self, px, py):
         self.geo = self.geo.addPixel(int(px), int(py), self.__level)
@@ -1072,108 +1204,17 @@ class MapController:
             #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  get gps map from cache")
             return (self.__cache_gpsmap, self.__cache_attr)
 
-        map, attr = self.__genBaseMap(req_attr)
-        self.__cache_gpsmap = map.copy()   #copy as cache
+        map, attr = self.__map_agent.genMap(req_attr)
 
+        #create gpsmap, also cache
+        self.__cache_gpsmap = map.copy()
+        self.__cache_attr = attr
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw trk")
         self.__drawTrk(self.__cache_gpsmap, attr)
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw wpt")
         self.__drawWpt(self.__cache_gpsmap, attr)
 
-        return self.__cache_gpsmap, attr
-
-    def __genBaseMap(self, req_attr):
-        if self.__isCacheValid(self.__cache_basemap, req_attr):
-            return (self.__cache_basemap, self.__cache_attr)
-
-        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  gen base map")
-        level = min(max(self.level_min, req_attr.level), self.level_max)
-
-        if req_attr.level == level:
-            tile_map = self.__genTileMap(req_attr, self.extra_p)
-        else:
-            #get approx map
-            aprx_attr = req_attr.zoomToLevel(level)
-            extra_p = self.extra_p * 2**(level - req_attr.level)
-            aprx_map, aprx_attr = self.__genTileMap(aprx_attr, extra_p)
-            #zoom to request level
-            tile_map = self.__genZoomMap(aprx_map, aprx_attr, req_attr.level)
-
-        #cache
-        self.__cache_basemap, self.__cache_attr = tile_map
-        return tile_map
-
-    def __genZoomMap(self, map, attr, level):
-        s = level - attr.level
-        if s == 0:
-            return (map, attr)
-        elif s > 0:
-            w = (attr.right_px - attr.left_px) << s
-            h = (attr.low_py - attr.up_py) << s
-        else:
-            w = (attr.right_px - attr.left_px) >> (-s)
-            h = (attr.low_py - attr.up_py) >> (-s)
-
-        #Image.NEAREST, Image.BILINEAR, Image.BICUBIC, or Image.LANCZOS 
-        zoom_img = map.resize((w,h), Image.BILINEAR)
-
-        #the attr of resized image
-        zoom_attr = attr.zoomToLevel(level)
-
-        return (zoom_img, zoom_attr)
-
-    #return tile no. of left, right, upper, lower
-    def __tileRangeOfAttr(self, map_attr, extra_p=0):
-        side = self.__tile_agent.tile_side
-        t_left  = int((map_attr.left_px  - extra_p) / side)
-        t_right = int((map_attr.right_px + extra_p) / side)
-        t_upper = int((map_attr.up_py    - extra_p) / side)
-        t_lower = int((map_attr.low_py   + extra_p) / side)
-        return (t_left, t_right, t_upper, t_lower)
-
-    def __tileInAttr(self, level, x, y, attr):
-        #handle psudo level beyond min level or max level
-        crop_level = min(max(self.level_min, attr.level), self.level_max)
-        if crop_level != attr.level:
-            attr = attr.zoomToLevel(crop_level)
-
-        #check range
-        if level == attr.level:
-            t_left, t_right, t_upper, t_lower = box = self.__tileRangeOfAttr(attr, self.extra_p)
-            return (t_left <= x and x <= t_right) and (t_upper <= y and y <= t_lower)
-        return False
-
-    def __updateDirtyMap(self, level, x, y):
-        map_info = self.dirty_map_info
-        if map_info is not None:
-            attr, cb = map_info
-            if self.__tileInAttr(level, x, y, attr):
-                logging.info('UPDATE is available.')
-                cb()
-
-    def __genTileMap(self, map_attr, extra_p):
-        #get tile x, y.
-        t_left, t_right, t_upper, t_lower = self.__tileRangeOfAttr(map_attr, extra_p)
-        tx_num = t_right - t_left +1
-        ty_num = t_lower - t_upper +1
-
-        #gen image
-        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "paste tile...")
-        disp_map = Image.new("RGBA", (tx_num*256, ty_num*256))
-        fake_count = 0
-        self.__paste_count = tx_num*ty_num
-        for x in range(tx_num):
-            for y in range(ty_num):
-                tile = self.__tile_agent.getTile(map_attr.level, t_left +x, t_upper +y, self.__updateDirtyMap)
-                if tile.is_fake:
-                    fake_count += 1
-                disp_map.paste(tile, (x*256, y*256))
-        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "paste tile...done")
-
-        #reset map_attr
-        disp_attr = MapAttr(map_attr.level, t_left*256, t_upper*256, (t_right+1)*256 -1, (t_lower+1)*256 -1, fake_count)
-
-        return  (disp_map, disp_attr)
+        return self.__cache_gpsmap, self.__cache_attr
 
     def __drawTrk(self, map, map_attr):
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw gpx...")
@@ -2608,5 +2649,5 @@ if __name__ == '__main__':
     except Exception as ex:
         logging.error("Startup failed: %s" % str(ex,))
         messagebox.showwarning('Startup failed', str(ex))
-        raise ex
+        #raise ex  #for debug
 
