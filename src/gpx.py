@@ -4,6 +4,7 @@
 
 import os
 import logging
+import util
 from xml.etree import ElementTree as ET
 from datetime import datetime
 from PIL import Image
