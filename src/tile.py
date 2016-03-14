@@ -103,7 +103,7 @@ class MapDescriptor:
     def __parseLatlon(cls, latlon_str, def_latlon):
         tokens = latlon_str.split(' ')
         if len(tokens) != 2:
-            logging.warning("not valid lat lon string: '%s'" % (latlon_str,))
+            logging.info("not valid lat lon string: '%s'" % (latlon_str,))
             return def_latlon
 
         try:
