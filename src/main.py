@@ -147,16 +147,6 @@ class MapBoard(tk.Frame):
     def alter_time(self): return self.__alter_time
 
     @property
-    def map_has_update(self):
-        with self.__map_has_update_lock:
-            return self.__map_has_update
-
-    @map_has_update.setter
-    def map_has_update(self, v):
-        with self.__map_has_update_lock:
-            self.__map_has_update = v
-
-    @property
     def version(self):
         return self.__version
 
@@ -232,7 +222,7 @@ class MapBoard(tk.Frame):
         self.__map_attr = None
         self.__map_req_time = None
         self.__map_has_update = False
-        self.__map_has_update_lock = Lock()
+        self.__map_req_lock = Lock()
         self.__alter_time = None
         self.__pref_dir = None
         self.__pref_geo = None
@@ -855,19 +845,30 @@ class MapBoard(tk.Frame):
             if self.__is_closed:
                 break  #exit
 
-            logging.debug("[MapUpdater] %s" % ('map attr is None' if self.__map_attr is None else 'map attr is not None',))
-            logging.debug("[MapUpdater] fake cout=%s" % (str(self.__map_attr.fake_count) if self.__map_attr else "NA",))
-            logging.debug("[MapUpdater] time diff=%d sec" % ((datetime.now()-self.__map_req_time).seconds,))
-            logging.debug("[MapUpdater] %s" % ('has update' if self.map_has_update else 'no update',))
+            
+            should_update = False
+            with self.__map_req_lock:
+                #logging.debug("[MapUpdater] %s" % ('map attr is None' if self.__map_attr is None else 'map attr is not None',))
+                #logging.debug("[MapUpdater] fake cout=%s" % (str(self.__map_attr.fake_count) if self.__map_attr else "NA",))
+                #logging.debug("[MapUpdater] time diff=%d sec" % ((datetime.now()-self.__map_req_time).seconds,))
+                #logging.debug("[MapUpdater] %s" % ('has update' if self.__map_has_update else 'no update',))
 
-            #update if req, prevent from frequent updating
-            if self.__map_attr and self.__map_attr.fake_count and \
-               (datetime.now()-self.__map_req_time).seconds >= 2 and \
-               self.map_has_update:
+                #update if req, prevent from frequent updating
+                if self.__map_has_update and (datetime.now()-self.__map_req_time).seconds >= 2:
+                    should_update = True
+
+            if should_update:
                 try:
                     self.resetMap()
                 except Exception as ex:
                     showmsg("Auto reset map error: ", str(ex))
+
+    def __notifyMapUpdate(self, map_attr):
+        with self.__map_req_lock:
+            if self.__map_attr is not None and \
+               self.__map_attr.fake_count and \
+               self.__map_attr.containsImgae(map_attr):
+                self.__map_has_update = True
 
     def resetMap(self, geo=None, w=None, h=None, force=None):
         if w is None: w = self.disp_canvas.winfo_width()
@@ -877,13 +878,11 @@ class MapBoard(tk.Frame):
             self.map_ctrl.geo = geo
             self.map_ctrl.shiftGeoPixel(-w/2, -h/2)
 
-        def refreshMap():
-            self.map_has_update = True
-
         #request map
-        self.map_has_update = False #reset flag
-        self.__map_req_time = datetime.now()
-        self.__map, self.__map_attr = self.map_ctrl.getMap(w, h, force, cb=refreshMap)  #buffer the image
+        with self.__map_req_lock:
+            self.__map_has_update = False #reset flag
+            self.__map_req_time = datetime.now()
+            self.__map, self.__map_attr = self.map_ctrl.getMap(w, h, force, cb=self.__notifyMapUpdate)  #buffer the image
 
         #set map
         self.__setMap(self.__map)
@@ -954,7 +953,7 @@ class MapAgent:
                not cache_attr.fake_count and \
                cache_attr.containsImgae(req_attr)
 
-    def genMap(self, req_attr):
+    def genMap(self, req_attr, cb=None):
         if self.__isCacheValid(req_attr):
             return (self.__cache_basemap, self.__cache_attr)
 
@@ -962,12 +961,12 @@ class MapAgent:
         level = min(max(self.level_min, req_attr.level), self.level_max)
 
         if req_attr.level == level:
-            tile_map = self.__genTileMap(req_attr, self.__extra_p)
+            tile_map = self.__genTileMap(req_attr, self.__extra_p, cb)
         else:
             #get approx map
             aprx_attr = req_attr.zoomToLevel(level)
             extra_p = self.__extra_p * 2**(level - req_attr.level)
-            aprx_map, aprx_attr = self.__genTileMap(aprx_attr, extra_p)
+            aprx_map, aprx_attr = self.__genTileMap(aprx_attr, extra_p, cb)
             #zoom to request level
             tile_map = self.__genZoomMap(aprx_map, aprx_attr, req_attr.level)
 
@@ -1003,6 +1002,7 @@ class MapAgent:
         t_lower = int((map_attr.low_py   + extra_p) / side)
         return (t_left, t_right, t_upper, t_lower)
 
+    #looks the method is not needed
     def __tileInAttr(self, level, x, y, attr):
         #handle psudo level beyond min level or max level
         crop_level = min(max(self.level_min, attr.level), self.level_max)
@@ -1011,19 +1011,17 @@ class MapAgent:
 
         #check range
         if level == attr.level:
-            t_left, t_right, t_upper, t_lower = box = self.__tileRangeOfAttr(attr, self.__extra_p)
+            t_left, t_right, t_upper, t_lower = self.__tileRangeOfAttr(attr, self.__extra_p)
             return (t_left <= x and x <= t_right) and (t_upper <= y and y <= t_lower)
         return False
 
-    def __updateDirtyMap(self, level, x, y):
-        map_info = self.dirty_map_info
-        if map_info is not None:
-            attr, cb = map_info
-            if self.__tileInAttr(level, x, y, attr):
-                logging.info('UPDATE is available.')
-                cb()
+    def __notifyTileUpdate(self, level, x, y, map_attr, cb):
+        logging.info("Tile(%s,%d,%d,%d) Update is available." % (self.map_id, level, x, y))
+        cb(map_attr)
 
-    def __genTileMap(self, map_attr, extra_p):
+    def __genTileMap(self, map_attr, extra_p, cb=None):
+        notifier = lambda level, x, y: self.__notifyTileUpdate(level, x, y, map_attr, cb) if cb is not None else None
+
         #get tile x, y.
         t_left, t_right, t_upper, t_lower = self.__tileRangeOfAttr(map_attr, extra_p)
         tx_num = t_right - t_left +1
@@ -1036,7 +1034,7 @@ class MapAgent:
         self.__paste_count = tx_num*ty_num
         for x in range(tx_num):
             for y in range(ty_num):
-                tile = self.__tile_agent.getTile(map_attr.level, t_left +x, t_upper +y, self.__updateDirtyMap)
+                tile = self.__tile_agent.getTile(map_attr.level, t_left +x, t_upper +y, notifier)
                 if tile.is_fake:
                     fake_count += 1
                 disp_map.paste(tile, (x*256, y*256))
@@ -1093,16 +1091,6 @@ class MapController:
     @level.setter
     def level(self, v): self.__level = v
 
-    @property
-    def dirty_map_info(self):
-        with self.__dirty_map_info_lock:
-            return self.__dirty_map_info
-
-    @dirty_map_info.setter
-    def dirty_map_info(self, v):
-        with self.__dirty_map_info_lock:
-            self.__dirty_map_info = v
-
     def __init__(self, parent, map_descs):
         #def settings
         self.__parent = parent
@@ -1117,9 +1105,6 @@ class MapController:
         self.pt_size = 3
         self.__font = conf.IMG_FONT
         self.hide_txt = False
-
-        self.__dirty_map_info_lock = Lock()
-        self.__dirty_map_info = None
 
         #layer
         self.__mark_wpt = None
@@ -1180,8 +1165,7 @@ class MapController:
 
         #The image attributes with which we want to create a image compatible.
         req_attr = MapAttr(level, px, py, px+width, py+height, 0)
-        self.dirty_map_info = (req_attr, cb) #keep info for update of dirty map
-        map, attr = self.__genGpsMap(req_attr, force)
+        map, attr = self.__genGpsMap(req_attr, force, cb)
 
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  crop map")
         map = self.__genCropMap(map, attr, req_attr)
@@ -1199,12 +1183,12 @@ class MapController:
                cache_attr.fake_count == 0 and \
                cache_attr.containsImgae(req_attr)
 
-    def __genGpsMap(self, req_attr, force=None):
+    def __genGpsMap(self, req_attr, force=None, cb=None):
         if force not in ('all', 'gps', 'trk', 'wpt') and self.__isCacheValid(self.__cache_gpsmap, req_attr):
             #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  get gps map from cache")
             return (self.__cache_gpsmap, self.__cache_attr)
 
-        map, attr = self.__map_agent.genMap(req_attr)
+        map, attr = self.__map_agent.genMap(req_attr, cb)
 
         #create gpsmap, also cache
         self.__cache_gpsmap = map.copy()
