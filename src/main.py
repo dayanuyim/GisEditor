@@ -94,7 +94,7 @@ def __toGpx(src_path, flag):
         if flag == 'string':
             cmd = '"%s" -i %s -f "%s" -o gpx,gpxver=1.1 -F -' % (exe_file, input_fmt, input_tmp_path)
             logging.info(cmd)
-            output = subprocess.check_output(cmd, shell=True)  #@@! pythonW.exe caused 'WinError 6: the handler is invalid'
+            output = subprocess.check_output(cmd, shell=True)  #NOTICE: pythonW.exe caused 'WinError 6: the handler is invalid'
             result = output.decode("utf-8")
         elif flag == 'file':
             output_tmp_path = os.path.join(tempfile.gettempdir(),  "giseditor_out.tmp")
@@ -933,6 +933,10 @@ class MapAgent:
     def tile_format(self): return self.__map_desc.tile_format
     @property
     def tile_side(self): return self.__map_desc.tile_side
+    @property
+    def alpha(self): return self.__map_desc.alpha
+    @property
+    def enabled(self): return self.__map_desc.enabled
 
     def __init__(self, map_desc, tile_cache_dir):
         self.__map_desc = map_desc
@@ -1095,7 +1099,10 @@ class MapController:
         #def settings
         self.__parent = parent
         self.__map_desc = map_descs[0] #todo: load multi map
-        self.__map_agent = MapAgent(self.__map_desc, conf.CACHE_DIR)
+        self.__map_agents = []
+        for desc in map_descs:
+            if desc.enabled:
+                self.__map_agents.insert(0, MapAgent(desc, conf.CACHE_DIR)) #reversed order
         self.__geo = GeoPoint(lon=121.334754, lat=24.987969)  #default location
         self.__level = 14
 
@@ -1113,7 +1120,8 @@ class MapController:
         self.gpx_layers.append(self.__pseudo_gpx)
 
     def close(self):
-        self.__map_agent.close()
+        for map_agent in self.__map_agents:
+            map_agent.close()
 
     def shiftGeoPixel(self, px, py):
         self.geo = self.geo.addPixel(int(px), int(py), self.__level)
@@ -1183,15 +1191,32 @@ class MapController:
                cache_attr.fake_count == 0 and \
                cache_attr.containsImgae(req_attr)
 
+    @classmethod
+    def setAlpha(cls, img, alpha):
+        min(max(0.0, alpha), 1.0)
+        img.putalpha(int(255.0*alpha/100.0))
+
+    #todo: not to crop all margins, reamins margin as possible
+    def __genBaseMap(self, req_attr, cb=None):
+        if not self.__map_agents:
+            return Image.new("RGBA", req_attr.getSize(), "gray")
+
+        basemap = Image.new("RGBA", req_attr.getSize(), "white")
+        for map_agent in self.__map_agents:
+            map, attr = map_agent.genMap(req_attr, cb)
+            map = self.__genCropMap(map, attr, req_attr) #todo: refine this
+            basemap = Image.blend(basemap, map, map_agent.alpha/100.0)
+        return basemap, req_attr
+
     def __genGpsMap(self, req_attr, force=None, cb=None):
         if force not in ('all', 'gps', 'trk', 'wpt') and self.__isCacheValid(self.__cache_gpsmap, req_attr):
             #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  get gps map from cache")
             return (self.__cache_gpsmap, self.__cache_attr)
 
-        map, attr = self.__map_agent.genMap(req_attr, cb)
+        basemap, attr = self.__genBaseMap(req_attr, cb)
 
         #create gpsmap, also cache
-        self.__cache_gpsmap = map.copy()
+        self.__cache_gpsmap = basemap.copy()
         self.__cache_attr = attr
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw trk")
         self.__drawTrk(self.__cache_gpsmap, attr)
@@ -1278,6 +1303,18 @@ class MapController:
                 (px, py) = wpt.pixel(map_attr.level)
                 self.drawWayPoint(map, map_attr, wpt, "black", draw=draw)
 
+    @classmethod
+    def pasteTransparently(cls, img, img2, pos=(0,0), errmsg=None):
+        if img2.mode == 'RGBA':
+            img.paste(img2, pos, img2)
+        elif img2.mode == 'LA' or (img2.mode == 'P' and 'transparency' in img2.info):
+            mask = img2.convert('RGBA')
+            img.paste(img2, pos, mask)
+        else:
+            if errmsg: 
+                logging.warning(errmsg)
+            img.paste(img2, pos)
+
     def drawWayPoint(self, map, map_attr, wpt, txt_color, bg_color=None, draw=None):
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw wpt'", wpt.name, "'")
         #check range
@@ -1300,14 +1337,8 @@ class MapController:
             if wpt.sym is not None:
                 icon = conf.getIcon(wpt.sym)
                 if icon is not None:
-                    if icon.mode == 'RGBA':
-                        map.paste(icon, (px-adj, py-adj), icon)
-                    elif icon.mode == 'LA' or (icon.mode == 'P' and 'transparency' in icon.info):
-                        mask = icon.convert('RGBA')
-                        map.paste(icon, (px-adj, py-adj), mask)
-                    else:
-                        logging.warning("Warning: Icon for '%s' with mode %s is not ransparency" % (wpt.sym, icon.mode))
-                        map.paste(icon, (px-adj, py-adj))
+                    self.pasteTransparently(map, icon, (px-adj, py-adj),
+                            errmsg="Warning: Icon for '%s' with mode %s is not ransparency" % (wpt.sym, icon.mode))
 
             #draw point   //replace by icon
             #n = self.pt_size
@@ -1409,6 +1440,9 @@ class MapAttr:
             return MapAttr(level, self.left_px >> s, self.up_py >> s, self.right_px >> s, self.low_py >> s, self.fake_count)
         else:
             return self
+
+    def getSize(self):
+        return (self.right_px - self.left_px, self.low_py - self.up_py)
 
 class WptBoard(tk.Toplevel):
     @property
@@ -2615,6 +2649,7 @@ if __name__ == '__main__':
 
         root.title(getTitleText(args.files))
         root.geometry('950x700+200+0')
+        #root.geometry('300x300+500+500') #@@!
 
         #create display board
         pad_ = 2
@@ -2633,5 +2668,5 @@ if __name__ == '__main__':
     except Exception as ex:
         logging.error("Startup failed: %s" % str(ex,))
         messagebox.showwarning('Startup failed', str(ex))
-        #raise ex  #for debug
+        #raise ex  #@@!
 

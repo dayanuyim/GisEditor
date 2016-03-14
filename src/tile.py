@@ -631,9 +631,9 @@ class DBDiskCache(DiskCache):
 
     #the true actions which are called by Surrogate
     def __start(self):
-        logging.info('The db schema default is %s' % (self.__db_schema,))
+        logging.info("The db schema default of '%s' is %s" % (self.__map_desc.map_id, self.__db_schema))
         if not os.path.exists(self.__db_path):
-            logging.info('Initializing local cache DB...')
+            logging.info("Initializing local cache DB '%s'..." % (self.__map_desc.map_id,))
             mkdirSafely(os.path.dirname(self.__db_path))
             self.__conn = sqlite3.connect(self.__db_path)
             self.__initDB()
@@ -642,7 +642,7 @@ class DBDiskCache(DiskCache):
             self.__readMetadata()
 
     def __close(self):
-        logging.info('Closing local cache DB...')
+        logging.info("Closing local cache DB '%s'..." % (self.__map_desc.map_id,))
         self.__conn.close()
 
     @classmethod
