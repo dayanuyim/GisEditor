@@ -1222,7 +1222,6 @@ class MapController:
         if not self.__map_agents:
             return Image.new("RGBA", req_attr.getSize(), "gray")
 
-        '''
         for i in range(0, len(self.__map_agents)):
             map_agent = self.__map_agents[i]
             map, attr = map_agent.genMap(req_attr, cb)
@@ -1231,19 +1230,20 @@ class MapController:
             if i == 0:
                 basemap = map
             else:
-                print('remove bg of ', map_agent.map_id)
-                self.removebg(map)
+                #self.removebg2(map)
                 #basemap = Image.blend(basemap, map, map_agent.alpha/100.0)
-        '''
+                basemap.paste(map, (0,0), map)
 
+        '''
         basemap = Image.new("RGBA", req_attr.getSize(), "white")
         for map_agent in self.__map_agents:
             map, attr = map_agent.genMap(req_attr, cb)
             map = self.__genCropMap(map, attr, req_attr) #todo: refine this
 
-            basemap = Image.blend(basemap, map, map_agent.alpha/100.0)
+            #basemap = Image.blend(basemap, map, map_agent.alpha/100.0)
             #self.removebg2(map, map_agent.alpha/100.0)
-            #basemap = Image.composite(basemap, map, map)
+            basemap = Image.composite(basemap, map, map)
+        '''
         return basemap, req_attr
 
     def __genGpsMap(self, req_attr, force=None, cb=None):
