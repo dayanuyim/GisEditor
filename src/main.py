@@ -1196,16 +1196,54 @@ class MapController:
         min(max(0.0, alpha), 1.0)
         img.putalpha(int(255.0*alpha/100.0))
 
+    @classmethod
+    def removebg(cls, img):
+        pixdata = img.load()
+        for y in range(img.size[1]):
+            for x in range(img.size[0]):
+                if pixdata[x, y] == (255, 255, 255, 255):
+                    pixdata[x, y] = (255, 255, 255, 0)
+
+    @classmethod
+    def removebg2(cls, img, alpha):
+        alpha = int(255*alpha)
+
+        datas = img.getdata()
+        newData = []
+        for item in datas:
+            if item[0] == 255 and item[1] == 255 and item[2] == 255:
+                newData.append((255, 255, 255, 0))
+            else:
+                newData.append((item[0], item[1], item[2], alpha))
+        img.putdata(newData)
+
     #todo: not to crop all margins, reamins margin as possible
     def __genBaseMap(self, req_attr, cb=None):
         if not self.__map_agents:
             return Image.new("RGBA", req_attr.getSize(), "gray")
 
+        '''
+        for i in range(0, len(self.__map_agents)):
+            map_agent = self.__map_agents[i]
+            map, attr = map_agent.genMap(req_attr, cb)
+            map = self.__genCropMap(map, attr, req_attr) #todo: refine this
+
+            if i == 0:
+                basemap = map
+            else:
+                print('remove bg of ', map_agent.map_id)
+                self.removebg(map)
+                #basemap = Image.blend(basemap, map, map_agent.alpha/100.0)
+        '''
+
         basemap = Image.new("RGBA", req_attr.getSize(), "white")
         for map_agent in self.__map_agents:
             map, attr = map_agent.genMap(req_attr, cb)
             map = self.__genCropMap(map, attr, req_attr) #todo: refine this
+
             basemap = Image.blend(basemap, map, map_agent.alpha/100.0)
+            #self.removebg2(map, map_agent.alpha/100.0)
+            #basemap = Image.composite(basemap, map, map)
         return basemap, req_attr
 
     def __genGpsMap(self, req_attr, force=None, cb=None):
