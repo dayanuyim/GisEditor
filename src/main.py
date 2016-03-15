@@ -166,7 +166,7 @@ class MapBoard(tk.Frame):
                         if line.startswith('#') or line.isspace():
                             continue
                         id, alpha = line.split(',')
-                        item = (id, int(alpha))
+                        item = (id, float(alpha))
                         enabled_maps.append(item)
             except Exception as ex:
                 logging.error('Read user map conf error: %s' % (str(ex),))
@@ -1023,6 +1023,14 @@ class MapAgent:
         logging.info("Tile(%s,%d,%d,%d) Update is available." % (self.map_id, level, x, y))
         cb(map_attr)
 
+    @classmethod
+    def isCompleteColor(cls, img):
+        extrema = img.getextrema()
+        for _min, _max in extrema[0:3]:
+            if _min != _max:
+                return False
+        return True
+
     def __genTileMap(self, map_attr, extra_p, cb=None):
         notifier = lambda level, x, y: self.__notifyTileUpdate(level, x, y, map_attr, cb) if cb is not None else None
 
@@ -1039,6 +1047,8 @@ class MapAgent:
         for x in range(tx_num):
             for y in range(ty_num):
                 tile = self.__tile_agent.getTile(map_attr.level, t_left +x, t_upper +y, notifier)
+                if self.isCompleteColor(tile):
+                    tile.putalpha(0)  #set to be transparent, for blending maps
                 if tile.is_fake:
                     fake_count += 1
                 disp_map.paste(tile, (x*256, y*256))
@@ -1192,11 +1202,6 @@ class MapController:
                cache_attr.containsImgae(req_attr)
 
     @classmethod
-    def setAlpha(cls, img, alpha):
-        min(max(0.0, alpha), 1.0)
-        img.putalpha(int(255.0*alpha/100.0))
-
-    @classmethod
     def removebg(cls, img):
         pixdata = img.load()
         for y in range(img.size[1]):
@@ -1205,45 +1210,53 @@ class MapController:
                     pixdata[x, y] = (255, 255, 255, 0)
 
     @classmethod
-    def removebg2(cls, img, alpha):
-        alpha = int(255*alpha)
+    def __belndPixel(cls, p, q, alpha):
+        beta = 255 - alpha
+        return ((p[0]*beta + q[0]*alpha) >> 8,
+                (p[1]*beta + q[1]*alpha) >> 8,
+                (p[2]*beta + q[2]*alpha) >> 8,
+                255)
 
-        datas = img.getdata()
-        newData = []
-        for item in datas:
-            if item[0] == 255 and item[1] == 255 and item[2] == 255:
-                newData.append((255, 255, 255, 0))
-            else:
-                newData.append((item[0], item[1], item[2], alpha))
-        img.putdata(newData)
+    @classmethod
+    #alpha between 0~255
+    def blendImg(cls, baseimg, img, alpha):
+        if baseimg.size != img.size:
+            raise ValueError('blend images have different size')
+
+        result = Image.new("RGBA", img.size)
+        resultdata = result.load()
+
+        basedata = baseimg.load()
+        data = img.load()
+        for y in range(img.size[1]):
+            for x in range(img.size[0]):
+                p = basedata[x,y]
+                q = data[x,y]
+                resultdata[x,y] = cls.__belndPixel(p, q, (alpha*q[3])>>8)
+        return result
 
     #todo: not to crop all margins, reamins margin as possible
     def __genBaseMap(self, req_attr, cb=None):
-        if not self.__map_agents:
-            return Image.new("RGBA", req_attr.getSize(), "gray")
-
-        for i in range(0, len(self.__map_agents)):
-            map_agent = self.__map_agents[i]
-            map, attr = map_agent.genMap(req_attr, cb)
-            map = self.__genCropMap(map, attr, req_attr) #todo: refine this
-
-            if i == 0:
-                basemap = map
-            else:
-                #self.removebg2(map)
-                #basemap = Image.blend(basemap, map, map_agent.alpha/100.0)
-                basemap.paste(map, (0,0), map)
-
-        '''
-        basemap = Image.new("RGBA", req_attr.getSize(), "white")
+        basemap = None
         for map_agent in self.__map_agents:
+            if not map_agent.alpha:
+                continue
             map, attr = map_agent.genMap(req_attr, cb)
             map = self.__genCropMap(map, attr, req_attr) #todo: refine this
 
-            #basemap = Image.blend(basemap, map, map_agent.alpha/100.0)
-            #self.removebg2(map, map_agent.alpha/100.0)
-            basemap = Image.composite(basemap, map, map)
-        '''
+            if basemap is None:
+                if map_agent.alpha == 1.0:
+                    basemap = map 
+                else:
+                    white_img = Image.new("RGBA", map.size, "white")
+                    basemap = Image.blend(white_img, map, map_agent.alpha)
+            else:
+                #basemap.paste(map, (0,0), map)
+                basemap = self.blendImg(basemap, map, int(map_agent.alpha*255))
+
+        if basemap is None:    #no map agent, or all map agents have alpha=0
+            basemap = Image.new("RGBA", req_attr.getSize(), "gray")
+
         return basemap, req_attr
 
     def __genGpsMap(self, req_attr, force=None, cb=None):
@@ -2687,7 +2700,7 @@ if __name__ == '__main__':
 
         root.title(getTitleText(args.files))
         root.geometry('950x700+200+0')
-        #root.geometry('300x300+500+500') #@@!
+        #root.geometry('256x256+500+500') #@@!
 
         #create display board
         pad_ = 2

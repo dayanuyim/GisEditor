@@ -29,7 +29,7 @@ class MapDescriptor:
         #fields loaded from xml
         #....
         self.enabled = False
-        self.alpha = 50
+        self.alpha = 0.5
 
     def save(self, dirpath, id=None):
         root = ET.Element("customMapSource")

@@ -521,8 +521,8 @@ class MapRow(tk.Frame):
         A_MIN = 0
         A_MAX = 100
         #variable
-        map_desc.alpha = min(max(A_MIN, map_desc.alpha), A_MAX)
-        self.__alpha_var = tk.IntVar(value=map_desc.alpha)
+        alpha = int(map_desc.alpha * 100)
+        self.__alpha_var = tk.IntVar(value=alpha)
         self.__alpha_var.trace('w', self.onAlphaChanged)
         #spin
         alpha_label = tk.Label(self, text="%")
@@ -541,7 +541,7 @@ class MapRow(tk.Frame):
         self.__btn['text'] = '-' if self.__map_desc.enabled else '+'
 
     def onAlphaChanged(self, *args):
-        self.__map_desc.alpha = self.__alpha_var.get()
+        self.__map_desc.alpha = self.__alpha_var.get() / 100.0
 
 class MapSelector(pmw.ScrolledFrame):
     @property
@@ -622,7 +622,7 @@ def testMapSelector():
                 desc = MapDescriptor.parseXml(os.path.join(mapcache, f))
                 if desc.map_id in ('TM25K_2001',  'JM25K_1921'):
                     desc.enabled = True
-                    desc.alpha = 75
+                    desc.alpha = 0.75
                 map_descs.append(desc)
             except Exception as ex:
                 print("parse file '%s' error: %s" % (f, str(ex)))
