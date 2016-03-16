@@ -1026,9 +1026,14 @@ class MapAgent:
     @classmethod
     def isCompleteColor(cls, img):
         extrema = img.getextrema()
-        for _min, _max in extrema[0:3]:
-            if _min != _max:
-                return False
+        #channels = min(len(extrema), 3)
+        if img.mode == "P":
+            _min, _max = extrema
+            return _min == _max
+        else:
+            for _min, _max in extrema:
+                if _min != _max:
+                    return False
         return True
 
     def __genTileMap(self, map_attr, extra_p, cb=None):
@@ -1202,26 +1207,21 @@ class MapController:
                cache_attr.containsImgae(req_attr)
 
     @classmethod
-    def removebg(cls, img):
-        pixdata = img.load()
-        for y in range(img.size[1]):
-            for x in range(img.size[0]):
-                if pixdata[x, y] == (255, 255, 255, 255):
-                    pixdata[x, y] = (255, 255, 255, 0)
-
-    @classmethod
-    def __belndPixel(cls, p, q, alpha):
+    def __combinePixel(cls, p, q, alpha):
         beta = 255 - alpha
         return ((p[0]*beta + q[0]*alpha) >> 8,
                 (p[1]*beta + q[1]*alpha) >> 8,
                 (p[2]*beta + q[2]*alpha) >> 8,
                 255)
 
+    #deprecated, the function looks poor perfomace
+    #alpha between 0.0~1.0
     @classmethod
-    #alpha between 0~255
-    def blendImg(cls, baseimg, img, alpha):
+    def combineMap2(cls, baseimg, img, alpha):
         if baseimg.size != img.size:
             raise ValueError('blend images have different size')
+
+        alpha = int(alpha*255)
 
         result = Image.new("RGBA", img.size)
         resultdata = result.load()
@@ -1232,8 +1232,28 @@ class MapController:
             for x in range(img.size[0]):
                 p = basedata[x,y]
                 q = data[x,y]
-                resultdata[x,y] = cls.__belndPixel(p, q, (alpha*q[3])>>8)
+                #resultdata[x,y] = cls.__combinePixel(p, q, (alpha*q[3])>>8)
+                resultdata[x,y] = cls.__combinePixel(p, q, min(alpha, q[3]))
         return result
+
+    @classmethod
+    def imageIsTransparent(cls, img):
+        #channel alpha's min value != 255
+        if img.mode == 'RGBA' and img.getextrema()[3][0] != 255:
+            return True
+        if img.mode == 'LA':
+            return True
+        if img.mode == 'P' and 'transparency' in img.info:
+            return True
+        return False
+
+    #alpha between 0.0~1.0
+    @classmethod
+    def combineMap(cls, basemap, map, alpha):
+        if cls.imageIsTransparent(map):
+            return Image.alpha_composite(basemap, map)
+        else:
+            return Image.blend(basemap, map, alpha)
 
     #todo: not to crop all margins, reamins margin as possible
     def __genBaseMap(self, req_attr, cb=None):
@@ -1243,16 +1263,18 @@ class MapController:
                 continue
             map, attr = map_agent.genMap(req_attr, cb)
             map = self.__genCropMap(map, attr, req_attr) #todo: refine this
+            logging.debug('The map %s is transparent: %s' % (map_agent.map_id, self.imageIsTransparent(map)))
 
+            #set 1st map as basemap
             if basemap is None:
                 if map_agent.alpha == 1.0:
                     basemap = map 
                 else:
                     white_img = Image.new("RGBA", map.size, "white")
-                    basemap = Image.blend(white_img, map, map_agent.alpha)
+                    basemap = self.combineMap(white_img, map, map_agent.alpha)
+            #blend map with basemap
             else:
-                #basemap.paste(map, (0,0), map)
-                basemap = self.blendImg(basemap, map, int(map_agent.alpha*255))
+                basemap = self.combineMap(basemap, map, map_agent.alpha)
 
         if basemap is None:    #no map agent, or all map agents have alpha=0
             basemap = Image.new("RGBA", req_attr.getSize(), "gray")
