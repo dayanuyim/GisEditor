@@ -184,6 +184,7 @@ class TileAgent:
     TILE_NOT_IN_MEM  = 1
     TILE_NOT_IN_DISK = 2
     TILE_REQ         = 3
+    TILE_REQ_FAILED  = 4
 
     #properties from map_desc
     @property
@@ -285,7 +286,7 @@ class TileAgent:
             tile_img = Image.open(BytesIO(tile_data))
             self.__mem_cache.set(id, self.TILE_VALID, tile_img)
         else:
-            self.__mem_cache.set(id, self.TILE_NOT_IN_DISK)
+            self.__mem_cache.set(id, self.TILE_REQ_FAILED)
 
         #done the download
         #(do this before thread exit, to ensure monitor is notified)
@@ -372,6 +373,8 @@ class TileAgent:
         if level > self.level_max or level < self.level_min:
             raise ValueError("level is out of range")
 
+        has_change_status = False
+
         id = self.genTileId(level, x, y)
         img, status, ts = self.__mem_cache.get(id)      #READ FROM memory
 
@@ -380,15 +383,21 @@ class TileAgent:
             if img is not None:
                 self.__mem_cache.set(id, self.TILE_VALID, img)
                 return img
-            if not auto_req:
-                self.__mem_cache.set(id, self.TILE_NOT_IN_DISK)
+            has_change_status = True
+            status = self.TILE_NOT_IN_DISK  #go through to the next status
+
+        if status == self.TILE_REQ_FAILED:
+            if (datetime.now() - ts).seconds < 60: #todo: user to specify retry period
                 return None
+            has_change_status = True
             status = self.TILE_NOT_IN_DISK  #go through to the next status
 
         if status == self.TILE_NOT_IN_DISK:
             if auto_req:
                 self.__mem_cache.set(id, self.TILE_REQ)
                 self.__requestTile(id, level, x, y, cb) #READ FROM WMTS (async)
+            elif has_change_status:
+                self.__mem_cache.set(id, self.TILE_NOT_IN_DISK)
             return None
         elif status == self.TILE_VALID:
             return img
