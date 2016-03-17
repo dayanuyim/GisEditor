@@ -1052,8 +1052,8 @@ class MapAgent:
         for x in range(tx_num):
             for y in range(ty_num):
                 tile = self.__tile_agent.getTile(map_attr.level, t_left +x, t_upper +y, notifier)
-                if self.isCompleteColor(tile):
-                    tile.putalpha(0)  #set to be transparent, for blending maps
+                #if self.isCompleteColor(tile):
+                    #tile.putalpha(0)  #set to be transparent, for blending maps
                 if tile.is_fake:
                     fake_count += 1
                 disp_map.paste(tile, (x*256, y*256))
