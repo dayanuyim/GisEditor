@@ -849,7 +849,7 @@ class MapBoard(tk.Frame):
             should_update = False
             with self.__map_req_lock:
                 #logging.debug("[MapUpdater] %s" % ('map attr is None' if self.__map_attr is None else 'map attr is not None',))
-                #logging.debug("[MapUpdater] fake cout=%s" % (str(self.__map_attr.fake_count) if self.__map_attr else "NA",))
+                #logging.debug("[MapUpdater] fail cout=%s" % (str(self.__map_attr.fail_count) if self.__map_attr else "NA",))
                 #logging.debug("[MapUpdater] time diff=%d sec" % ((datetime.now()-self.__map_req_time).seconds,))
                 #logging.debug("[MapUpdater] %s" % ('has update' if self.__map_has_update else 'no update',))
 
@@ -866,7 +866,7 @@ class MapBoard(tk.Frame):
     def __notifyMapUpdate(self, map_attr):
         with self.__map_req_lock:
             if self.__map_attr is not None and \
-               self.__map_attr.fake_count and \
+               self.__map_attr.fail_count and \
                self.__map_attr.containsImgae(map_attr):
                 self.__map_has_update = True
 
@@ -888,8 +888,8 @@ class MapBoard(tk.Frame):
         self.__setMap(self.__map)
 
         #set status
-        if self.__map_attr.fake_count:
-            txt = "Map Loading...(%d)" % (self.__map_attr.fake_count,)
+        if self.__map_attr.fail_count:
+            txt = "Map Loading...(%d)" % (self.__map_attr.fail_count,)
             logging.info(txt)
             self.setStatus(txt)
         else:
@@ -954,7 +954,7 @@ class MapAgent:
         cache_attr = self.__cache_attr
         return cache_map is not None and \
                cache_attr is not None and \
-               not cache_attr.fake_count and \
+               not cache_attr.fail_count and \
                cache_attr.containsImgae(req_attr)
 
     def genMap(self, req_attr, cb=None):
@@ -1037,6 +1037,8 @@ class MapAgent:
         return True
 
     def __genTileMap(self, map_attr, extra_p, cb=None):
+        SIDE = 256
+
         notifier = lambda level, x, y: self.__notifyTileUpdate(level, x, y, map_attr, cb) if cb is not None else None
 
         #get tile x, y.
@@ -1045,22 +1047,28 @@ class MapAgent:
         ty_num = t_lower - t_upper +1
 
         #gen image
-        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "paste tile...")
-        disp_map = Image.new("RGBA", (tx_num*256, ty_num*256))
-        fake_count = 0
-        self.__paste_count = tx_num*ty_num
+        logging.debug("pasting tile...")
+
+        disp_map = None
+        fail_count = 0
+        disp_map = Image.new("RGBA", (tx_num*SIDE, ty_num*SIDE), 'lightgray')
+
         for x in range(tx_num):
             for y in range(ty_num):
                 tile = self.__tile_agent.getTile(map_attr.level, t_left +x, t_upper +y, notifier)
                 #if self.isCompleteColor(tile):
                     #tile.putalpha(0)  #set to be transparent, for blending maps
-                if tile.is_fake:
-                    fake_count += 1
-                disp_map.paste(tile, (x*256, y*256))
-        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "paste tile...done")
+
+                if tile is None or tile.is_fake:
+                    fail_count += 1
+
+                if tile is not None:
+                    disp_map.paste(tile, (x*SIDE, y*SIDE))
+
+        logging.debug("pasting tile...done")
 
         #reset map_attr
-        disp_attr = MapAttr(map_attr.level, t_left*256, t_upper*256, (t_right+1)*256 -1, (t_lower+1)*256 -1, fake_count)
+        disp_attr = MapAttr(map_attr.level, t_left*SIDE, t_upper*SIDE, (t_right+1)*SIDE -1, (t_lower+1)*SIDE -1, fail_count)
 
         return  (disp_map, disp_attr)
 
@@ -1196,14 +1204,14 @@ class MapController:
         self.__drawTM2Coord(map, req_attr)
 
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: done")
-        req_attr.fake_count = attr.fake_count
+        req_attr.fail_count = attr.fail_count
         return map, req_attr
 
     def __isCacheValid(self, cache_map, req_attr):
         cache_attr = self.__cache_attr
         return cache_map and \
                cache_attr and \
-               cache_attr.fake_count == 0 and \
+               cache_attr.fail_count == 0 and \
                cache_attr.containsImgae(req_attr)
 
     @classmethod
@@ -1256,12 +1264,21 @@ class MapController:
             return Image.blend(basemap, map, alpha)
 
     #todo: not to crop all margins, reamins margin as possible
+    #todo: return proper attr
     def __genBaseMap(self, req_attr, cb=None):
         basemap = None
+        fail_count = 0
+
         for map_agent in self.__map_agents:
             if not map_agent.alpha:
                 continue
             map, attr = map_agent.genMap(req_attr, cb)
+
+            fail_count += attr.fail_count
+
+            if map is None:
+                continue
+
             map = self.__genCropMap(map, attr, req_attr) #todo: refine this
             logging.debug('The map %s is transparent: %s' % (map_agent.map_id, self.imageIsTransparent(map)))
 
@@ -1277,7 +1294,9 @@ class MapController:
                 basemap = self.combineMap(basemap, map, map_agent.alpha)
 
         if basemap is None:    #no map agent, or all map agents have alpha=0
-            basemap = Image.new("RGBA", req_attr.getSize(), "gray")
+            basemap = Image.new("RGBA", req_attr.getSize(), "lightgray")
+
+        req_attr.fail_count = fail_count
 
         return basemap, req_attr
 
@@ -1481,14 +1500,14 @@ class MapController:
 
 #record image atrr
 class MapAttr:
-    def __init__(self, level, left_px, up_py, right_px, low_py, fake_count):
+    def __init__(self, level, left_px, up_py, right_px, low_py, fail_count):
         #self.img = None
         self.level = level
         self.left_px = left_px
         self.up_py = up_py
         self.right_px = right_px
         self.low_py = low_py
-        self.fake_count = fake_count
+        self.fail_count = fail_count
 
     def containsImgae(self, attr):
         if self.level == attr.level and \
@@ -1507,10 +1526,10 @@ class MapAttr:
     def zoomToLevel(self, level):
         if level > self.level:
             s = level - self.level
-            return MapAttr(level, self.left_px << s, self.up_py << s, self.right_px << s, self.low_py << s, self.fake_count)
+            return MapAttr(level, self.left_px << s, self.up_py << s, self.right_px << s, self.low_py << s, self.fail_count)
         elif self.level > level:
             s = self.level - level
-            return MapAttr(level, self.left_px >> s, self.up_py >> s, self.right_px >> s, self.low_py >> s, self.fake_count)
+            return MapAttr(level, self.left_px >> s, self.up_py >> s, self.right_px >> s, self.low_py >> s, self.fail_count)
         else:
             return self
 

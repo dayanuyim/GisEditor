@@ -442,6 +442,8 @@ class TileAgent:
                 return img
         return None
 
+    #gen fake from lower/higher level
+    #return None if not avaliable
     def __genFakeTile(self, level, x, y):
         #gen from lower level
         level_diff = min(level - self.level_min, 3)
@@ -455,22 +457,19 @@ class TileAgent:
         if img:
             return img
 
-        #gen empty
-        side = self.tile_side
-        bg = 'lightgray'
-        img = Image.new("RGBA", (side, side), bg)
-        return img
+        return None
 
     def getTile(self, level, x, y, cb=None, allow_fake=True):
         img = self.__getTile(level, x, y, True, cb)
-        if img:
+        if img is not None:
             img.is_fake = False
             return img
 
         if allow_fake:
             img = self.__genFakeTile(level, x, y)
-            img.is_fake = True
-            return img
+            if img is not None:
+                img.is_fake = True
+                return img
 
         return None
 
