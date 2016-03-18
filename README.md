@@ -44,7 +44,7 @@ MBTiles 下載:
 操作說明：
 ---------
 
-請見[操作手冊](https://github.com/dayanuyim/GisEditor/raw/dev/manual.md)
+請見[操作手冊](https://github.com/dayanuyim/GisEditor/blob/dev/manual.md)
 
 -------------------------------------------------------
 

@@ -34,6 +34,6 @@ MBTiles download:
 Manual
 ------
 
-Reference [manual](https://github.com/dayanuyim/GisEditor/raw/dev/manual.md).
+Reference [manual](https://github.com/dayanuyim/GisEditor/blob/dev/manual.md).
 
 ------------------------------------------------------------
