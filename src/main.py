@@ -971,8 +971,12 @@ class MapAgent:
             aprx_attr = req_attr.zoomToLevel(level)
             extra_p = self.__extra_p * 2**(level - req_attr.level)
             aprx_map, aprx_attr = self.__genTileMap(aprx_attr, extra_p, cb)
+
             #zoom to request level
-            tile_map = self.__genZoomMap(aprx_map, aprx_attr, req_attr.level)
+            if aprx_map is not None:
+                tile_map = self.__genZoomMap(aprx_map, aprx_attr, req_attr.level)
+            else:
+                tile_map = (None, aprx_attr.zoomToLevel(req_attr.level))
 
         #cache
         self.__cache_basemap, self.__cache_attr = tile_map
@@ -1036,6 +1040,7 @@ class MapAgent:
                     return False
         return True
 
+    #could return None map
     def __genTileMap(self, map_attr, extra_p, cb=None):
         SIDE = 256
 
@@ -1051,7 +1056,6 @@ class MapAgent:
 
         disp_map = None
         fail_count = 0
-        disp_map = Image.new("RGBA", (tx_num*SIDE, ty_num*SIDE), 'lightgray')
 
         for x in range(tx_num):
             for y in range(ty_num):
@@ -1063,6 +1067,8 @@ class MapAgent:
                     fail_count += 1
 
                 if tile is not None:
+                    if disp_map is None:
+                        disp_map = Image.new("RGBA", (tx_num*SIDE, ty_num*SIDE), 'lightgray')
                     disp_map.paste(tile, (x*SIDE, y*SIDE))
 
         logging.debug("pasting tile...done")
@@ -1275,7 +1281,7 @@ class MapController:
             maps.append((map, attr, map_agent.alpha))
             attrs.append(attr)
             fail_count += attr.fail_count
-            logging.debug('The map %s is transparent: %s' % (map_agent.map_id, self.imageIsTransparent(map)))
+            logging.debug('The map %s is transparent: %s' % (map_agent.map_id, "NA" if map is None else self.imageIsTransparent(map)))
 
         #create attr
         baseattr = req_attr.clone() if not attrs else \
@@ -1287,6 +1293,7 @@ class MapController:
         for map, attr, alpha in maps:
             if map is None:
                 continue
+
             map = self.__genCropMap(map, attr, baseattr)
             basemap = self.combineMap(basemap, map, alpha)
 
