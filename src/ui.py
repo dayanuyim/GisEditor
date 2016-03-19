@@ -23,7 +23,10 @@ class Dialog(tk.Toplevel):
         self.withdraw()  #hidden
         self._visible = tk.BooleanVar(value=False)
 
-    def show(self):
+    def show(self, pos=None):
+        if pos is not None:
+            self.geometry('+%d+%d' % pos)
+
         #UI
         self.transient(self.master)  #remove max/min buttons
         self.focus_set()  #prevent key-press sent back to parent

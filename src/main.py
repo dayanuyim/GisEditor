@@ -22,6 +22,7 @@ from threading import Lock, Thread
 #my modules
 import conf
 import util
+from ui import Dialog, MapSelector
 from gpx import GpsDocument, WayPoint
 from pic import PicDocument
 from sym import SymRuleType, SymRule
@@ -237,8 +238,8 @@ class MapBoard(tk.Frame):
         self.__canvas_sel_area = None
 
         #info
-        info_frame = self.initMapInfo()
-        info_frame.pack(side='top', expand=0, fill='x', anchor='nw')
+        self.__info_frame = self.initMapInfo()
+        self.__info_frame.pack(side='top', expand=0, fill='x', anchor='nw')
         self.setMapInfo()
 
         #status
@@ -309,13 +310,17 @@ class MapBoard(tk.Frame):
     def initMapInfo(self):
         font = 'Arialuni 12'
         bfont = font + ' bold'
+        bfont_10 = 'Arialuni 10 bold'
 
         frame = tk.Frame(self, relief='ridge', bd=1)
 
         #title
-        info_mapname = tk.Label(frame, font=bfont, bg='lightgray')
+        info_mapname = tk.Label(frame, font=bfont, anchor='nw', bg='lightgray')
         info_mapname.pack(side='left', expand=0, anchor='nw')
         info_mapname['text'] = self.map_ctrl.map_title
+
+        map_btn = tk.Button(frame, text="<<", relief='groove', command=self.OnMapSelected)
+        map_btn.pack(side='left', expand=0, anchor='nw')
 
         #level
         self.__info_level = self.__genInfoWidget(frame, font, 'Level', 2, self.onSetLevel)
@@ -370,6 +375,21 @@ class MapBoard(tk.Frame):
 
     
     #{{{ Events
+    def __getMapDescriptors(self):
+        pos = (self.master.winfo_x(), self.master.winfo_y() + self.__info_frame.winfo_height())
+
+        dialog = Dialog(self)
+        selector = MapSelector(dialog, self.__map_descs)
+        selector.pack(side='top', anchor='nw', expand=0)
+        dialog.show(pos)
+
+        return selector.map_descriptors
+
+    def OnMapSelected(self):
+        descs = self.__getMapDescriptors()
+        #for desc in descs:
+        #    print(desc.map_id, desc.alpha, desc.enabled)
+
     def onSetLevel(self, e):
         if self.inSaveMode():
             return
