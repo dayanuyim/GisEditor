@@ -1263,42 +1263,34 @@ class MapController:
         else:
             return Image.blend(basemap, map, alpha)
 
-    #todo: not to crop all margins, reamins margin as possible
-    #todo: return proper attr
     def __genBaseMap(self, req_attr, cb=None):
-        basemap = None
-        fail_count = 0
 
+        maps = []
+        attrs = []
+        fail_count = 0
         for map_agent in self.__map_agents:
             if not map_agent.alpha:
                 continue
             map, attr = map_agent.genMap(req_attr, cb)
-
+            maps.append((map, attr, map_agent.alpha))
+            attrs.append(attr)
             fail_count += attr.fail_count
-
-            if map is None:
-                continue
-
-            map = self.__genCropMap(map, attr, req_attr) #todo: refine this
             logging.debug('The map %s is transparent: %s' % (map_agent.map_id, self.imageIsTransparent(map)))
 
-            #set 1st map as basemap
-            if basemap is None:
-                if map_agent.alpha == 1.0:
-                    basemap = map 
-                else:
-                    white_img = Image.new("RGBA", map.size, "white")
-                    basemap = self.combineMap(white_img, map, map_agent.alpha)
-            #blend map with basemap
-            else:
-                basemap = self.combineMap(basemap, map, map_agent.alpha)
+        #create attr
+        baseattr = req_attr.clone() if not attrs else \
+                   MapAttr.getMaxOverlapAttr(attrs)
+        baseattr.fail_count = fail_count
 
-        if basemap is None:    #no map agent, or all map agents have alpha=0
-            basemap = Image.new("RGBA", req_attr.getSize(), "lightgray")
+        #create basemap
+        basemap = Image.new("RGBA", baseattr.size, "white")
+        for map, attr, alpha in maps:
+            if map is None:
+                continue
+            map = self.__genCropMap(map, attr, baseattr)
+            basemap = self.combineMap(basemap, map, alpha)
 
-        req_attr.fail_count = fail_count
-
-        return basemap, req_attr
+        return basemap, baseattr
 
     def __genGpsMap(self, req_attr, force=None, cb=None):
         if force not in ('all', 'gps', 'trk', 'wpt') and self.__isCacheValid(self.__cache_gpsmap, req_attr):
@@ -1500,6 +1492,10 @@ class MapController:
 
 #record image atrr
 class MapAttr:
+    @property
+    def size(self):
+        return (self.right_px - self.left_px, self.low_py - self.up_py)
+
     def __init__(self, level, left_px, up_py, right_px, low_py, fail_count):
         #self.img = None
         self.level = level
@@ -1508,6 +1504,9 @@ class MapAttr:
         self.right_px = right_px
         self.low_py = low_py
         self.fail_count = fail_count
+
+    def clone(self):
+        return MapAttr(self.level, self.left_px, self.up_py, self.right_px, self.low_py, self.fail_count)
 
     def containsImgae(self, attr):
         if self.level == attr.level and \
@@ -1533,8 +1532,30 @@ class MapAttr:
         else:
             return self
 
-    def getSize(self):
-        return (self.right_px - self.left_px, self.low_py - self.up_py)
+    @classmethod
+    def getMaxOverlapAttr(cls, attrs, fail_count_method=None):
+        if not attrs:
+            return None
+
+        res = attrs[0].clone()
+        res.fail_count = 0
+
+        for attr in attrs:
+            if res.level != attr.level:
+                raise ValueError('No match map level to compare')
+
+            res.left_px  = max(res.left_px,  attr.left_px)
+            res.up_py    = max(res.up_py,    attr.up_py)
+            res.right_px = min(res.right_px, attr.right_px)
+            res.low_py   = min(res.low_py,   attr.low_py)
+
+            #fail_count
+            if not fail_count_method:
+                continue
+            elif fail_count_method == "sum":
+                res.fail_count += attr.fail_count
+
+        return res
 
 class WptBoard(tk.Toplevel):
     @property
