@@ -25,7 +25,7 @@ import util
 from gpx import GpsDocument, WayPoint
 from pic import PicDocument
 from sym import SymRuleType, SymRule
-from util import GeoPoint, getPrefCornerPos, AreaSelector, AreaSizeTooLarge, DrawGuard
+from util import GeoPoint, getPrefCornerPos, AreaSelector, AreaSizeTooLarge, DrawGuard, imageIsTransparent
 from tile import TileAgent, MapDescriptor
 
 #print to console/log and messagebox (generalize this with LOG, moving to util.py)
@@ -1250,21 +1250,10 @@ class MapController:
                 resultdata[x,y] = cls.__combinePixel(p, q, min(alpha, q[3]))
         return result
 
-    @classmethod
-    def imageIsTransparent(cls, img):
-        #channel alpha's min value != 255
-        if img.mode == 'RGBA' and img.getextrema()[3][0] != 255:
-            return True
-        if img.mode == 'LA':
-            return True
-        if img.mode == 'P' and 'transparency' in img.info:
-            return True
-        return False
-
     #alpha between 0.0~1.0
     @classmethod
     def combineMap(cls, basemap, map, alpha):
-        if cls.imageIsTransparent(map):
+        if imageIsTransparent(map):
             return Image.alpha_composite(basemap, map)
         else:
             return Image.blend(basemap, map, alpha)
@@ -1281,7 +1270,7 @@ class MapController:
             maps.append((map, attr, map_agent.alpha))
             attrs.append(attr)
             fail_count += attr.fail_count
-            logging.debug('The map %s is transparent: %s' % (map_agent.map_id, "NA" if map is None else self.imageIsTransparent(map)))
+            logging.debug('The map %s is transparent: %s' % (map_agent.map_id, "NA" if map is None else imageIsTransparent(map)))
 
         #create attr
         baseattr = req_attr.clone() if not attrs else \

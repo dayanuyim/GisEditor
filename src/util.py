@@ -23,6 +23,17 @@ class DrawGuard:
         if self.__draw is not None:
             del self.__draw
 
+def imageIsTransparent(img):
+    if img is None:
+        raise ValueError("img is None for transparent detect")
+    if img.mode == 'RGBA' and img.getextrema()[3][0] != 255:
+        return True
+    if img.mode == 'LA':
+        return True
+    if img.mode == 'P' and 'transparency' in img.info:
+        return True
+    return False
+
 def saveXml(xml_root, filepath, enc="UTF-8"):
     #no fromat
     #tree = ET.ElementTree(element=root)
