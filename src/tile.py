@@ -251,6 +251,14 @@ class TileAgent:
         if self.__disk_cache is not None:
             self.__disk_cache.close()
 
+    def pause(self):
+        #todo
+        pass
+
+    def resume(self):
+        #todo
+        pass
+
     def isSupportedLevel(self, level):
         return self.level_min <= level and level <= self.level_max
 

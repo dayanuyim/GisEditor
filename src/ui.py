@@ -3,6 +3,7 @@
 import tkinter as tk
 import Pmw as pmw
 import platform
+import logging
 from PIL import ImageTk
 from tkinter import ttk, messagebox
 from tile import MapDescriptor
@@ -544,7 +545,12 @@ class MapRow(tk.Frame):
         self.__btn['text'] = '-' if self.__map_desc.enabled else '+'
 
     def onAlphaChanged(self, *args):
-        self.__map_desc.alpha = self.__alpha_var.get() / 100.0
+        try:
+            self.__map_desc.alpha = self.__alpha_var.get() / 100.0
+        except Exception as ex:
+            logging.warning("get alpha value error: " + str(ex))
+            self.__map_desc.alpha = 0.0
+
 
 class MapSelector(pmw.ScrolledFrame):
     @property

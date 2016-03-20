@@ -212,7 +212,7 @@ class MapBoard(tk.Frame):
         super().__init__(master)
 
         self.__map_descs = self.__getUserMapDescriptors()
-        self.map_ctrl = MapController(self, self.__map_descs)
+        self.__map_ctrl = MapController(self, self.__map_descs)
 
         #board
         self.__is_closed = False
@@ -317,9 +317,9 @@ class MapBoard(tk.Frame):
         #title
         info_mapname = tk.Label(frame, font=bfont, anchor='nw', bg='lightgray')
         info_mapname.pack(side='left', expand=0, anchor='nw')
-        info_mapname['text'] = self.map_ctrl.map_title
+        info_mapname['text'] = self.__map_ctrl.map_title
 
-        map_btn = tk.Button(frame, text="<<", relief='groove', command=self.OnMapSelected)
+        map_btn = tk.Button(frame, text="<", relief='groove', border=2, command=self.OnMapSelected)
         map_btn.pack(side='left', expand=0, anchor='nw')
 
         #level
@@ -369,7 +369,7 @@ class MapBoard(tk.Frame):
         self.__is_closed = True
         if self.inSaveMode():
             self.__canvas_sel_area.exit()
-        self.map_ctrl.close()
+        self.__map_ctrl.close()
 
     #}}} operations
 
@@ -387,8 +387,9 @@ class MapBoard(tk.Frame):
 
     def OnMapSelected(self):
         descs = self.__getMapDescriptors()
-        #for desc in descs:
-        #    print(desc.map_id, desc.alpha, desc.enabled)
+
+        self.__map_ctrl.configMap(descs)
+        self.resetMap()
 
     def onSetLevel(self, e):
         if self.inSaveMode():
@@ -401,7 +402,7 @@ class MapBoard(tk.Frame):
                 messagebox.showwarning('Bad Number', 'Please check level')
                 return
             level = min(max(conf.MIN_SUPP_LEVEL, level), conf.MAX_SUPP_LEVEL)  #limit
-            self.map_ctrl.level = level
+            self.__map_ctrl.level = level
             self.setMapInfo()
             self.resetMap()
 
@@ -428,19 +429,19 @@ class MapBoard(tk.Frame):
             raise ValueError("Code flow error to set location")
 
         #check
-        min_lon, min_lat = self.map_ctrl.lower_corner
-        max_lon, max_lat = self.map_ctrl.upper_corner
+        min_lon, min_lat = self.__map_ctrl.lower_corner
+        max_lon, max_lat = self.__map_ctrl.upper_corner
         if not (min_lat <= geo.lat and geo.lat <= max_lat and min_lon <= geo.lon and geo.lon <= max_lon):
             messagebox.showwarning('Invalid Location', 'Please check location')
             return
 
         #focus geo on map
-        self.map_ctrl.addMark(geo)
+        self.__map_ctrl.addMark(geo)
         self.setMapInfo(geo)
         self.resetMap(geo, force='wpt')
 
     def setMapInfo(self, geo=None):
-        self.__info_level.variable.set(self.map_ctrl.level)
+        self.__info_level.variable.set(self.__map_ctrl.level)
 
         if geo is not None:
             self.__info_97latlon.variable.set("%f, %f" % (geo.lat, geo.lon))
@@ -452,20 +453,20 @@ class MapBoard(tk.Frame):
 
     def addGpx(self, gpx):
         if gpx is not None:
-            self.map_ctrl.addGpxLayer(gpx)
+            self.__map_ctrl.addGpxLayer(gpx)
 
     def addWpt(self, wpt):
         if wpt is not None:
-            self.map_ctrl.addWpt(wpt)
+            self.__map_ctrl.addWpt(wpt)
 
     def __getPrefGeoPt(self):
         #prefer track point
-        for trk in self.map_ctrl.getAllTrks():
+        for trk in self.__map_ctrl.getAllTrks():
             for pt in trk:
                 return pt
 
         #wpt
-        for wpt in self.map_ctrl.getAllWpts():
+        for wpt in self.__map_ctrl.getAllWpts():
             return wpt
 
         return None
@@ -474,7 +475,7 @@ class MapBoard(tk.Frame):
         if self.inSaveMode():
             return
 
-        ctrl = self.map_ctrl
+        ctrl = self.__map_ctrl
         level = ctrl.level + (1 if delta > 0 else -1)
 
         if conf.MIN_SUPP_LEVEL <= level and level <= conf.MAX_SUPP_LEVEL:
@@ -502,7 +503,7 @@ class MapBoard(tk.Frame):
         self.setMapInfo(geo)
 
         #wpt context, if any
-        wpt = self.map_ctrl.getWptAround(geo)
+        wpt = self.__map_ctrl.getWptAround(geo)
         if wpt:
             if flag == 'left':
                 self.onEditWpt(mode='single', wpt=wpt)
@@ -583,7 +584,7 @@ class MapBoard(tk.Frame):
         self.setAlter('wpt')
 
     def onNumberWpt(self, name=None, time=None):
-        wpt_list = self.map_ctrl.getAllWpts()
+        wpt_list = self.__map_ctrl.getAllWpts()
         if name is not None:
             wpt_list = sorted(wpt_list, key=lambda wpt: wpt.name)
         elif time is not None:
@@ -597,7 +598,7 @@ class MapBoard(tk.Frame):
         self.setAlter('wpt')
 
     def onUnnumberWpt(self):
-        wpt_list = self.map_ctrl.getAllWpts()
+        wpt_list = self.__map_ctrl.getAllWpts()
         for wpt in wpt_list:
             idx = wpt.name.find(' ')
             if idx >= 0 and wpt.name[:idx].isdigit():
@@ -605,13 +606,13 @@ class MapBoard(tk.Frame):
         self.setAlter('wpt')
 
     def onToggleWptNmae(self):
-        self.map_ctrl.hide_txt = not self.map_ctrl.hide_txt
+        self.__map_ctrl.is_hide_text = not self.__map_ctrl.is_hide_text
         self.resetMap(force='wpt')
 
     def onApplySymbolRule(self):
         is_alter = False
 
-        for wpt in self.map_ctrl.getAllWpts():
+        for wpt in self.__map_ctrl.getAllWpts():
             sym = conf.getSymbol(wpt.name)
             if wpt.sym != sym:
                 wpt.sym = sym
@@ -621,7 +622,7 @@ class MapBoard(tk.Frame):
             self.setAlter('wpt')
 
     def onEditTrk(self, mode, trk=None):
-        trk_list = self.map_ctrl.getAllTrks()
+        trk_list = self.__map_ctrl.getAllTrks()
         if len(trk_list) == 0:
             messagebox.showwarning('', "No Tracks Found")
             return
@@ -657,7 +658,7 @@ class MapBoard(tk.Frame):
     def onSplitTrk(self, split_fn):
         is_alter = False
             
-        for gpx in self.map_ctrl.gpx_layers:
+        for gpx in self.__map_ctrl.gpx_layers:
             if gpx.splitTrk(split_fn):
                 is_alter = True
 
@@ -665,7 +666,7 @@ class MapBoard(tk.Frame):
             self.setAlter('trk')
 
     def onEditWpt(self, mode, wpt=None):
-        wpt_list = self.map_ctrl.getAllWpts()
+        wpt_list = self.__map_ctrl.getAllWpts()
         if len(wpt_list) == 0:
             messagebox.showwarning('', 'No Waypoints to show')
             return
@@ -686,8 +687,8 @@ class MapBoard(tk.Frame):
 
         #pos adjuster to align twd67
         def twd67PosAdjuster(pos):
-            level = self.map_ctrl.level
-            sel_geo = self.map_ctrl.geo.addPixel(pos[0], pos[1], level)
+            level = self.__map_ctrl.level
+            sel_geo = self.__map_ctrl.geo.addPixel(pos[0], pos[1], level)
             #adjust to twd67
             x = round(sel_geo.twd67_x/1000)*1000
             y = round(sel_geo.twd67_y/1000)*1000
@@ -696,9 +697,9 @@ class MapBoard(tk.Frame):
 
         #convert Geo Diff to Pixel diff, x/y->w/h
         def twd67GeoScaler(xy):
-            level = self.map_ctrl.level
-            #sel_geo = self.map_ctrl.geo.addPixel(pos[0], pos[1], level)
-            sel_geo = self.map_ctrl.geo #use pos(0,0) as ref
+            level = self.__map_ctrl.level
+            #sel_geo = self.__map_ctrl.geo.addPixel(pos[0], pos[1], level)
+            sel_geo = self.__map_ctrl.geo #use pos(0,0) as ref
             x = sel_geo.twd67_x + xy[0]*1000
             y = sel_geo.twd67_y - xy[1]*1000
             ext_geo = GeoPoint(twd67_x=x, twd67_y=y)
@@ -725,15 +726,15 @@ class MapBoard(tk.Frame):
 
             #output
             out_level = conf.SELECT_AREA_LEVEL
-            org_level = self.map_ctrl.level
+            org_level = self.__map_ctrl.level
             w, h = self.__canvas_sel_area.size
             x, y = self.__canvas_sel_area.pos
             #bounding geo
-            sel_geo = self.map_ctrl.geo.addPixel(x, y, org_level)  #upper-left
+            sel_geo = self.__map_ctrl.geo.addPixel(x, y, org_level)  #upper-left
             ext_geo = sel_geo.addPixel(w, h, org_level)            #lower-right
             dx, dy = ext_geo.diffPixel(sel_geo, out_level)
             #get map
-            map, attr = self.map_ctrl.getMap(dx, dy, geo=sel_geo, level=out_level)
+            map, attr = self.__map_ctrl.getMap(dx, dy, geo=sel_geo, level=out_level)
             map.save(fpath, format='png')
 
         except AreaSizeTooLarge as ex:
@@ -753,7 +754,7 @@ class MapBoard(tk.Frame):
 
         #gen gpx faile
         doc = GpsDocument()
-        for gpx in self.map_ctrl.gpx_layers:
+        for gpx in self.__map_ctrl.gpx_layers:
             doc.merge(gpx)
 
         #save
@@ -778,16 +779,16 @@ class MapBoard(tk.Frame):
 
             #print("change from ", self.__left_click_pos, " to " , (event.x, event.y))
             (last_x, last_y) = self.__left_click_pos
-            self.map_ctrl.shiftGeoPixel(last_x - event.x, last_y - event.y)
+            self.__map_ctrl.shiftGeoPixel(last_x - event.x, last_y - event.y)
             self.setMapInfo()
             self.resetMap()
 
             self.__left_click_pos = (event.x, event.y)
 
     def getGeoPointAt(self, px, py):
-        px += self.map_ctrl.px
-        py += self.map_ctrl.py
-        return GeoPoint(px=px, py=py, level=self.map_ctrl.level)
+        px += self.__map_ctrl.px
+        py += self.__map_ctrl.py
+        return GeoPoint(px=px, py=py, level=self.__map_ctrl.level)
 
     def onMotion(self, event):
         if self.inSaveMode():
@@ -795,7 +796,7 @@ class MapBoard(tk.Frame):
         geo = self.getGeoPointAt(event.x, event.y)
 
         #draw point
-        curr_wpt = self.map_ctrl.getWptAround(geo)
+        curr_wpt = self.__map_ctrl.getWptAround(geo)
         prev_wpt = self.__focused_wpt
         if curr_wpt != prev_wpt:
             self.highlightWpt(curr_wpt, prev_wpt)
@@ -816,14 +817,14 @@ class MapBoard(tk.Frame):
         if wpt is not None:
             #print('highlight wpt', wpt.name)
             map = self.__map.copy()
-            self.map_ctrl.drawWayPoint(map, self.__map_attr, wpt, 'red', 'white')
+            self.__map_ctrl.drawWayPoint(map, self.__map_attr, wpt, 'red', 'white')
             self.__setMap(map)
 
     def highlightTrk(self, pts):
         if pts is None or len(pts) == 0:
             return
         map = self.__map.copy()
-        self.map_ctrl.drawTrkPoint(map, self.__map_attr, pts, 'orange', 'black', width=8)
+        self.__map_ctrl.drawTrkPoint(map, self.__map_attr, pts, 'orange', 'black', width=8)
         self.__setMap(map)
 
     def onWptDeleted(self, wpt=None, prompt=True):
@@ -835,7 +836,7 @@ class MapBoard(tk.Frame):
             wpt = self.__focused_wpt
             self.__focused_wpt = None
 
-        self.map_ctrl.deleteWpt(wpt)
+        self.__map_ctrl.deleteWpt(wpt)
         self.setAlter('wpt')
         return True
 
@@ -895,14 +896,14 @@ class MapBoard(tk.Frame):
         if h is None: h = self.disp_canvas.winfo_height()
 
         if geo is not None:
-            self.map_ctrl.geo = geo
-            self.map_ctrl.shiftGeoPixel(-w/2, -h/2)
+            self.__map_ctrl.geo = geo
+            self.__map_ctrl.shiftGeoPixel(-w/2, -h/2)
 
         #request map
         with self.__map_req_lock:
             self.__map_has_update = False #reset flag
             self.__map_req_time = datetime.now()
-            self.__map, self.__map_attr = self.map_ctrl.getMap(w, h, force, cb=self.__notifyMapUpdate)  #buffer the image
+            self.__map, self.__map_attr = self.__map_ctrl.getMap(w, h, force, cb=self.__notifyMapUpdate)  #buffer the image
 
         #set map
         self.__setMap(self.__map)
@@ -967,6 +968,16 @@ class MapAgent:
 
     def close(self):
         self.__tile_agent.close()
+
+    def pause(self):
+        self.__tile_agent.pause()
+
+    def resume(self):
+        self.__tile_agent.resume()
+
+    def isRunning(self):
+        #todo
+        return True
 
     #todo: refine this to reduce repeat
     def __isCacheValid(self, req_attr):
@@ -1098,6 +1109,7 @@ class MapAgent:
 
         return  (disp_map, disp_attr)
 
+#todo: what is the class's purpose?, suggest to reconsider
 class MapController:
 
     #{{ properties
@@ -1144,39 +1156,65 @@ class MapController:
     @level.setter
     def level(self, v): self.__level = v
 
+    @property
+    def gpx_layers(self):
+        return self.__gpx_layers
+
+    @property
+    def is_hide_text(self): return self.__is_hide_text
+
+    @is_hide_text.setter
+    def is_hide_text(self, v): self.__is_hide_text = v
+
     def __init__(self, parent, map_descs):
         #def settings
         self.__parent = parent
-        self.__map_desc = map_descs[0] #todo: load multi map
-        self.__map_agents = []
-        for desc in map_descs:
-            if desc.enabled:
-                self.__map_agents.insert(0, MapAgent(desc, conf.CACHE_DIR)) #reversed order
+        self.__map_desc = map_descs[0] #todo: remove this due to supportment of multi map
+        self.__map_descs = None
+        self.__map_agents = {}
         self.__geo = GeoPoint(lon=121.334754, lat=24.987969)  #default location
         self.__level = 14
 
         #image
         self.__cache_gpsmap = None
         self.__cache_attr = None
-        self.pt_size = 3
         self.__font = conf.IMG_FONT
-        self.hide_txt = False
+        self.__is_hide_text = False
 
         #layer
         self.__mark_wpt = None
         self.__pseudo_gpx = GpsDocument()  #to hold waypoints which not read from gpx
-        self.gpx_layers = []
-        self.gpx_layers.append(self.__pseudo_gpx)
+        self.__gpx_layers = [self.__pseudo_gpx]
+
+        #configmap
+        self.configMap(map_descs)
 
     def close(self):
-        for map_agent in self.__map_agents:
-            map_agent.close()
+        for agent in self.__map_agents.values():
+            agent.close()
+
+    def configMap(self, descs):
+        #config agents
+        for desc in descs:
+            agent = self.__map_agents.get(desc)
+            if agent is not None:
+                if desc.enabled:
+                    agent.resume()
+                else:
+                    agent.pause()
+            elif desc.enabled:
+                self.__map_agents[desc] = MapAgent(desc, conf.CACHE_DIR)
+
+        #config desc
+        self.__map_descs = descs
+        self.__cache_gpsmap = None
+        self.__cache_attr = None
 
     def shiftGeoPixel(self, px, py):
         self.geo = self.geo.addPixel(int(px), int(py), self.__level)
 
     def addGpxLayer(self, gpx):
-        self.gpx_layers.append(gpx)
+        self.__gpx_layers.append(gpx)
 
     def addWpt(self, wpt):
         self.__pseudo_gpx.addWpt(wpt)
@@ -1187,20 +1225,20 @@ class MapController:
         self.__mark_wpt = wpt
 
     def deleteWpt(self, wpt):
-        for gpx in self.gpx_layers:
+        for gpx in self.__gpx_layers:
             if wpt in gpx.way_points:
                 gpx.way_points.remove(wpt)
 
     def getAllWpts(self):
         wpts = []
-        for gpx in self.gpx_layers:
+        for gpx in self.__gpx_layers:
             for wpt in gpx.way_points:
                 wpts.append(wpt)
         return wpts
 
     def getAllTrks(self):
         trks = []
-        for gpx in self.gpx_layers:
+        for gpx in self.__gpx_layers:
             for trk in gpx.tracks:
                 trks.append(trk)
         return trks
@@ -1278,28 +1316,45 @@ class MapController:
         else:
             return Image.blend(basemap, map, alpha)
 
-    def __genBaseMap(self, req_attr, cb=None):
-
+    def __getMaps(self, req_attr, cb=None):
         maps = []
-        attrs = []
-        fail_count = 0
-        for map_agent in self.__map_agents:
-            if not map_agent.alpha:
+        for desc in self.__map_descs:
+            if not desc.enabled:
+                logging.debug("map " + desc.map_id + " is not enabled")
                 continue
-            map, attr = map_agent.genMap(req_attr, cb)
-            maps.append((map, attr, map_agent.alpha))
-            attrs.append(attr)
-            fail_count += attr.fail_count
-            logging.debug('The map %s is transparent: %s' % (map_agent.map_id, "NA" if map is None else imageIsTransparent(map)))
+
+            if not desc.alpha:
+                logging.debug("map " + desc.map_id + " has zero alpha")
+                continue
+
+            #get
+            agent = self.__map_agents.get(desc)
+            if agent is None or not agent.isRunning():
+                logging.error('map agent has Bad Configuration.')
+                continue
+
+            #create map
+            map, attr = agent.genMap(req_attr, cb)
+            maps.append((map, attr, desc.alpha))
+
+            #logging.debug('The map %s is transparent: %s' % (desc.map_id, "NA" if map is None else imageIsTransparent(map)))
+        return maps
+
+    def __genBaseMap(self, req_attr, cb=None):
+        maps = self.__getMaps(req_attr, cb)
 
         #create attr
-        baseattr = req_attr.clone() if not attrs else \
-                   MapAttr.getMaxOverlapAttr(attrs)
-        baseattr.fail_count = fail_count
+        baseattr = None
+        if not maps:
+            baseattr = req_attr.clone() 
+            baseattr.fail_count = 0
+        else:
+            attrs = [attr for map, attr, alpha in maps]
+            baseattr = MapAttr.getMaxOverlapAttr(attrs, fail_count_method="sum")
 
         #create basemap
         basemap = Image.new("RGBA", baseattr.size, "white")
-        for map, attr, alpha in maps:
+        for map, attr, alpha in reversed(maps):
             if map is None:
                 continue
 
@@ -1327,11 +1382,11 @@ class MapController:
 
     def __drawTrk(self, map, map_attr):
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw gpx...")
-        if len(self.gpx_layers) == 0:
+        if not self.__gpx_layers:
             return
 
         with DrawGuard(map) as draw:
-            for gpx in self.gpx_layers:
+            for gpx in self.__gpx_layers:
                 #draw tracks
                 #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw gpx...")
                 for trk in gpx.tracks:
@@ -1440,12 +1495,8 @@ class MapController:
                     self.pasteTransparently(map, icon, (px-adj, py-adj),
                             errmsg="Warning: Icon for '%s' with mode %s is not ransparency" % (wpt.sym, icon.mode))
 
-            #draw point   //replace by icon
-            #n = self.pt_size
-            #_draw.ellipse((px-n, py-n, px+n, py+n), fill=color, outline='white')
-
             #draw text
-            if not self.hide_txt:
+            if not self.__is_hide_text:
                 txt = wpt.name
                 font = self.__font
                 px, py = px +adj, py -adj  #adjust position for aligning icon
