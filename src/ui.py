@@ -9,6 +9,10 @@ from tkinter import ttk, messagebox
 from tile import MapDescriptor
 
 class Dialog(tk.Toplevel):
+    FOCUSOUT_NOOP = 0
+    FOCUSOUT_HIDE = 1
+    FOCUSOUT_CLOSE = 2
+
     @property
     def pos(self):
         return self.__pos
@@ -18,8 +22,18 @@ class Dialog(tk.Toplevel):
         self.__pos = v
         self.geometry('+%d+%d' % v)
 
+    @property
+    def focusout_act(self):
+        return self.__focusout_act
+
+    @focusout_act.setter
+    def focusout_act(self, v):
+        self.__focusout_act = v
+
     def __init__(self, master):
         super().__init__(master)
+
+        self.__focusout_act = self.FOCUSOUT_NOOP
 
         #handler
         #self._handlers = {}
@@ -28,7 +42,6 @@ class Dialog(tk.Toplevel):
         self.pos = (0, 0)
         self.protocol('WM_DELETE_WINDOW', lambda: self._onClosed(None))
         self.bind('<Escape>', self._onClosed)
-        self.bind('<FocusOut>', self.__onFocusOut)
 
         #silent update
         self.withdraw()  #hidden
@@ -37,6 +50,9 @@ class Dialog(tk.Toplevel):
     def show(self, pos=None, has_title=True):
         if pos is not None:
             self.pos = pos
+
+        if self.__focusout_act != self.FOCUSOUT_NOOP:
+            self.__bindFocusout(has_title)
 
         self.overrideredirect(not has_title)
 
@@ -48,7 +64,8 @@ class Dialog(tk.Toplevel):
         self.deiconify() #show
         self._visible.set(True)
 
-        self.attributes("-topmost", 1) #topmost
+        #self.attributes("-topmost", 1) #topmost
+        self.lift()
         self.focus_set()  #prevent key-press sent back to parent
         self.grab_set()   #disalbe interact of parent
         self.master.wait_variable(self._visible)
@@ -68,9 +85,24 @@ class Dialog(tk.Toplevel):
     def _onClosed(self, e):
         self.close()
 
-    def __onFocusOut(self, e):
-        print('out of focus, closing...')
-        self.close()
+    def __bindFocusout(self, has_title):
+        def on_focusout(e):
+            if self == e.widget:
+                self.__doFocusoutAction()
+
+        self.bind('<FocusOut>', on_focusout)
+        #focusout is not work if overrideredirect set, using enter/leave as workaround
+        if not has_title:
+            self.bind('<Leave>', on_focusout)
+
+    def __doFocusoutAction(self):
+        if self.__focusout_act == self.FOCUSOUT_HIDE:
+            logging.debug("dialog is focus out, hidden...")
+            self.hidden()
+        elif self.__focusout_act == self.FOCUSOUT_CLOSE:
+            logging.debug("dialog is focus out, closing...")
+            self.close()
+
 
     '''
     #{{ handler

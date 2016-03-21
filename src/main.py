@@ -401,6 +401,8 @@ class MapBoard(tk.Frame):
     #release sources to exit
     def exit(self):
         self.__is_closed = True
+        if self.__map_selector_dialog is not None:
+            self.__map_selector_dialog.close()
         if self.inSaveMode():
             self.__canvas_sel_area.exit()
         self.__map_ctrl.close()
@@ -429,6 +431,7 @@ class MapBoard(tk.Frame):
     def __showMapSelector(self):
         if self.__map_selector_dialog is None:
             self.__map_selector_dialog = Dialog(self)
+            self.__map_selector_dialog.focusout_act = Dialog.FOCUSOUT_CLOSE
             self.__map_selector = MapSelector(self.__map_selector_dialog, self.__map_descs)
             self.__map_selector.setEnableHandler(self.__onMapEnableChanged)
             self.__map_selector.setAlphaHandler(self.__onMapAlphaChanged)
@@ -443,8 +446,9 @@ class MapBoard(tk.Frame):
     def OnMapSelected(self):
         self.__map_descs = self.__showMapSelector()
         self.__map_selector_dialog = None #todo: resue this
-        self.setMapInfo()
         self.__putUserMapConf(conf.USER_MAP_CONF)
+        if not self.__is_closed:   #NOTICE: the check is Needed because dialog close may be caused by main board close
+            self.setMapInfo()
 
     def onSetLevel(self, *args):
         if self.inSaveMode():
@@ -2900,8 +2904,8 @@ if __name__ == '__main__':
             #root.tk.call('wm', 'iconphoto', root._w, icon)
 
         root.title(getTitleText(args.files))
-        #root.geometry('952x700+200+0')
-        root.geometry('256x256+500+500') #@@!
+        root.geometry('952x700+200+0')
+        #root.geometry('256x256+500+500') #@@!
 
         #create display board
         pad_ = 2
