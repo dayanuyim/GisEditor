@@ -9,6 +9,15 @@ from tkinter import ttk, messagebox
 from tile import MapDescriptor
 
 class Dialog(tk.Toplevel):
+    @property
+    def pos(self):
+        return self.__pos
+
+    @pos.setter
+    def pos(self, v):
+        self.__pos = v
+        self.geometry('+%d+%d' % v)
+
     def __init__(self, master):
         super().__init__(master)
 
@@ -16,27 +25,31 @@ class Dialog(tk.Toplevel):
         #self._handlers = {}
 
         #board
-        self.geometry('+0+0')
+        self.pos = (0, 0)
         self.protocol('WM_DELETE_WINDOW', lambda: self._onClosed(None))
         self.bind('<Escape>', self._onClosed)
+        self.bind('<FocusOut>', self.__onFocusOut)
 
         #silent update
         self.withdraw()  #hidden
         self._visible = tk.BooleanVar(value=False)
 
-    def show(self, pos=None):
+    def show(self, pos=None, has_title=True):
         if pos is not None:
-            self.geometry('+%d+%d' % pos)
+            self.pos = pos
+
+        self.overrideredirect(not has_title)
 
         #UI
         self.transient(self.master)  #remove max/min buttons
-        self.focus_set()  #prevent key-press sent back to parent
         
         self.update()  #update window size
 
         self.deiconify() #show
         self._visible.set(True)
 
+        self.attributes("-topmost", 1) #topmost
+        self.focus_set()  #prevent key-press sent back to parent
         self.grab_set()   #disalbe interact of parent
         self.master.wait_variable(self._visible)
 
@@ -49,11 +62,15 @@ class Dialog(tk.Toplevel):
         self._visible.set(False)
 
     def close(self):
-        self._onClosed(None)
-
-    def _onClosed(self, e):
         self.hidden()
         self.destroy()
+
+    def _onClosed(self, e):
+        self.close()
+
+    def __onFocusOut(self, e):
+        print('out of focus, closing...')
+        self.close()
 
     '''
     #{{ handler
@@ -500,25 +517,19 @@ class MapRow(tk.Frame):
     def map_desc(self):
         return self.__map_desc
 
-    @property
-    def enabled(self):
-        return self.__map_desc.enabled
-
-    @enabled.setter
-    def enabled(self, v):
-        self.__map_desc.enabled = v
-        self.__setBtnTxt()
-
-    def __init__(self, master, map_desc, action):
+    def __init__(self, master, map_desc, alpha_handler=None, enable_handle=None):
         super().__init__(master)
 
         FONT = "Arialuni 12"
         BFONT = FONT + " bold"
 
+        self.__alpha_handler = alpha_handler
+        self.__enable_handler = enable_handle
+
         self.__map_desc = map_desc
 
-        cmd = lambda:action(self) if action is not None else None
-        self.__btn = tk.Button(self, command=cmd)
+        cmd = lambda:enable_handle(self) if enable_handle is not None else None
+        self.__btn = tk.Button(self, command=self.__onEnableChanged)
         self.__setBtnTxt()
         self.__btn.pack(side='right', anchor='e', expand=0)
 
@@ -527,7 +538,7 @@ class MapRow(tk.Frame):
         #variable
         alpha = int(map_desc.alpha * 100)
         self.__alpha_var = tk.IntVar(value=alpha)
-        self.__alpha_var.trace('w', self.onAlphaChanged)
+        self.__alpha_var.trace('w', self.__onAlphaChanged)
         #spin
         alpha_label = tk.Label(self, text="%")
         alpha_label.pack(side='right', anchor='e', expand=0)
@@ -544,12 +555,27 @@ class MapRow(tk.Frame):
     def __setBtnTxt(self):
         self.__btn['text'] = '-' if self.__map_desc.enabled else '+'
 
-    def onAlphaChanged(self, *args):
+    def __onEnableChanged(self):
+        old_val = self.__map_desc.enabled
+
+        self.__map_desc.enabled = not old_val
+        self.__setBtnTxt()
+
+        if self.__enable_handler is not None:
+            self.__enable_handler(self, old_val)
+
+    def __onAlphaChanged(self, *args):
+        old_val = self.__map_desc.alpha
+        new_val = 0.0
         try:
-            self.__map_desc.alpha = self.__alpha_var.get() / 100.0
+            new_val = self.__alpha_var.get() / 100.0
         except Exception as ex:
             logging.warning("get alpha value error: " + str(ex))
-            self.__map_desc.alpha = 0.0
+
+        self.__map_desc.alpha = new_val
+        
+        if self.__alpha_handler is not None:
+            self.__alpha_handler(self, old_val)
 
 
 class MapSelector(pmw.ScrolledFrame):
@@ -563,19 +589,29 @@ class MapSelector(pmw.ScrolledFrame):
     def __init__(self, master, map_descriptors):
         super().__init__(master, usehullsize=1, hull_width=450, hull_height=600)
 
+        #event handlers
+        self.__on_enable_changed_handler = None
+        self.__on_alpha_changed_handler = None
+
         #enabled maps are put at head
         map_descriptors = sorted(map_descriptors, key=lambda desc:desc.enabled, reverse=True)
 
         #create widgets
         self.__rows = []
         for desc in map_descriptors:
-            row = MapRow(self.interior(), desc, self.onMapTrigger)
+            row = MapRow(self.interior(), desc, self.__onAlphaChanged, self.__onEnableChanged)
             self.__rows.append(row)
 
         self.__splitor = tk.Frame(self.interior(), bg='darkgray', height=10, border=1)
 
         #show
         self.__pack()
+
+    def setAlphaHandler(self, h):
+        self.__on_alpha_changed_handler = h
+
+    def setEnableHandler(self, h):
+        self.__on_enable_changed_handler = h
 
     def __pack(self):
         show_once = False
@@ -592,26 +628,30 @@ class MapSelector(pmw.ScrolledFrame):
         for row in self.__rows:
             row.pack_forget()
 
-    def __getEnabledCount(self):
-        count = 0
+    def __getFirstDisabledRow(self):
         for row in self.__rows:
-            if not row.enabled:
-                break;
-            count += 1
-        return count
+            if not row.map_desc.enabled:
+                return row
+        return None
 
-    def onMapTrigger(self, row):
-        #trigger enabled
-        row.enabled = not row.enabled
-
+    def __onEnableChanged(self, row, old_val):
         #reorder
         self.__rows.remove(row)
-        idx = self.__getEnabledCount()
-        self.__rows.insert(idx, row)
+        dst_row = self.__getFirstDisabledRow()
+        dst_idx = self.__rows.index(dst_row) if dst_row is not None else len(self.__rows)
+        self.__rows.insert(dst_idx, row)
 
         #pack again
         self.__unpack()
         self.__pack()
+
+        if self.__on_enable_changed_handler is not None:
+            self.__on_enable_changed_handler(row.map_desc, old_val)
+
+    def __onAlphaChanged(self, row, old_val):
+        if self.__on_alpha_changed_handler is not None:
+            self.__on_alpha_changed_handler(row.map_desc, old_val)
+
         
 
 def testMapSelector():

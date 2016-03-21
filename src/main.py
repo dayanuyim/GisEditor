@@ -173,6 +173,16 @@ class MapBoard(tk.Frame):
                 logging.error('Read user map conf error: %s' % (str(ex),))
         return enabled_maps;
 
+    def __putUserMapConf(self, filepath):
+        map_descs = self.__map_descs
+        try:
+            with open(filepath, 'w') as map_conf:
+                for desc in map_descs:
+                    if desc.enabled:
+                        map_conf.write("%s,%f\n" % (desc.map_id, desc.alpha))
+        except Exception as ex:
+            logging.error('Write user map conf error: %s' % (str(ex),))
+
     @classmethod
     def __loadMapDescriptors(cls, dirpath):
         map_descs = []
@@ -212,7 +222,11 @@ class MapBoard(tk.Frame):
         super().__init__(master)
 
         self.__map_descs = self.__getUserMapDescriptors()
-        self.__map_ctrl = MapController(self, self.__map_descs)
+        self.__map_ctrl = MapController(self)
+        self.__map_ctrl.configMap(self.__map_descs)
+
+        self.__map_selector_dialog = None
+        self.__map_selector = None
 
         #board
         self.__is_closed = False
@@ -231,6 +245,8 @@ class MapBoard(tk.Frame):
         self.__left_click_pos = None
         self.__right_click_pos = None
         self.__version = ''
+        self.master.bind("<Configure>", lambda e: self.__relocateMapSelector())
+
         Thread(target=self.__runMapUpdater).start()
 
         #canvas items
@@ -315,15 +331,15 @@ class MapBoard(tk.Frame):
         frame = tk.Frame(self, relief='ridge', bd=1)
 
         #title
-        info_mapname = tk.Label(frame, font=bfont, anchor='nw', bg='lightgray')
-        info_mapname.pack(side='left', expand=0, anchor='nw')
-        info_mapname['text'] = self.__map_ctrl.map_title
+        self.__info_mapname = tk.Label(frame, font=bfont, anchor='nw', bg='lightgray')
+        self.__info_mapname.pack(side='left', expand=0, anchor='nw')
 
         map_btn = tk.Button(frame, text="<", relief='groove', border=2, command=self.OnMapSelected)
         map_btn.pack(side='left', expand=0, anchor='nw')
 
         #level
-        self.__info_level = self.__genInfoWidget(frame, font, 'Level', 2, self.onSetLevel)
+        self.__info_level = self.__genInfoWidgetNum(frame, font, 'Level', 2,
+                conf.MIN_SUPP_LEVEL, conf.MAX_SUPP_LEVEL, self.onSetLevel)
 
         #pos
         self.__info_67tm2 = self.__genInfoWidget(frame, font, 'TM2/67', 16, self.onSetPos)
@@ -339,14 +355,32 @@ class MapBoard(tk.Frame):
         label.pack(side='left', expand=0, anchor='nw')
 
         var = tk.StringVar()
-        entry = tk.Entry(frame, font=font, width=width,textvariable=var)
+        entry = tk.Entry(frame, font=font, width=width, textvariable=var)
         entry.pack(side='left', expand=0, anchor='nw')
         entry.variable = var
-        
+
         if cb is not None:
             entry.bind('<Return>', cb)
 
         return entry
+
+    def __genInfoWidgetNum(self, frame, font, title, width, min_, max_, cb=None):
+
+        bfont = font + ' bold'
+
+        label = tk.Label(frame, font=bfont, text=title)
+        label.pack(side='left', expand=0, anchor='nw')
+
+        var = tk.IntVar()
+        widget = tk.Spinbox(frame, font=font, width=width, textvariable=var, from_=min_, to=max_)
+        widget.pack(side='left', expand=0, anchor='nw')
+        widget.variable = var
+
+        if cb is not None:
+            var.trace('w', cb)
+
+        return widget
+        
 
     def initStatusBar(self):
         font = 'Arialuni 10'
@@ -375,36 +409,58 @@ class MapBoard(tk.Frame):
 
     
     #{{{ Events
-    def __getMapDescriptors(self):
-        pos = (self.master.winfo_x(), self.master.winfo_y() + self.__info_frame.winfo_height())
 
-        dialog = Dialog(self)
-        selector = MapSelector(dialog, self.__map_descs)
-        selector.pack(side='top', anchor='nw', expand=0)
-        dialog.show(pos)
-
-        return selector.map_descriptors
-
-    def OnMapSelected(self):
-        descs = self.__getMapDescriptors()
-
-        self.__map_ctrl.configMap(descs)
+    def __onMapEnableChanged(self, desc, old_val):
+        logging.debug("desc %s's enable change from %s to %s" % (desc.map_id, old_val, desc.enabled))
+        self.__map_ctrl.configMap(self.__map_selector.map_descriptors)
         self.resetMap()
 
-    def onSetLevel(self, e):
+    def __onMapAlphaChanged(self, desc, old_val):
+        logging.debug("desc %s's enable change from %f to %f" % (desc.map_id, old_val, desc.alpha))
+        self.resetMap(force='all')
+
+    def __relocateMapSelector(self):
+        if self.__map_selector_dialog is not None:
+            ref_w = self.__info_frame
+            pos = (ref_w.winfo_rootx(), ref_w.winfo_rooty() + ref_w.winfo_height())
+            #logging.critical('to relocate to pos(%d, %d)' % pos)
+            self.__map_selector_dialog.pos = pos
+
+    def __showMapSelector(self):
+        if self.__map_selector_dialog is None:
+            self.__map_selector_dialog = Dialog(self)
+            self.__map_selector = MapSelector(self.__map_selector_dialog, self.__map_descs)
+            self.__map_selector.setEnableHandler(self.__onMapEnableChanged)
+            self.__map_selector.setAlphaHandler(self.__onMapAlphaChanged)
+            self.__map_selector.pack(side='top', anchor='nw', expand=0)
+
+        self.__relocateMapSelector()
+
+        self.__map_selector_dialog.show(has_title=False)
+
+        return self.__map_selector.map_descriptors
+
+    def OnMapSelected(self):
+        self.__map_descs = self.__showMapSelector()
+        self.__map_selector_dialog = None #todo: resue this
+        self.setMapInfo()
+        self.__putUserMapConf(conf.USER_MAP_CONF)
+
+    def onSetLevel(self, *args):
         if self.inSaveMode():
             return
 
-        if e.widget == self.__info_level:
-            try:
-                level = int(e.widget.get())
-            except:
-                messagebox.showwarning('Bad Number', 'Please check level')
-                return
-            level = min(max(conf.MIN_SUPP_LEVEL, level), conf.MAX_SUPP_LEVEL)  #limit
-            self.__map_ctrl.level = level
-            self.setMapInfo()
-            self.resetMap()
+        try:
+            level = self.__info_level.variable.get()
+            if self.__map_ctrl.level != level:  #changed by user
+                self.__map_ctrl.level = level
+                self.setMapInfo()
+                self.resetMap()
+        except Exception as ex:
+            errmsg = "set level error: %s" % (str(ex),)
+            logging.error(errmsg)
+            messagebox.showwarning('', errmsg)
+            return
 
     def onSetPos(self, e):
         #get pos
@@ -440,7 +496,24 @@ class MapBoard(tk.Frame):
         self.setMapInfo(geo)
         self.resetMap(geo, force='wpt')
 
+    def __getMapNameText(self):
+        mapname_txt = ""
+        map_enabled_count = 0
+
+        for desc in self.__map_descs:
+            if desc.enabled:
+                map_enabled_count += 1
+                if not mapname_txt:
+                    mapname_txt = desc.map_title
+
+        if map_enabled_count > 1:
+            mapname_txt += "...(%d)" % (map_enabled_count,)
+
+        return mapname_txt
+
     def setMapInfo(self, geo=None):
+        self.__info_mapname['text'] = self.__getMapNameText()
+
         self.__info_level.variable.set(self.__map_ctrl.level)
 
         if geo is not None:
@@ -1166,10 +1239,9 @@ class MapController:
     @is_hide_text.setter
     def is_hide_text(self, v): self.__is_hide_text = v
 
-    def __init__(self, parent, map_descs):
+    def __init__(self, parent):
         #def settings
         self.__parent = parent
-        self.__map_desc = map_descs[0] #todo: remove this due to supportment of multi map
         self.__map_descs = None
         self.__map_agents = {}
         self.__geo = GeoPoint(lon=121.334754, lat=24.987969)  #default location
@@ -1186,14 +1258,14 @@ class MapController:
         self.__pseudo_gpx = GpsDocument()  #to hold waypoints which not read from gpx
         self.__gpx_layers = [self.__pseudo_gpx]
 
-        #configmap
-        self.configMap(map_descs)
-
     def close(self):
         for agent in self.__map_agents.values():
             agent.close()
 
     def configMap(self, descs):
+        #todo: remove this due to supportment of multi map
+        self.__map_desc = descs[0] 
+
         #config agents
         for desc in descs:
             agent = self.__map_agents.get(desc)
@@ -2828,8 +2900,8 @@ if __name__ == '__main__':
             #root.tk.call('wm', 'iconphoto', root._w, icon)
 
         root.title(getTitleText(args.files))
-        root.geometry('950x700+200+0')
-        #root.geometry('256x256+500+500') #@@!
+        #root.geometry('952x700+200+0')
+        root.geometry('256x256+500+500') #@@!
 
         #create display board
         pad_ = 2
