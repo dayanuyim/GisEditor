@@ -1345,32 +1345,36 @@ class MapController:
                 (p[2]*beta + q[2]*alpha) >> 8,
                 255)
 
-    #deprecated, the function looks poor perfomace
-    #alpha between 0.0~1.0
     @classmethod
-    def combineMap2(cls, baseimg, img, alpha):
-        if baseimg.size != img.size:
-            raise ValueError('blend images have different size')
+    #alpha between 0.0~1.0
+    def putAlpha(cls, img, alpha):
+        logging.debug("start to put alpha...")
+        if img.mode != "RGBA":
+            logging.warning("not support mode '%s' to put alpha" % (img.mode,))
+            return
 
-        alpha = int(alpha*255)
+        alpha = int(alpha*256)
 
-        result = Image.new("RGBA", img.size)
-        resultdata = result.load()
+        bands = img.split()
 
-        basedata = baseimg.load()
-        data = img.load()
-        for y in range(img.size[1]):
-            for x in range(img.size[0]):
-                p = basedata[x,y]
-                q = data[x,y]
-                #resultdata[x,y] = cls.__combinePixel(p, q, (alpha*q[3])>>8)
-                resultdata[x,y] = cls.__combinePixel(p, q, min(alpha, q[3]))
+        #alter alpha
+        data = bands[3].load()
+        w, h = img.size
+        for y in range(h):
+            for x in range(w):
+                if data[x,y]:
+                    data[x,y] = (data[x,y] * alpha) >> 8
+
+        result = Image.merge("RGBA", bands)
+
+        logging.debug("end to put alpha...")
         return result
 
     #alpha between 0.0~1.0
     @classmethod
     def combineMap(cls, basemap, map, alpha):
         if imageIsTransparent(map):
+            map = cls.putAlpha(map, alpha)
             return Image.alpha_composite(basemap, map)
         else:
             return Image.blend(basemap, map, alpha)
