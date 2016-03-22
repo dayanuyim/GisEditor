@@ -482,7 +482,7 @@ class MapBoard(tk.Frame):
         if e.widget == self.__info_67tm2:
             geo = GeoPoint(twd67_x=int(x*1000), twd67_y=int(y*1000))
         elif e.widget == self.__info_97tm2:
-            geo = GeoPoint(twd69_x=int(x*1000), twd69_y=int(y*1000))
+            geo = GeoPoint(twd97_x=int(x*1000), twd97_y=int(y*1000))
         elif e.widget == self.__info_97latlon:
             geo = GeoPoint(lat=x, lon=y)
         else:
