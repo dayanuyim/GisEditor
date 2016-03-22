@@ -22,7 +22,7 @@ from threading import Lock, Thread
 #my modules
 import conf
 import util
-from ui import Dialog, MapSelector
+from ui import Dialog, MapSelectDialog
 from gpx import GpsDocument, WayPoint
 from pic import PicDocument
 from sym import SymRuleType, SymRule
@@ -225,8 +225,7 @@ class MapBoard(tk.Frame):
         self.__map_ctrl = MapController(self)
         self.__map_ctrl.configMap(self.__map_descs)
 
-        self.__map_selector_dialog = None
-        self.__map_selector = None
+        self.__map_sel_dialog = None
 
         #board
         self.__is_closed = False
@@ -246,6 +245,7 @@ class MapBoard(tk.Frame):
         self.__right_click_pos = None
         self.__version = ''
         self.master.bind("<Configure>", lambda e: self.__relocateMapSelector())
+        self.master.bind("<Visibility>", self.__onVisibility)
 
         Thread(target=self.__runMapUpdater).start()
 
@@ -321,7 +321,6 @@ class MapBoard(tk.Frame):
         #wpt menu
         self.__wpt_rclick_menu = tk.Menu(self.disp_canvas, tearoff=0)
         self.__wpt_rclick_menu.add_command(label='Delete Wpt', underline=0, command=self.onWptDeleted)
-
 
     def initMapInfo(self):
         font = 'Arialuni 12'
@@ -401,8 +400,8 @@ class MapBoard(tk.Frame):
     #release sources to exit
     def exit(self):
         self.__is_closed = True
-        if self.__map_selector_dialog is not None:
-            self.__map_selector_dialog.close()
+        if self.__map_sel_dialog is not None:
+            self.__map_sel_dialog.close()
         if self.inSaveMode():
             self.__canvas_sel_area.exit()
         self.__map_ctrl.close()
@@ -411,41 +410,47 @@ class MapBoard(tk.Frame):
 
     
     #{{{ Events
+    def __onVisibility(self, e):
+        if self.__map_sel_dialog is not None:
+            logging.debug('lift map select dialog on visible')
+            self.__map_sel_dialog.lift()
+
+    def __relocateMapSelector(self):
+        if self.__map_sel_dialog is not None:
+            ref_w = self.__info_frame
+            pos = (ref_w.winfo_rootx(), ref_w.winfo_rooty() + ref_w.winfo_height())
+            #logging.debug('to relocate to pos(%d, %d)' % pos)
+            self.__map_sel_dialog.pos = pos
+
+            logging.debug('lift map select dialog on relocation')
+            self.__map_sel_dialog.lift()
 
     def __onMapEnableChanged(self, desc, old_val):
         logging.debug("desc %s's enable change from %s to %s" % (desc.map_id, old_val, desc.enabled))
-        self.__map_ctrl.configMap(self.__map_selector.map_descriptors)
+        self.__map_ctrl.configMap(self.__map_sel_dialog.map_descriptors)
         self.resetMap()
 
     def __onMapAlphaChanged(self, desc, old_val):
         logging.debug("desc %s's enable change from %f to %f" % (desc.map_id, old_val, desc.alpha))
         self.resetMap(force='all')
 
-    def __relocateMapSelector(self):
-        if self.__map_selector_dialog is not None:
-            ref_w = self.__info_frame
-            pos = (ref_w.winfo_rootx(), ref_w.winfo_rooty() + ref_w.winfo_height())
-            #logging.critical('to relocate to pos(%d, %d)' % pos)
-            self.__map_selector_dialog.pos = pos
-
     def __showMapSelector(self):
-        if self.__map_selector_dialog is None:
-            self.__map_selector_dialog = Dialog(self)
-            self.__map_selector_dialog.focusout_act = Dialog.FOCUSOUT_CLOSE
-            self.__map_selector = MapSelector(self.__map_selector_dialog, self.__map_descs)
-            self.__map_selector.setEnableHandler(self.__onMapEnableChanged)
-            self.__map_selector.setAlphaHandler(self.__onMapAlphaChanged)
-            self.__map_selector.pack(side='top', anchor='nw', expand=0)
+        if self.__map_sel_dialog is None:
+            self.__map_sel_dialog = MapSelectDialog(self, self.__map_descs)
+            self.__map_sel_dialog.title("Map Select")
+            #self.__map_sel_dialog.focusout_act = Dialog.FOCUSOUT_CLOSE
+            self.__map_sel_dialog.setEnableHandler(self.__onMapEnableChanged)
+            self.__map_sel_dialog.setAlphaHandler(self.__onMapAlphaChanged)
 
         self.__relocateMapSelector()
 
-        self.__map_selector_dialog.show(has_title=False)
+        self.__map_sel_dialog.show(has_title=False)
 
-        return self.__map_selector.map_descriptors
+        return self.__map_sel_dialog.map_descriptors
 
     def OnMapSelected(self):
         self.__map_descs = self.__showMapSelector()
-        self.__map_selector_dialog = None #todo: resue this
+        self.__map_sel_dialog = None #todo: resue this
         self.__putUserMapConf(conf.USER_MAP_CONF)
         if not self.__is_closed:   #NOTICE: the check is Needed because dialog close may be caused by main board close
             self.setMapInfo()

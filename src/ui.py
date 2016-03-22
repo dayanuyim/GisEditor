@@ -610,7 +610,7 @@ class MapRow(tk.Frame):
             self.__alpha_handler(self, old_val)
 
 
-class MapSelector(pmw.ScrolledFrame):
+class MapSelectFrame(pmw.ScrolledFrame):
     @property
     def map_descriptors(self):
         descs = []
@@ -684,6 +684,24 @@ class MapSelector(pmw.ScrolledFrame):
         if self.__on_alpha_changed_handler is not None:
             self.__on_alpha_changed_handler(row.map_desc, old_val)
 
+
+class MapSelectDialog(Dialog):
+
+    @property
+    def map_descriptors(self):
+        return self.__map_sel_frame.map_descriptors
+
+    def __init__(self, master, descs):
+        super().__init__(master)
+
+        self.__map_sel_frame = MapSelectFrame(self, descs)
+        self.__map_sel_frame.pack(side='top', anchor='nw', expand=0)
+
+    def setEnableHandler(self, h):
+        self.__map_sel_frame.setEnableHandler(h)
+
+    def setAlphaHandler(self, h):
+        self.__map_sel_frame.setAlphaHandler(h)
         
 
 def testMapSelector():
@@ -711,7 +729,7 @@ def testMapSelector():
 
     #show
     dialog = Dialog(root)
-    selector = MapSelector(dialog, map_descs)
+    selector = MapSelectFrame(dialog, map_descs)
     selector.pack(side='top', anchor='nw', expand=0)
     dialog.show()
 
