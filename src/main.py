@@ -489,10 +489,8 @@ class MapBoard(tk.Frame):
             raise ValueError("Code flow error to set location")
 
         #check
-        min_lon, min_lat = self.__map_ctrl.lower_corner
-        max_lon, max_lat = self.__map_ctrl.upper_corner
-        if not (min_lat <= geo.lat and geo.lat <= max_lat and min_lon <= geo.lon and geo.lon <= max_lon):
-            messagebox.showwarning('Invalid Location', 'Please check location')
+        if not self.__map_ctrl.mapContainsPt(geo):
+            messagebox.showwarning('Invalid Location', "The location is out of range of map")
             return
 
         #focus geo on map
@@ -1189,27 +1187,6 @@ class MapAgent:
 class MapController:
 
     #{{ properties
-    #todo: should REMOVE map desc's properties later
-    #properties from map_desc
-    @property
-    def map_id(self): return self.__map_desc.map_id
-    @property
-    def map_title(self): return self.__map_desc.map_title
-    @property
-    def level_min(self): return self.__map_desc.level_min
-    @property
-    def level_max(self): return self.__map_desc.level_max
-    @property
-    def url_template(self): return self.__map_desc.url_template
-    @property
-    def lower_corner(self): return self.__map_desc.lower_corner
-    @property
-    def upper_corner(self): return self.__map_desc.upper_corner
-    @property
-    def tile_format(self): return self.__map_desc.tile_format
-    @property
-    def tile_side(self): return self.__map_desc.tile_side
-
     @property
     def geo(self): return self.__geo
     @geo.setter
@@ -1266,9 +1243,6 @@ class MapController:
             agent.close()
 
     def configMap(self, descs):
-        #todo: remove this due to supportment of multi map
-        self.__map_desc = descs[0] 
-
         #config agents
         for desc in descs:
             agent = self.__map_agents.get(desc)
@@ -1284,6 +1258,16 @@ class MapController:
         self.__map_descs = descs
         self.__cache_gpsmap = None
         self.__cache_attr = None
+
+    #Are there any map contains the point?
+    def mapContainsPt(self, geo):
+        for desc in self.__map_descs:
+            if desc.enabled:
+                min_lon, min_lat = desc.lower_corner
+                max_lon, max_lat = desc.upper_corner
+                if (min_lat <= geo.lat and geo.lat <= max_lat) and (min_lon <= geo.lon and geo.lon <= max_lon):
+                    return True
+        return False
 
     def shiftGeoPixel(self, px, py):
         self.geo = self.geo.addPixel(int(px), int(py), self.__level)
