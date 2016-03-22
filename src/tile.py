@@ -180,6 +180,11 @@ class MapDescriptor:
 The agent for getting tiles, using memory cache and db to be efficient.
 '''
 class TileAgent:
+    ST_IDLE    = 0
+    ST_RUN     = 1
+    ST_PAUSE   = 2
+    ST_CLOSING = 3
+
     TILE_VALID       = 0
     TILE_NOT_IN_MEM  = 1
     TILE_NOT_IN_DISK = 2
@@ -206,10 +211,13 @@ class TileAgent:
     @property
     def tile_side(self): return self.__map_desc.tile_side
 
+    @property
+    def status(self): return self.__status
+
     def __init__(self, map_desc, cache_dir, auto_start=False):
         self.__map_desc = map_desc.clone()
 
-        self.__is_closed = False
+        self.__status = self.ST_IDLE
 
         #local cache
         self.__cache_dir = cache_dir
@@ -238,12 +246,13 @@ class TileAgent:
         self.__disk_cache = DBDiskCache(self.__cache_dir, self.__map_desc, conf.DB_SCHEMA)
         self.__disk_cache.start()
         #start download thread
+        self.__status = self.ST_RUN
         self.__download_monitor.start()
 
     def close(self):
         #notify download monitor to exit
         with self.__download_cv:
-            self.__is_closed = True
+            self.__status = self.ST_CLOSING
             self.__download_cv.notify()
         self.__download_monitor.join()
 
@@ -252,12 +261,18 @@ class TileAgent:
             self.__disk_cache.close()
 
     def pause(self):
-        #todo
-        pass
+        with self.__download_cv:
+            if self.__status == self.ST_RUN:
+                self.__status = self.ST_PAUSE
+                logging.debug("[%s] Change status from run to pause" % (self.map_id,))
+                self.__download_cv.notify()
 
     def resume(self):
-        #todo
-        pass
+        with self.__download_cv:
+            if self.__status == self.ST_PAUSE:
+                self.__status = self.ST_RUN
+                logging.debug("[%s] Change status from pasue to run" % (self.map_id,))
+                self.__download_cv.notify()
 
     def isSupportedLevel(self, level):
         return self.level_min <= level and level <= self.level_max
@@ -301,10 +316,9 @@ class TileAgent:
         with self.__download_cv:
             self.__workers.pop(id, None)
             self.__download_cv.notify()
-
-        #premature done
-        if self.__is_closed:
-            return
+            #premature done
+            if self.__status == self.ST_CLOSING:
+                return
 
         #side effect
         if tile_data:
@@ -335,8 +349,12 @@ class TileAgent:
             with self.__download_cv:
                 self.__download_cv.wait()
 
-                if self.__is_closed:
+                if self.__status == self.ST_CLOSING:
+                    logging.debug("[%s] status(closing), download monitor closing" % (self.map_id,))
                     break
+                elif self.__status == self.ST_PAUSE:
+                    logging.debug("[%s] status(pause), continue to wait" % (self.map_id,))
+                    continue
 
                 if len(self.__req_queue) > 0 and len(self.__workers) < self.__MAX_WORKS:
                     #the req
@@ -352,8 +370,10 @@ class TileAgent:
 
         #todo: interrupt urllib.request.openurl to stop download workers.
         #http_handler.close()
-        #with self.__download_cv:
+        with self.__download_cv:
             #self.__download_cv.wait_for(no_worker)
+            self.__status = self.ST_IDLE
+            logging.debug("[%s] status(idle), download monitor closed" % (self.map_id,))
 
     def __requestTile(self, id, level, x, y, cb):
         #check and add to req queue

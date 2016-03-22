@@ -1053,8 +1053,7 @@ class MapAgent:
         self.__tile_agent.resume()
 
     def isRunning(self):
-        #todo
-        return True
+        return self.__tile_agent.status == TileAgent.ST_RUN
 
     #todo: refine this to reduce repeat
     def __isCacheValid(self, req_attr):
@@ -1396,7 +1395,7 @@ class MapController:
         maps = []
         for desc in self.__map_descs:
             if not desc.enabled:
-                logging.debug("map " + desc.map_id + " is not enabled")
+                #logging.debug("map " + desc.map_id + " is not enabled")
                 continue
 
             if not desc.alpha:
