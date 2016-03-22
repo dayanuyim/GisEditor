@@ -281,12 +281,12 @@ class TileAgent:
         tile_data = None
         try:
             url = self.genTileUrl(level, x, y)
-            logging.info("DL " + url)
+            logging.info("[%s] DL %s" % (self.map_id, url))
             with urllib.request.urlopen(url, timeout=30) as response:
                 tile_data = response.read()
         except Exception as ex:
-            logging.warning('Error to download %s: %s' % (url, str(ex)))
-        logging.info('DL %s [%s]' % (url, 'SUCCESS' if tile_data else 'FAILED'))
+            logging.warning('[%s] Error to download %s: %s' % (self.map_id, url, str(ex)))
+        logging.info('[%s] DL %s [%s]' % (self.map_id, url, 'SUCCESS' if tile_data else 'FAILED'))
 
         #cache
         #(for data coherence, do this before moving self from workers queue: if download thread is done, data is ready)
@@ -313,13 +313,13 @@ class TileAgent:
                 if cb is not None:
                     cb(level, x, y)
             except Exception as ex:
-                logging.warning('Invoke cb of download tile error: ' + str(ex))
+                logging.warning("[%s] Invoke cb of download tile error: %s" % (self.map_id, str(ex)))
 
             #save file
             try:
                 self.__disk_cache.put(level, x, y, tile_data)
             except Exception as ex:
-                logging.error('Error to save tile data ' + str(ex))
+                logging.error("[%s] Error to save tile data: %s" % (self.map_id, str(ex)))
 
     #The thread to handle all download requests
     def __runDownloadMonitor(self):
@@ -342,7 +342,7 @@ class TileAgent:
                     #the req
                     id, (level, x, y, cb) = self.__req_queue.popitem() #LIFO
                     if id in self.__workers:
-                        logging.warning("WARNING: the req is DUP and in progress.") #should not happen
+                        logging.warning("[%s] Opps! the req is DUP and in progress." % (self.map_id,)) #should not happen
                     else:
                         #create the job and run the worker
                         job = lambda: self.__runDownloadJob(id, level, x, y, cb)
@@ -373,7 +373,7 @@ class TileAgent:
                 img = Image.open(BytesIO(data))
                 return img
         except Exception as ex:
-            logging.warning("Error to read tile data: " + str(ex))
+            logging.warning("[%s] Error to read tile data: %s" % (self.map_id, str(ex)))
         return None
 
     def __getTile(self, level, x, y, auto_req=True, cb=None):
@@ -412,7 +412,7 @@ class TileAgent:
         elif status == self.TILE_REQ:
             return None
         else:
-            logging.error('Error: unknown tile status: %d' % (status,))
+            logging.error('[%s] Error: unknown tile status: %d' % (self.map_id, status))
             return None
 
     def __genMagnifyFakeTile(self, level, x, y, diff=1):
@@ -566,6 +566,10 @@ class FileDiskCache(DiskCache):
         return None
 
 class DBDiskCache(DiskCache):
+    @property
+    def map_id(self):
+        return self.__map_desc.map_id
+
     def __init__(self, cache_dir, map_desc, db_schema, is_concurrency=True):
         self.__db_path = os.path.join(cache_dir, map_desc.map_id + ".mbtiles")
         self.__db_schema = db_schema
@@ -634,7 +638,7 @@ class DBDiskCache(DiskCache):
             data = None if row is None else row[0]
             return data
         except Exception as ex:
-            logging.warning('Get mbtiles metadata error: ' + str(ex))
+            logging.warning('[%s] Get mbtiles metadata error: %s' % (self.map_id, str(ex)))
 
         return None
 
@@ -643,13 +647,13 @@ class DBDiskCache(DiskCache):
         schema = self.__getMetadata('schema')
         if schema and self.__db_schema != schema:
             self.__db_schema = schema
-            logging.info('Reset db schema to %s' % (self.__db_schema,))
+            logging.info("[%s] Reset db schema to %s" % (self.map_id, self.__db_schema))
 
     #the true actions which are called by Surrogate
     def __start(self):
-        logging.info("The db schema default of '%s' is %s" % (self.__map_desc.map_id, self.__db_schema))
+        logging.info("[%s] The db schema default is %s" % (self.map_id, self.__db_schema))
         if not os.path.exists(self.__db_path):
-            logging.info("Initializing local cache DB '%s'..." % (self.__map_desc.map_id,))
+            logging.info("[%s] Initializing local cache DB..." % (self.map_id,))
             mkdirSafely(os.path.dirname(self.__db_path))
             self.__conn = sqlite3.connect(self.__db_path)
             self.__initDB()
@@ -658,7 +662,7 @@ class DBDiskCache(DiskCache):
             self.__readMetadata()
 
     def __close(self):
-        logging.info("Closing local cache DB '%s'..." % (self.__map_desc.map_id,))
+        logging.info("[%s] Closing local cache DB..." % (self.map_id,))
         self.__conn.close()
 
     @classmethod
@@ -679,7 +683,7 @@ class DBDiskCache(DiskCache):
         except Exception as _ex:
             ex = _ex
 
-        logging.info("%s [%s]" % (sql, ("Fail" if ex else "OK")))
+        logging.info("[%s] %s [%s]" % (self.map_id, sql, ("Fail" if ex else "OK")))
         if ex:
             raise ex
 
@@ -695,7 +699,7 @@ class DBDiskCache(DiskCache):
         except Exception as _ex:
             ex = _ex
 
-        logging.info("%s [%s]" % (sql, ("Fail" if ex else "OK" if data else "NA")))
+        logging.info("[%s] %s [%s]" % (self.map_id, sql, ("Fail" if ex else "OK" if data else "NA")))
         if ex:
             raise ex
         return data
@@ -774,7 +778,7 @@ class DBDiskCache(DiskCache):
                     try:
                         self.__put(level, x, y, data)
                     except Exception as ex:
-                        logging.error("DB put data error: " + str(ex))
+                        logging.error("[%s] DB put data error: %s" % (self.map_id, str(ex)))
                 #get data
                 else:
                     res_data, res_ex = None, None
@@ -782,7 +786,7 @@ class DBDiskCache(DiskCache):
                         res_data = self.__get(level, x, y)
                         res_ex = None
                     except Exception as ex:
-                        logging.error("DB get data error: " + str(ex))
+                        logging.error("[%s] DB get data error: %s" % (self.map_id, str(ex)))
                         res_data = None
                         res_ex = ex
 
