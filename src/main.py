@@ -166,8 +166,8 @@ class MapBoard(tk.Frame):
                         line = line.rstrip()
                         if line.startswith('#') or line.isspace():
                             continue
-                        id, alpha = line.split(',')
-                        item = (id, float(alpha))
+                        id, alpha, en = line.split(',')
+                        item = (id, float(alpha), en == "1")
                         enabled_maps.append(item)
             except Exception as ex:
                 logging.error('Read user map conf error: %s' % (str(ex),))
@@ -178,8 +178,7 @@ class MapBoard(tk.Frame):
         try:
             with open(filepath, 'w') as map_conf:
                 for desc in map_descs:
-                    if desc.enabled:
-                        map_conf.write("%s,%f\n" % (desc.map_id, desc.alpha))
+                    map_conf.write("%s,%.2f,%d\n" % (desc.map_id, desc.alpha, 1 if desc.enabled else 0))
         except Exception as ex:
             logging.error('Write user map conf error: %s' % (str(ex),))
 
@@ -208,11 +207,11 @@ class MapBoard(tk.Frame):
         map_descs = cls.__loadMapDescriptors(conf.CACHE_DIR)
 
         user_descs = []
-        for id, alpha in user_enabled_map:
+        for id, alpha, en in user_enabled_map:
             desc = cls.__findMapDescriptor(map_descs, id)
             if desc is not None:
                 map_descs.remove(desc)
-                desc.enabled = True
+                desc.enabled = en
                 desc.alpha = alpha
                 user_descs.append(desc)
         user_descs.extend(map_descs)
@@ -432,7 +431,8 @@ class MapBoard(tk.Frame):
 
     def __onMapAlphaChanged(self, desc, old_val):
         logging.debug("desc %s's enable change from %f to %f" % (desc.map_id, old_val, desc.alpha))
-        self.resetMap(force='all')
+        if desc.enabled:
+            self.resetMap(force='all')
 
     def __showMapSelector(self):
         if self.__map_sel_dialog is None:
