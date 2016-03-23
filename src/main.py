@@ -487,17 +487,15 @@ class MapBoard(tk.Frame):
         if e.widget == self.__info_67tm2:
             geo = GeoPoint(twd67_x=int(x*1000), twd67_y=int(y*1000))
         elif e.widget == self.__info_97tm2:
-            geo = GeoPoint(twd69_x=int(x*1000), twd69_y=int(y*1000))
+            geo = GeoPoint(twd97_x=int(x*1000), twd97_y=int(y*1000))
         elif e.widget == self.__info_97latlon:
             geo = GeoPoint(lat=x, lon=y)
         else:
             raise ValueError("Code flow error to set location")
 
         #check
-        min_lon, min_lat = self.__map_ctrl.lower_corner
-        max_lon, max_lat = self.__map_ctrl.upper_corner
-        if not (min_lat <= geo.lat and geo.lat <= max_lat and min_lon <= geo.lon and geo.lon <= max_lon):
-            messagebox.showwarning('Invalid Location', 'Please check location')
+        if not self.__map_ctrl.mapContainsPt(geo):
+            messagebox.showwarning('Invalid Location', "The location is out of range of map")
             return
 
         #focus geo on map
@@ -1058,8 +1056,7 @@ class MapAgent:
         self.__tile_agent.resume()
 
     def isRunning(self):
-        #todo
-        return True
+        return self.__tile_agent.status == TileAgent.ST_RUN
 
     #todo: refine this to reduce repeat
     def __isCacheValid(self, req_attr):
@@ -1195,27 +1192,6 @@ class MapAgent:
 class MapController:
 
     #{{ properties
-    #todo: should REMOVE map desc's properties later
-    #properties from map_desc
-    @property
-    def map_id(self): return self.__map_desc.map_id
-    @property
-    def map_title(self): return self.__map_desc.map_title
-    @property
-    def level_min(self): return self.__map_desc.level_min
-    @property
-    def level_max(self): return self.__map_desc.level_max
-    @property
-    def url_template(self): return self.__map_desc.url_template
-    @property
-    def lower_corner(self): return self.__map_desc.lower_corner
-    @property
-    def upper_corner(self): return self.__map_desc.upper_corner
-    @property
-    def tile_format(self): return self.__map_desc.tile_format
-    @property
-    def tile_side(self): return self.__map_desc.tile_side
-
     @property
     def geo(self): return self.__geo
     @geo.setter
@@ -1272,9 +1248,6 @@ class MapController:
             agent.close()
 
     def configMap(self, descs):
-        #todo: remove this due to supportment of multi map
-        self.__map_desc = descs[0] 
-
         #config agents
         for desc in descs:
             agent = self.__map_agents.get(desc)
@@ -1290,6 +1263,16 @@ class MapController:
         self.__map_descs = descs
         self.__cache_gpsmap = None
         self.__cache_attr = None
+
+    #Are there any map contains the point?
+    def mapContainsPt(self, geo):
+        for desc in self.__map_descs:
+            if desc.enabled:
+                min_lon, min_lat = desc.lower_corner
+                max_lon, max_lat = desc.upper_corner
+                if (min_lat <= geo.lat and geo.lat <= max_lat) and (min_lon <= geo.lon and geo.lon <= max_lon):
+                    return True
+        return False
 
     def shiftGeoPixel(self, px, py):
         self.geo = self.geo.addPixel(int(px), int(py), self.__level)
@@ -1367,32 +1350,36 @@ class MapController:
                 (p[2]*beta + q[2]*alpha) >> 8,
                 255)
 
-    #deprecated, the function looks poor perfomace
-    #alpha between 0.0~1.0
     @classmethod
-    def combineMap2(cls, baseimg, img, alpha):
-        if baseimg.size != img.size:
-            raise ValueError('blend images have different size')
+    #alpha between 0.0~1.0
+    def putAlpha(cls, img, alpha):
+        logging.debug("start to put alpha...")
+        if img.mode != "RGBA":
+            logging.warning("not support mode '%s' to put alpha" % (img.mode,))
+            return
 
-        alpha = int(alpha*255)
+        alpha = int(alpha*256)
 
-        result = Image.new("RGBA", img.size)
-        resultdata = result.load()
+        bands = img.split()
 
-        basedata = baseimg.load()
-        data = img.load()
-        for y in range(img.size[1]):
-            for x in range(img.size[0]):
-                p = basedata[x,y]
-                q = data[x,y]
-                #resultdata[x,y] = cls.__combinePixel(p, q, (alpha*q[3])>>8)
-                resultdata[x,y] = cls.__combinePixel(p, q, min(alpha, q[3]))
+        #alter alpha
+        data = bands[3].load()
+        w, h = img.size
+        for y in range(h):
+            for x in range(w):
+                if data[x,y]:
+                    data[x,y] = (data[x,y] * alpha) >> 8
+
+        result = Image.merge("RGBA", bands)
+
+        logging.debug("end to put alpha...")
         return result
 
     #alpha between 0.0~1.0
     @classmethod
     def combineMap(cls, basemap, map, alpha):
         if imageIsTransparent(map):
+            map = cls.putAlpha(map, alpha)
             return Image.alpha_composite(basemap, map)
         else:
             return Image.blend(basemap, map, alpha)
@@ -1401,7 +1388,7 @@ class MapController:
         maps = []
         for desc in self.__map_descs:
             if not desc.enabled:
-                logging.debug("map " + desc.map_id + " is not enabled")
+                #logging.debug("map " + desc.map_id + " is not enabled")
                 continue
 
             if not desc.alpha:
