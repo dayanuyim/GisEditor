@@ -1351,35 +1351,48 @@ class MapController:
                 255)
 
     @classmethod
-    #alpha between 0.0~1.0
-    def putAlpha(cls, img, alpha):
-        logging.debug("start to put alpha...")
+    #tune alpha channel by @alpha, which between 0.0~1.0
+    def tunealpha(cls, img, alpha):
+        logging.debug("prepare to tune alpha...")
         if img.mode != "RGBA":
-            logging.warning("not support mode '%s' to put alpha" % (img.mode,))
+            logging.warning("not support mode '%s' to tune alpha" % (img.mode,))
             return
 
         alpha = int(alpha*256)
 
+        #optimize
+        min_a, max_a = img.getextrema()[3];
+        if alpha == 255 or max_a == 0:
+            return img
+        if alpha == 0 or min_a == 255:
+            img = img.copy()
+            img.putalpha(alpha)
+            return img
+
+        logging.debug("start to tune alpha...")
+
         bands = img.split()
 
-        #alter alpha
+        #tune alpha channel
+        #todo: for improve, may use numpy module
         data = bands[3].load()
         w, h = img.size
-        for y in range(h):
-            for x in range(w):
-                if data[x,y]:
-                    data[x,y] = (data[x,y] * alpha) >> 8
+        for x in range(w):
+            for y in range(h):
+                p = data[x,y]
+                if p:
+                    data[x,y] = (p * alpha) >> 8
 
         result = Image.merge("RGBA", bands)
 
-        logging.debug("end to put alpha...")
+        logging.debug("end to tune alpha...")
         return result
 
     #alpha between 0.0~1.0
     @classmethod
     def combineMap(cls, basemap, map, alpha):
         if imageIsTransparent(map):
-            map = cls.putAlpha(map, alpha)
+            map = cls.tunealpha(map, alpha)
             return Image.alpha_composite(basemap, map)
         else:
             return Image.blend(basemap, map, alpha)
