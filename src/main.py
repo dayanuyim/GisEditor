@@ -1056,7 +1056,7 @@ class MapAgent:
         self.__tile_agent.resume()
 
     def isRunning(self):
-        return self.__tile_agent.status == TileAgent.ST_RUN
+        return self.__tile_agent.state == TileAgent.ST_RUN
 
     #todo: refine this to reduce repeat
     def __isCacheValid(self, req_attr):

@@ -212,12 +212,12 @@ class TileAgent:
     def tile_side(self): return self.__map_desc.tile_side
 
     @property
-    def status(self): return self.__status
+    def state(self): return self.__state
 
     def __init__(self, map_desc, cache_dir, auto_start=False):
         self.__map_desc = map_desc.clone()
 
-        self.__status = self.ST_IDLE
+        self.__state = self.ST_IDLE
 
         #local cache
         self.__cache_dir = cache_dir
@@ -246,13 +246,13 @@ class TileAgent:
         self.__disk_cache = DBDiskCache(self.__cache_dir, self.__map_desc, conf.DB_SCHEMA)
         self.__disk_cache.start()
         #start download thread
-        self.__status = self.ST_RUN
+        self.__state = self.ST_RUN
         self.__download_monitor.start()
 
     def close(self):
         #notify download monitor to exit
         with self.__download_cv:
-            self.__status = self.ST_CLOSING
+            self.__state = self.ST_CLOSING
             self.__download_cv.notify()
         self.__download_monitor.join()
 
@@ -262,15 +262,15 @@ class TileAgent:
 
     def pause(self):
         with self.__download_cv:
-            if self.__status == self.ST_RUN:
-                self.__status = self.ST_PAUSE
+            if self.__state == self.ST_RUN:
+                self.__state = self.ST_PAUSE
                 logging.debug("[%s] Change status from run to pause" % (self.map_id,))
                 self.__download_cv.notify()
 
     def resume(self):
         with self.__download_cv:
-            if self.__status == self.ST_PAUSE:
-                self.__status = self.ST_RUN
+            if self.__state == self.ST_PAUSE:
+                self.__state = self.ST_RUN
                 logging.debug("[%s] Change status from pasue to run" % (self.map_id,))
                 self.__download_cv.notify()
 
@@ -317,7 +317,7 @@ class TileAgent:
             self.__workers.pop(id, None)
             self.__download_cv.notify()
             #premature done
-            if self.__status == self.ST_CLOSING:
+            if self.__state == self.ST_CLOSING:
                 return
 
         #side effect
@@ -349,10 +349,10 @@ class TileAgent:
             with self.__download_cv:
                 self.__download_cv.wait()
 
-                if self.__status == self.ST_CLOSING:
+                if self.__state == self.ST_CLOSING:
                     logging.debug("[%s] status(closing), download monitor closing" % (self.map_id,))
                     break
-                elif self.__status == self.ST_PAUSE:
+                elif self.__state == self.ST_PAUSE:
                     logging.debug("[%s] status(pause), continue to wait" % (self.map_id,))
                     continue
 
@@ -372,7 +372,7 @@ class TileAgent:
         #http_handler.close()
         with self.__download_cv:
             #self.__download_cv.wait_for(no_worker)
-            self.__status = self.ST_IDLE
+            self.__state = self.ST_IDLE
             logging.debug("[%s] status(idle), download monitor closed" % (self.map_id,))
 
     def __requestTile(self, id, level, x, y, cb):
