@@ -12,6 +12,7 @@ import sqlite3
 import conf
 import logging
 import util
+import random
 from xml.etree import ElementTree as ET
 from datetime import datetime
 from os import listdir
@@ -52,6 +53,10 @@ class MapDescriptor:
         url = ET.SubElement(root, "url")
         url.text = self.url_template
 
+        if self.server_parts:
+            server_parts = ET.SubElement(root, "serverParts")
+            server_parts.text = " ".join(self.server_parts)
+
         lower_corner = ET.SubElement(root, "lowerCorner")
         lower_corner.text = "%.9f %.9f" % self.lower_corner
 
@@ -73,6 +78,7 @@ class MapDescriptor:
         desc.level_min = self.level_min
         desc.level_max = self.level_max
         desc.url_template = self.url_template
+        desc.server_parts = self.server_parts
         desc.lower_corner = self.lower_corner
         desc.upper_corner = self.upper_corner
         desc.tile_format = self.tile_format
@@ -141,6 +147,8 @@ class MapDescriptor:
         if not url or ("{$x}" not in url) or ("{$y}" not in url) or ("{$z}" not in url):
             raise ValueError("[map info '%s'] url not catains {$x}, {$y}, or {$z}: %s" % (id, url))
 
+        server_parts = cls.__getElemText(xml_root, "./serverParts", "")
+
         lower_corner = cls.__parseLatlon(cls.__getElemText(xml_root, "./lowerCorner", ""), (-180, -85))
         upper_corner = cls.__parseLatlon(cls.__getElemText(xml_root, "./upperCorner", ""), (180, 85))
 
@@ -151,6 +159,7 @@ class MapDescriptor:
         desc.level_min = min_zoom
         desc.level_max = max_zoom
         desc.url_template = url
+        desc.server_parts = server_parts.split(' ') if server_parts else None
         desc.lower_corner = lower_corner
         desc.upper_corner = upper_corner
         desc.tile_format = tile_type
@@ -202,6 +211,8 @@ class TileAgent:
     def level_max(self): return self.__map_desc.level_max
     @property
     def url_template(self): return self.__map_desc.url_template
+    @property
+    def server_parts(self): return self.__map_desc.server_parts
     @property
     def lower_corner(self): return self.__map_desc.lower_corner
     @property
@@ -285,9 +296,12 @@ class TileAgent:
 
     def genTileUrl(self, level, x, y):
         url = self.url_template;
+        if self.server_parts:
+            url = url.replace("{$serverpart}", random.choice(self.server_parts))
         url = url.replace("{$x}", str(x))
         url = url.replace("{$y}", str(y))
         url = url.replace("{$z}", str(level))
+        #logging.critical('url: ' + url)
         return url
 
     #The therad to download
