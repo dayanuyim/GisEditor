@@ -133,7 +133,7 @@ class MapDescriptor:
         if min_zoom > max_zoom:
             raise ValueError("[map info '%s'] min_zoom(%d) is larger tahn max_zoom(%d)" % (id, min_zoom, max_zoom))
 
-        tile_type = cls.__getElemText(xml_root, "./tileType", "")
+        tile_type = cls.__getElemText(xml_root, "./tileType", "").lower()
         if tile_type not in ("jpg", "png") :
             raise ValueError("[map info '%s'] not support tile format '%s'" % (id, tile_type))
 
