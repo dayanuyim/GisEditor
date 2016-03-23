@@ -951,11 +951,11 @@ class MapBoard(tk.Frame):
             with self.__map_req_lock:
                 #logging.debug("[MapUpdater] %s" % ('map attr is None' if self.__map_attr is None else 'map attr is not None',))
                 #logging.debug("[MapUpdater] fail cout=%s" % (str(self.__map_attr.fail_count) if self.__map_attr else "NA",))
-                #logging.debug("[MapUpdater] time diff=%d sec" % ((datetime.now()-self.__map_req_time).seconds,))
+                #logging.debug("[MapUpdater] time diff=%d sec" % ((datetime.now()-self.__map_req_time).total_seconds(),))
                 #logging.debug("[MapUpdater] %s" % ('has update' if self.__map_has_update else 'no update',))
 
                 #update if req, prevent from frequent updating
-                if self.__map_has_update and (datetime.now()-self.__map_req_time).seconds >= 2:
+                if self.__map_has_update and (datetime.now()-self.__map_req_time).total_seconds() >= 2:
                     should_update = True
 
             if should_update:

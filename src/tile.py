@@ -185,11 +185,12 @@ class TileAgent:
     ST_PAUSE   = 2
     ST_CLOSING = 3
 
-    TILE_VALID       = 0
-    TILE_NOT_IN_MEM  = 1
-    TILE_NOT_IN_DISK = 2
-    TILE_REQ         = 3
-    TILE_REQ_FAILED  = 4
+    TILE_VALID       = 0x00
+    TILE_NOT_IN_MEM  = 0x01
+    TILE_NOT_IN_DISK = 0x02
+    TILE_EXPIRE      = 0x03
+    TILE_REQ         = 0x10
+    TILE_REQ_FAILED  = 0x20
 
     #properties from map_desc
     @property
@@ -291,7 +292,9 @@ class TileAgent:
         return url
 
     #The therad to download
-    def __runDownloadJob(self, id, level, x, y, cb):
+    def __runDownloadJob(self, id, req):
+        level, x, y, status, cb = req  #unpack the req
+
         #do download
         tile_data = None
         try:
@@ -309,7 +312,8 @@ class TileAgent:
             tile_img = Image.open(BytesIO(tile_data))
             self.__mem_cache.set(id, self.TILE_VALID, tile_img)
         else:
-            self.__mem_cache.set(id, self.TILE_REQ_FAILED)
+            status = self.TILE_REQ_FAILED | (status & 0x0F)
+            self.__mem_cache.set(id, status)
 
         #done the download
         #(do this before thread exit, to ensure monitor is notified)
@@ -358,12 +362,12 @@ class TileAgent:
 
                 if len(self.__req_queue) > 0 and len(self.__workers) < self.__MAX_WORKS:
                     #the req
-                    id, (level, x, y, cb) = self.__req_queue.popitem() #LIFO
+                    id, req = self.__req_queue.popitem() #LIFO
                     if id in self.__workers:
                         logging.warning("[%s] Opps! the req is DUP and in progress." % (self.map_id,)) #should not happen
                     else:
                         #create the job and run the worker
-                        job = lambda: self.__runDownloadJob(id, level, x, y, cb)
+                        job = lambda: self.__runDownloadJob(id, req)
                         worker = Thread(name=id, target=job)
                         self.__workers[id] = worker
                         worker.start()
@@ -375,7 +379,7 @@ class TileAgent:
             self.__state = self.ST_IDLE
             logging.debug("[%s] status(idle), download monitor closed" % (self.map_id,))
 
-    def __requestTile(self, id, level, x, y, cb):
+    def __requestTile(self, id, req):
         #check and add to req queue
         with self.__download_cv:
             if id in self.__req_queue:
@@ -383,7 +387,7 @@ class TileAgent:
             if id in self.__workers:
                 return
             #add the req
-            self.__req_queue[id] = (level, x, y, cb)
+            self.__req_queue[id] = req
             self.__download_cv.notify()
 
     def __getTileFromDisk(self, level, x, y):
@@ -391,49 +395,57 @@ class TileAgent:
             data = self.__disk_cache.get(level, x, y)
             if data is not None:
                 img = Image.open(BytesIO(data))
-                return img
+                return img, datetime.min #todo: get tiemstamp from db
         except Exception as ex:
             logging.warning("[%s] Error to read tile data: %s" % (self.map_id, str(ex)))
-        return None
+        return None, datetime.min #todo: get tiemstamp from db
 
     def __getTile(self, level, x, y, auto_req=True, cb=None):
         #check level
         if level > self.level_max or level < self.level_min:
             raise ValueError("level is out of range")
 
-        has_change_status = False
-
         id = self.genTileId(level, x, y)
         img, status, ts = self.__mem_cache.get(id)      #READ FROM memory
+        status_bak = status
+
+        if status == self.TILE_VALID:
+            return img
+
+        if (status & 0xF0) == self.TILE_REQ:
+            return img    # None or Expire
+
+        if (status & 0xF0) == self.TILE_REQ_FAILED:
+            if (datetime.now() - ts).total_seconds() < 60: #todo: user to specify retry period
+                return None
+            status &= 0x0F    #remove req_failed status
 
         if status == self.TILE_NOT_IN_MEM:
-            img = self.__getTileFromDisk(level, x, y)   #READ FROM disk
-            if img is not None:
+            img, ts = self.__getTileFromDisk(level, x, y)   #READ FROM disk
+            if img is None:
+                status = self.TILE_NOT_IN_DISK
+            elif (datetime.now() - ts).total_seconds() > 86400:  #todo: get tile expire ts from desc
+                status = self.TILE_EXPIRE
+            else:
                 self.__mem_cache.set(id, self.TILE_VALID, img)
                 return img
-            has_change_status = True
-            status = self.TILE_NOT_IN_DISK  #go through to the next status
 
-        if status == self.TILE_REQ_FAILED:
-            if (datetime.now() - ts).seconds < 60: #todo: user to specify retry period
-                return None
-            has_change_status = True
-            status = self.TILE_NOT_IN_DISK  #go through to the next status
+        if status != self.TILE_NOT_IN_DISK and status != self.TILE_EXPIRE:
+            logging.critical("[%s] Error: unexpected tile status: %d" % (self.map_id, status))
+            return None
 
-        if status == self.TILE_NOT_IN_DISK:
-            if auto_req:
-                self.__mem_cache.set(id, self.TILE_REQ)
-                self.__requestTile(id, level, x, y, cb) #READ FROM WMTS (async)
-            elif has_change_status:
-                self.__mem_cache.set(id, self.TILE_NOT_IN_DISK)
-            return None
-        elif status == self.TILE_VALID:
-            return img
-        elif status == self.TILE_REQ:
-            return None
-        else:
-            logging.error('[%s] Error: unknown tile status: %d' % (self.map_id, status))
-            return None
+        if status == self.TILE_EXPIRE:
+            logging.warning("[%s] Tile(%d,%d,%d) is expired" % (self.map_id, level, x, y))
+
+        if auto_req:
+            status |= self.TILE_REQ
+            req = (level, x, y, status, cb)   #pack req
+            self.__requestTile(id, req)       #req tile FROM WMTS (async)
+
+        if status != status_bak:
+            self.__mem_cache.set(id, status)
+
+        return img
 
     def __genMagnifyFakeTile(self, level, x, y, diff=1):
         side = self.tile_side
@@ -520,6 +532,10 @@ class MemoryCache:
         self.__repo_lock = Lock() if is_concurrency else None
 
     def __set(self, id, status, data):
+        if data is None:      #using old data
+            item = self.__repo.get(id)
+            if item is not None:
+                data = item[0]
         self.__repo[id] = (data, status, datetime.now())
 
     def __get(self, id):
@@ -758,7 +774,7 @@ class DBDiskCache(DiskCache):
                 return self.__get_respose is not None
 
             with self.__get_lock:  #for blocking the continuous get
-                #add TILE_req
+                #req tile
                 with self.__sql_queue_cv:
                     item = (level, x, y, None)
                     self.__sql_queue.insert(0, item)  #service first
