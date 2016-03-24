@@ -57,6 +57,9 @@ class MapDescriptor:
             server_parts = ET.SubElement(root, "serverParts")
             server_parts.text = " ".join(self.server_parts)
 
+        invert_y = ET.SubElement(root, "invertYCoordinate")
+        invert_y.text = "true" if self.invert_y else "false"
+
         lower_corner = ET.SubElement(root, "lowerCorner")
         lower_corner.text = "%.9f %.9f" % self.lower_corner
 
@@ -79,6 +82,7 @@ class MapDescriptor:
         desc.level_max = self.level_max
         desc.url_template = self.url_template
         desc.server_parts = self.server_parts
+        desc.invert_y = self.invert_y
         desc.lower_corner = self.lower_corner
         desc.upper_corner = self.upper_corner
         desc.tile_format = self.tile_format
@@ -126,28 +130,32 @@ class MapDescriptor:
     @classmethod
     def __parseXml(cls, xml_root, id):
         if not id:
-            raise ValueError("[map info] map id is empty")
+            raise ValueError("[map desc] map id is empty")
 
         name = cls.__getElemText(xml_root, "./name", "")
         if not name:
-            raise ValueError("[map info '%s'] no map name" % (id,))
+            raise ValueError("[map desc '%s'] no map name" % (id,))
 
-        min_zoom = int(cls.__getElemText(xml_root, "./minZoom", "0", "[map info '%s'] invalid min zoom, set to 0" % (id,)))
-        max_zoom = int(cls.__getElemText(xml_root, "./maxZoom", "24","[map info '%s'] invalid max zoom, set to 24" % (id,)))
-        min_zoom = cls.__cropValue(min_zoom, 0, 24, "[map info '%s'] min zoom should be in 0~24" % (id,))
-        max_zoom = cls.__cropValue(max_zoom, 0, 24, "[map info '%s'] max zoom should be in 0~24" % (id,))
+        min_zoom = int(cls.__getElemText(xml_root, "./minZoom", "0", "[map desc '%s'] invalid min zoom, set to 0" % (id,)))
+        max_zoom = int(cls.__getElemText(xml_root, "./maxZoom", "24","[map desc '%s'] invalid max zoom, set to 24" % (id,)))
+        min_zoom = cls.__cropValue(min_zoom, 0, 24, "[map desc '%s'] min zoom should be in 0~24" % (id,))
+        max_zoom = cls.__cropValue(max_zoom, 0, 24, "[map desc '%s'] max zoom should be in 0~24" % (id,))
         if min_zoom > max_zoom:
-            raise ValueError("[map info '%s'] min_zoom(%d) is larger tahn max_zoom(%d)" % (id, min_zoom, max_zoom))
+            raise ValueError("[map desc '%s'] min_zoom(%d) is larger tahn max_zoom(%d)" % (id, min_zoom, max_zoom))
 
         tile_type = cls.__getElemText(xml_root, "./tileType", "").lower()
         if tile_type not in ("jpg", "png") :
-            raise ValueError("[map info '%s'] not support tile format '%s'" % (id, tile_type))
+            raise ValueError("[map desc '%s'] not support tile format '%s'" % (id, tile_type))
 
         url = cls.__getElemText(xml_root, "./url", "")
         if not url or ("{$x}" not in url) or ("{$y}" not in url) or ("{$z}" not in url):
-            raise ValueError("[map info '%s'] url not catains {$x}, {$y}, or {$z}: %s" % (id, url))
+            raise ValueError("[map desc '%s'] url not catains {$x}, {$y}, or {$z}: %s" % (id, url))
 
         server_parts = cls.__getElemText(xml_root, "./serverParts", "")
+
+        invert_y = cls.__getElemText(xml_root, "./invertYCoordinate", "false").lower()
+        if invert_y not in ("false", "true"):
+            logging.warning("[map desc '%s'] invalid invertYCoordinate value: '%s', set to 'false'" % (id, invert_y))
 
         lower_corner = cls.__parseLatlon(cls.__getElemText(xml_root, "./lowerCorner", ""), (-180, -85))
         upper_corner = cls.__parseLatlon(cls.__getElemText(xml_root, "./upperCorner", ""), (180, 85))
@@ -160,6 +168,7 @@ class MapDescriptor:
         desc.level_max = max_zoom
         desc.url_template = url
         desc.server_parts = server_parts.split(' ') if server_parts else None
+        desc.invert_y = (invert_y == "true")
         desc.lower_corner = lower_corner
         desc.upper_corner = upper_corner
         desc.tile_format = tile_type
@@ -214,6 +223,8 @@ class TileAgent:
     def url_template(self): return self.__map_desc.url_template
     @property
     def server_parts(self): return self.__map_desc.server_parts
+    @property
+    def invert_y(self): return self.__map_desc.invert_y
     @property
     def lower_corner(self): return self.__map_desc.lower_corner
     @property
@@ -295,8 +306,16 @@ class TileAgent:
     def genTileId(self, level, x, y):
         return "%s-%d-%d-%d" % (self.map_id, level, x, y)
 
+    @classmethod
+    def flipY(cls, y, level):
+        return (1 << level) - 1 - y
+
     def genTileUrl(self, level, x, y):
+        if self.invert_y:
+            y = self.flipY(y, level)
+
         url = self.url_template;
+
         if self.server_parts:
             url = url.replace("{$serverpart}", random.choice(self.server_parts))
         url = url.replace("{$x}", str(x))
@@ -716,16 +735,14 @@ class DBDiskCache(DiskCache):
         self.__conn.close()
 
     @classmethod
-    def __flipY(cls, y, z):
-        max_y = (1 << z) -1
-        return max_y - y
-
+    def flipY(cls, y, level):
+        return (1 << level) - 1 - y
 
     def __put(self, level, x, y, data):
         ex = None
         try:
             if self.__db_schema == 'tms':
-                y = self.__flipY(y, level)
+                y = self.flipY(y, level)
             sql = "INSERT OR REPLACE INTO tiles(zoom_level, tile_column, tile_row, tile_data) VALUES(%d, %d, %d, ?)" % \
                     (level, x, y)
             self.__conn.execute(sql, (data,))
@@ -741,7 +758,7 @@ class DBDiskCache(DiskCache):
         data, ex = None, None
         try:
             if self.__db_schema == 'tms':
-                y = self.__flipY(y, level)
+                y = self.flipY(y, level)
             sql = "SELECT tile_data FROM tiles WHERE zoom_level=%d AND tile_column=%d AND tile_row=%d" % (level, x, y)
             cursor = self.__conn.execute(sql)
             row = cursor.fetchone()
