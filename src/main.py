@@ -765,32 +765,17 @@ class MapBoard(tk.Frame):
         if self.inSaveMode():
             return
 
-        #pos adjuster to align twd67
-        def twd67PosAdjuster(pos):
-            level = self.__map_ctrl.level
-            sel_geo = self.__map_ctrl.geo.addPixel(pos[0], pos[1], level)
-            #adjust to twd67
-            x = round(sel_geo.twd67_x/1000)*1000
-            y = round(sel_geo.twd67_y/1000)*1000
-            adjust_geo = GeoPoint(twd67_x=x, twd67_y=y)
-            return adjust_geo.diffPixel(sel_geo, level)
+        ctrl = self.__map_ctrl
 
-        #convert Geo Diff to Pixel diff, x/y->w/h
-        def twd67GeoScaler(xy):
-            level = self.__map_ctrl.level
-            #sel_geo = self.__map_ctrl.geo.addPixel(pos[0], pos[1], level)
-            sel_geo = self.__map_ctrl.geo #use pos(0,0) as ref
-            x = sel_geo.twd67_x + xy[0]*1000
-            y = sel_geo.twd67_y - xy[1]*1000
-            ext_geo = GeoPoint(twd67_x=x, twd67_y=y)
-            return ext_geo.diffPixel(sel_geo, level)
+        coord_sys = ctrl.getCoordSysToDraw()
+        if not coord_sys:
+            messagebox.showwarning("Save Image Error", "Not supported coord system '%s'" % (coord_sys,))
+            return
 
         try:
             #select area
-            self.__canvas_sel_area = AreaSelector(self.disp_canvas,
-                    pos_adjuster=twd67PosAdjuster,
-                    geo_scaler=twd67GeoScaler
-                ) 
+            geo_info = GeoInfo(ctrl.geo, ctrl.level, coord_sys)
+            self.__canvas_sel_area = AreaSelector(self.disp_canvas, geo_info)
             if self.__canvas_sel_area.wait(self) != 'OK':
                 return
 
@@ -1013,6 +998,48 @@ class MapBoard(tk.Frame):
             self.disp_canvas.tag_lower(tmp)
             self.disp_canvas.delete(tmp)
         self.disp_canvas['state'] = 'normal'
+
+#todo: combine PosAdjuster and GeoScaler, moving to util.py
+class GeoInfo:
+    def __init__(self, ref_geo, level, coord_sys):
+        if coord_sys not in ("TWD67", "TWD97"):
+            raise ValueError("not supported pos adjuster for '%s'" % (coord_sys,))
+        self.__ref_geo = ref_geo
+        self.__level = level
+        self.__coord_sys = coord_sys
+
+    #todo: getGridPoint
+    def move(self, pos):
+        sel_geo = self.__ref_geo.addPixel(pos[0], pos[1], self.__level)
+
+        adjust_geo = None
+        if self.__coord_sys == "TWD67":
+            x = round(sel_geo.twd67_x/1000)*1000
+            y = round(sel_geo.twd67_y/1000)*1000
+            adjust_geo = GeoPoint(twd67_x=x, twd67_y=y)
+        elif self.__coord_sys == "TWD97":
+            x = round(sel_geo.twd97_x/1000)*1000
+            y = round(sel_geo.twd97_y/1000)*1000
+            adjust_geo = GeoPoint(twd97_x=x, twd97_y=y)
+
+        return adjust_geo.diffPixel(sel_geo, self.__level)
+
+    #todo: getScaleLength
+    def getSize(self, xy):
+        sel_geo = self.__ref_geo #use pos(0,0) as ref
+
+        ext_geo = None
+        if self.__coord_sys == "TWD67":
+            x = sel_geo.twd67_x + xy[0]*1000
+            y = sel_geo.twd67_y - xy[1]*1000
+            ext_geo = GeoPoint(twd67_x=x, twd67_y=y)
+        elif self.__coord_sys == "TWD97":
+            x = sel_geo.twd97_x + xy[0]*1000
+            y = sel_geo.twd97_y - xy[1]*1000
+            ext_geo = GeoPoint(twd97_x=x, twd97_y=y)
+
+        return ext_geo.diffPixel(sel_geo, self.__level)
+
 
 class MapAgent:
     #properties from map_desc
@@ -1597,7 +1624,7 @@ class MapController:
         img2 = map.crop((left, up, right, low))
         return img2
 
-    def __getCoordSysToDraw(self):
+    def getCoordSysToDraw(self):
         supp_coords = ('TWD67', 'TWD97')
         for desc in self.__map_descs:
             if desc.enabled and desc.coord_sys in supp_coords:
@@ -1630,7 +1657,7 @@ class MapController:
         if attr.level <= 12:  #too crowded to show
             return
 
-        coord_sys = self.__getCoordSysToDraw()
+        coord_sys = self.getCoordSysToDraw()
         if not coord_sys:
             return
 

@@ -315,10 +315,9 @@ class AreaSelector:
         else:
             return self.__getpos()
 
-    def __init__(self, canvas, pos_adjuster=None, geo_scaler=None):
+    def __init__(self, canvas, geo_info=None):
         self.__canvas = canvas
-        self.__pos_adjuster = pos_adjuster
-        self.__geo_scaler = geo_scaler
+        self.__geo_info = geo_info
         self.__button_side = 20
         self.__resizer_side = 15
         self.__done = tk.BooleanVar(value=False)
@@ -497,8 +496,8 @@ class AreaSelector:
         self.__canvas.tag_raise('resizer')
 
     def adjustPos(self):
-        if conf.SELECT_AREA_ALIGN and self.__pos_adjuster is not None:
-            dx, dy = self.__pos_adjuster(self.pos)
+        if conf.SELECT_AREA_ALIGN and self.__geo_info is not None:
+            dx, dy = self.__geo_info.move(self.pos)
             self.move(dx, dy)
 
     def applySettings(self):
@@ -519,9 +518,9 @@ class AreaSelector:
             self.resize(sz, pos)
 
     def getFixedSize(self):
-        if conf.SELECT_AREA_FIXED and self.__geo_scaler is not None:
+        if conf.SELECT_AREA_FIXED and self.__geo_info is not None:
             geo_xy = (conf.SELECT_AREA_X, conf.SELECT_AREA_Y)
-            return self.__geo_scaler(geo_xy)
+            return self.__geo_info.getSize(geo_xy)
         return None
 
     def resize(self, size, pos=None):
