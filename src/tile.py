@@ -14,7 +14,7 @@ import logging
 import util
 import random
 from xml.etree import ElementTree as ET
-from datetime import datetime
+from datetime import datetime, timedelta
 from os import listdir
 from os.path import isdir, isfile, exists
 from PIL import Image, ImageTk, ImageDraw, ImageTk
@@ -27,8 +27,9 @@ from util import mkdirSafely, saveXml
 class MapDescriptor:
     #should construct from static methods.
     def __init__(self):
-        #fields loaded from xml
-        #....
+        #NOTEICE: see clone() method to see full fields
+
+        #set default value
         self.enabled = False
         self.alpha = 0.5
 
@@ -47,9 +48,6 @@ class MapDescriptor:
         tile_type = ET.SubElement(root, "tileType")
         tile_type.text = self.tile_format
 
-        tile_update = ET.SubElement(root, "tileUpdate")
-        tile_update.text = "IfNotMatch"
-
         url = ET.SubElement(root, "url")
         url.text = self.url_template
 
@@ -57,8 +55,13 @@ class MapDescriptor:
             server_parts = ET.SubElement(root, "serverParts")
             server_parts.text = " ".join(self.server_parts)
 
-        invert_y = ET.SubElement(root, "invertYCoordinate")
-        invert_y.text = "true" if self.invert_y else "false"
+        if self.invert_y:
+            invert_y = ET.SubElement(root, "invertYCoordinate")
+            invert_y.text = "true" if self.invert_y else "false"
+
+        if self.coord:
+            coord = ET.SubElement(root, "coordinatesystem")
+            coord.text = self.coord
 
         lower_corner = ET.SubElement(root, "lowerCorner")
         lower_corner.text = "%.9f %.9f" % self.lower_corner
@@ -66,8 +69,18 @@ class MapDescriptor:
         upper_corner = ET.SubElement(root, "upperCorner")
         upper_corner.text = "%.9f %.9f" % self.upper_corner
 
-        bgcolor = ET.SubElement(root, "backgroundColor")
-        bgcolor.text = "#000000"
+        #bgcolor = ET.SubElement(root, "backgroundColor")
+        #bgcolor.text = "#FFFFFF"
+
+        #tile_update = ET.SubElement(root, "tileUpdate")
+        #tile_update.text = "IfNotMatch"
+
+        if self.expire:
+            exp_text = "%.3f" % (self.expire.total_seconds() / 86400.0,)
+            if exp_text.endswith(".000"):
+                exp_text = exp_text[:-4]
+            expire = ET.SubElement(root, "expireDays")
+            expire.text = exp_text
 
         #write to file
         filename = id if id else self.map_id
@@ -80,12 +93,14 @@ class MapDescriptor:
         desc.map_title = self.map_title
         desc.level_min = self.level_min
         desc.level_max = self.level_max
+        desc.tile_format = self.tile_format
         desc.url_template = self.url_template
         desc.server_parts = self.server_parts
         desc.invert_y = self.invert_y
+        desc.coord = self.coord
         desc.lower_corner = self.lower_corner
         desc.upper_corner = self.upper_corner
-        desc.tile_format = self.tile_format
+        desc.expire = self.expire
         desc.tile_side = self.tile_side
         desc.alpha = self.alpha
         desc.enabled = self.enabled
@@ -128,6 +143,18 @@ class MapDescriptor:
         return def_latlon
 
     @classmethod
+    def __parseExpireDays(cls, expire_txt, id):
+        try:
+            expire_val = float(expire_txt)
+            if expire_val:
+                days = int(expire_val)
+                secs = int((expire_val - days) * 86400)
+                return timedelta(days=days, seconds=secs)
+        except Exception as ex:
+            logging.warning("[map desc '%s'] parsing expire_days '%s', error: %s" % (id, expire_txt, str(ex)))
+        return None
+
+    @classmethod
     def __parseXml(cls, xml_root, id):
         if not id:
             raise ValueError("[map desc] map id is empty")
@@ -157,8 +184,14 @@ class MapDescriptor:
         if invert_y not in ("false", "true"):
             logging.warning("[map desc '%s'] invalid invertYCoordinate value: '%s', set to 'false'" % (id, invert_y))
 
+
+        coord = cls.__getElemText(xml_root, "./coordinatesystem", "EPSG:4326").upper()
+
         lower_corner = cls.__parseLatlon(cls.__getElemText(xml_root, "./lowerCorner", ""), (-180, -85))
         upper_corner = cls.__parseLatlon(cls.__getElemText(xml_root, "./upperCorner", ""), (180, 85))
+
+        expire_days = cls.__getElemText(xml_root, "./expireDays", "0")
+        expire = cls.__parseExpireDays(expire_days, id)
 
         #collection data
         desc = MapDescriptor()
@@ -169,8 +202,10 @@ class MapDescriptor:
         desc.url_template = url
         desc.server_parts = server_parts.split(' ') if server_parts else None
         desc.invert_y = (invert_y == "true")
+        desc.coord = coord
         desc.lower_corner = lower_corner
         desc.upper_corner = upper_corner
+        desc.expire = expire
         desc.tile_format = tile_type
         desc.tile_side = 256
         return desc
@@ -226,9 +261,13 @@ class TileAgent:
     @property
     def invert_y(self): return self.__map_desc.invert_y
     @property
+    def coord(self): return self.__map_desc.coord
+    @property
     def lower_corner(self): return self.__map_desc.lower_corner
     @property
     def upper_corner(self): return self.__map_desc.upper_corner
+    @property
+    def expire(self): return self.__map_desc.expire
     @property
     def tile_format(self): return self.__map_desc.tile_format
     @property
@@ -428,10 +467,10 @@ class TileAgent:
             data = self.__disk_cache.get(level, x, y)
             if data is not None:
                 img = Image.open(BytesIO(data))
-                return img, datetime.min #todo: get tiemstamp from db
+                return img, None #todo: get tiemstamp from db
         except Exception as ex:
             logging.warning("[%s] Error to read tile data: %s" % (self.map_id, str(ex)))
-        return None, datetime.min #todo: get tiemstamp from db
+        return None, None #todo: get tiemstamp from db
 
     def __getTile(self, level, x, y, auto_req=True, cb=None):
         #check level
@@ -457,7 +496,7 @@ class TileAgent:
             img, ts = self.__getTileFromDisk(level, x, y)   #READ FROM disk
             if img is None:
                 status = self.TILE_NOT_IN_DISK
-            elif (datetime.now() - ts).total_seconds() > 86400:  #todo: get tile expire ts from desc
+            elif ts and self.expire and (datetime.now() - ts) > self.expire:
                 status = self.TILE_EXPIRE
             else:
                 self.__mem_cache.set(id, self.TILE_VALID, img)
