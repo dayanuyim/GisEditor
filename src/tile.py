@@ -59,9 +59,9 @@ class MapDescriptor:
             invert_y = ET.SubElement(root, "invertYCoordinate")
             invert_y.text = "true" if self.invert_y else "false"
 
-        if self.coord:
-            coord = ET.SubElement(root, "coordinatesystem")
-            coord.text = self.coord
+        if self.coord_sys:
+            coord_sys = ET.SubElement(root, "coordinatesystem")
+            coord_sys.text = self.coord_sys
 
         lower_corner = ET.SubElement(root, "lowerCorner")
         lower_corner.text = "%.9f %.9f" % self.lower_corner
@@ -97,7 +97,7 @@ class MapDescriptor:
         desc.url_template = self.url_template
         desc.server_parts = self.server_parts
         desc.invert_y = self.invert_y
-        desc.coord = self.coord
+        desc.coord_sys = self.coord_sys
         desc.lower_corner = self.lower_corner
         desc.upper_corner = self.upper_corner
         desc.expire = self.expire
@@ -185,7 +185,7 @@ class MapDescriptor:
             logging.warning("[map desc '%s'] invalid invertYCoordinate value: '%s', set to 'false'" % (id, invert_y))
 
 
-        coord = cls.__getElemText(xml_root, "./coordinatesystem", "EPSG:4326").upper()
+        coord_sys = cls.__getElemText(xml_root, "./coordinatesystem", "EPSG:4326").upper()
 
         lower_corner = cls.__parseLatlon(cls.__getElemText(xml_root, "./lowerCorner", ""), (-180, -85))
         upper_corner = cls.__parseLatlon(cls.__getElemText(xml_root, "./upperCorner", ""), (180, 85))
@@ -202,7 +202,7 @@ class MapDescriptor:
         desc.url_template = url
         desc.server_parts = server_parts.split(' ') if server_parts else None
         desc.invert_y = (invert_y == "true")
-        desc.coord = coord
+        desc.coord_sys = coord_sys
         desc.lower_corner = lower_corner
         desc.upper_corner = upper_corner
         desc.expire = expire
@@ -261,7 +261,7 @@ class TileAgent:
     @property
     def invert_y(self): return self.__map_desc.invert_y
     @property
-    def coord(self): return self.__map_desc.coord
+    def coord_sys(self): return self.__map_desc.coord_sys
     @property
     def lower_corner(self): return self.__map_desc.lower_corner
     @property

@@ -1329,7 +1329,7 @@ class MapController:
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  crop map")
         map = self.__genCropMap(map, attr, req_attr)
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw coord")
-        self.__drawTM2Coord(map, req_attr)
+        self.__drawCoordValue(map, req_attr)
 
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: done")
         req_attr.fail_count = attr.fail_count
@@ -1597,9 +1597,41 @@ class MapController:
         img2 = map.crop((left, up, right, low))
         return img2
 
-    def __drawTM2Coord(self, map, attr):
+    def __getCoordSysToDraw(self):
+        supp_coords = ('TWD67', 'TWD97')
+        for desc in self.__map_descs:
+            if desc.enabled and desc.coord_sys in supp_coords:
+                return desc.coord_sys
+        return None
+
+    @classmethod
+    def __getCoordByPixel(cls, px, py, level, coord_sys):
+        geo = GeoPoint(px=px, py=py, level=level)
+        if coord_sys == "TWD67":
+            return (geo.twd67_x, geo.twd67_y)
+        if coord_sys == "TWD97":
+            return (geo.twd97_x, geo.twd97_y)
+        else:
+            raise ValueError("Unknown coord system '%s'" % (coord,))
+
+    @classmethod
+    def __getPixelByCoord(cls, x, y, level, coord_sys):
+        geo = None
+        if coord_sys == "TWD67":
+            geo = GeoPoint(twd67_x=x, twd67_y=y)
+        elif coord_sys == "TWD97":
+            geo = GeoPoint(twd97_x=x, twd97_y=y)
+        else:
+            raise ValueError("Unknown coord system '%s'" % (coord,))
+        return geo.pixel(level)
+
+    def __drawCoordValue(self, map, attr):
 
         if attr.level <= 12:  #too crowded to show
+            return
+
+        coord_sys = self.__getCoordSysToDraw()
+        if not coord_sys:
             return
 
         #set draw
@@ -1608,35 +1640,25 @@ class MapController:
 
         with DrawGuard(map) as draw:
             #get xy of TM2
-            (left_x, up_y) = self.getTWD67TM2ByPixcelXY(attr.left_px, attr.up_py, attr.level)
-            (right_x, low_y) = self.getTWD67TM2ByPixcelXY(attr.right_px, attr.low_py, attr.level)
+            (left_x, up_y) = self.__getCoordByPixel(attr.left_px, attr.up_py, attr.level, coord_sys)
+            (right_x, low_y) = self.__getCoordByPixel(attr.right_px, attr.low_py, attr.level, coord_sys)
 
-            #draw TM2' x per KM
+            #draw coord x per KM
             for x in range(ceil(left_x/1000), floor(right_x/1000) +1):
                 #print("tm: ", x)
-                (px, py) = self.getPixcelXYByTWD67TM2(x*1000, low_y, attr.level)
+                (px, py) = self.__getPixelByCoord(x*1000, low_y, attr.level, coord_sys)
                 px -= attr.left_px
                 py -= attr.up_py
                 draw.text((px, py - py_shift), str(x), fill="black", font=font)
 
-            #draw TM2' y per KM
+            #draw coord y per KM
             for y in range(ceil(low_y/1000), floor(up_y/1000) +1):
                 #print("tm: ", y)
-                (px, py) = self.getPixcelXYByTWD67TM2(left_x, y*1000, attr.level)
+                (px, py) = self.__getPixelByCoord(left_x, y*1000, attr.level, coord_sys)
                 px -= attr.left_px
                 py -= attr.up_py
                 draw.text((px, py -py_shift), str(y), fill="black", font=font)
 
-
-    @staticmethod
-    def getTWD67TM2ByPixcelXY(px, py, level):
-        geo = GeoPoint(px=px, py=py, level=level)
-        return (geo.twd67_x, geo.twd67_y)
-
-    @staticmethod
-    def getPixcelXYByTWD67TM2(x, y, level):
-        geo = GeoPoint(twd67_x=x, twd67_y=y)
-        return geo.pixel(level)
 
 #record image atrr
 class MapAttr:
