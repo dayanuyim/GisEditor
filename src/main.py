@@ -26,7 +26,8 @@ from ui import Dialog, MapSelectDialog
 from gpx import GpsDocument, WayPoint
 from pic import PicDocument
 from sym import SymRuleType, SymRule
-from util import GeoPoint, getPrefCornerPos, AreaSelector, AreaSizeTooLarge, DrawGuard, imageIsTransparent
+from util import GeoPoint, getPrefCornerPos, DrawGuard, imageIsTransparent
+from util import AreaSelector, AreaSizeTooLarge, GeoInfo  #should move to ui.py
 from tile import TileAgent, MapDescriptor
 
 #print to console/log and messagebox (generalize this with LOG, moving to util.py)
@@ -393,7 +394,7 @@ class MapBoard(tk.Frame):
         return frame
 
     #{{{ operations
-    def inSaveMode(self):
+    def isSavingImage(self):
         return self.__canvas_sel_area is not None
 
     #release sources to exit
@@ -401,7 +402,7 @@ class MapBoard(tk.Frame):
         self.__is_closed = True
         if self.__map_sel_dialog is not None:
             self.__map_sel_dialog.close()
-        if self.inSaveMode():
+        if self.isSavingImage():
             self.__canvas_sel_area.exit()
         self.__map_ctrl.close()
 
@@ -449,6 +450,9 @@ class MapBoard(tk.Frame):
         return self.__map_sel_dialog.map_descriptors
 
     def OnMapSelected(self):
+        if self.isSavingImage():
+            return
+
         self.__map_descs = self.__showMapSelector()
         self.__map_sel_dialog = None #todo: resue this
         self.__putUserMapConf(conf.USER_MAP_CONF)
@@ -456,7 +460,7 @@ class MapBoard(tk.Frame):
             self.setMapInfo()
 
     def onSetLevel(self, *args):
-        if self.inSaveMode():
+        if self.isSavingImage():
             return
 
         try:
@@ -552,7 +556,7 @@ class MapBoard(tk.Frame):
         return None
         
     def onMouseWheel(self, event, delta):
-        if self.inSaveMode():
+        if self.isSavingImage():
             return
 
         ctrl = self.__map_ctrl
@@ -762,19 +766,24 @@ class MapBoard(tk.Frame):
         self.__focused_wpt = None
 
     def onImageSave(self):
-        if self.inSaveMode():
+        if self.isSavingImage():
             return
 
-        ctrl = self.__map_ctrl
-
-        coord_sys = ctrl.getCoordSysToDraw()
-        if not coord_sys:
-            messagebox.showwarning("Save Image Error", "Not supported coord system '%s'" % (coord_sys,))
+        enabled_maps = [desc for desc in self.__map_descs if desc.enabled]
+        if not enabled_maps:
+            messagebox.showwarning("Save Image Error", "No maps to save")
             return
+
+        #get preferred coord system
+        coord_sys = [desc.coord_sys for desc in self.__map_descs if desc.enabled and desc.coord_sys in ("TWD67", "TWD97")]
+        if coord_sys:
+            coord_sys = coord_sys[0]
+        else:
+            coord_sys = enabled_maps[0].coord_sys
 
         try:
             #select area
-            geo_info = GeoInfo(ctrl.geo, ctrl.level, coord_sys)
+            geo_info = GeoInfo(self.__map_ctrl.geo, self.__map_ctrl.level, coord_sys)
             self.__canvas_sel_area = AreaSelector(self.disp_canvas, geo_info)
             if self.__canvas_sel_area.wait(self) != 'OK':
                 return
@@ -836,7 +845,7 @@ class MapBoard(tk.Frame):
         self.resetMap(force=alter)
 
     def onClickMotion(self, event):
-        if self.inSaveMode():
+        if self.isSavingImage():
             return
 
         if self.__left_click_pos:
@@ -856,7 +865,7 @@ class MapBoard(tk.Frame):
         return GeoPoint(px=px, py=py, level=self.__map_ctrl.level)
 
     def onMotion(self, event):
-        if self.inSaveMode():
+        if self.isSavingImage():
             return
         geo = self.getGeoPointAt(event.x, event.y)
 
@@ -921,7 +930,7 @@ class MapBoard(tk.Frame):
                 self.setMapInfo()
                 self.resetMap()
             # raise AS, if any
-            if self.inSaveMode():
+            if self.isSavingImage():
                 self.disp_canvas.tag_raise('AS')
 
     def __runMapUpdater(self):
@@ -999,46 +1008,7 @@ class MapBoard(tk.Frame):
             self.disp_canvas.delete(tmp)
         self.disp_canvas['state'] = 'normal'
 
-#todo: combine PosAdjuster and GeoScaler, moving to util.py
-class GeoInfo:
-    def __init__(self, ref_geo, level, coord_sys):
-        if coord_sys not in ("TWD67", "TWD97"):
-            raise ValueError("not supported pos adjuster for '%s'" % (coord_sys,))
-        self.__ref_geo = ref_geo
-        self.__level = level
-        self.__coord_sys = coord_sys
-
-    #todo: getGridPoint
-    def move(self, pos):
-        sel_geo = self.__ref_geo.addPixel(pos[0], pos[1], self.__level)
-
-        adjust_geo = None
-        if self.__coord_sys == "TWD67":
-            x = round(sel_geo.twd67_x/1000)*1000
-            y = round(sel_geo.twd67_y/1000)*1000
-            adjust_geo = GeoPoint(twd67_x=x, twd67_y=y)
-        elif self.__coord_sys == "TWD97":
-            x = round(sel_geo.twd97_x/1000)*1000
-            y = round(sel_geo.twd97_y/1000)*1000
-            adjust_geo = GeoPoint(twd97_x=x, twd97_y=y)
-
-        return adjust_geo.diffPixel(sel_geo, self.__level)
-
-    #todo: getScaleLength
-    def getSize(self, xy):
-        sel_geo = self.__ref_geo #use pos(0,0) as ref
-
-        ext_geo = None
-        if self.__coord_sys == "TWD67":
-            x = sel_geo.twd67_x + xy[0]*1000
-            y = sel_geo.twd67_y - xy[1]*1000
-            ext_geo = GeoPoint(twd67_x=x, twd67_y=y)
-        elif self.__coord_sys == "TWD97":
-            x = sel_geo.twd97_x + xy[0]*1000
-            y = sel_geo.twd97_y - xy[1]*1000
-            ext_geo = GeoPoint(twd97_x=x, twd97_y=y)
-
-        return ext_geo.diffPixel(sel_geo, self.__level)
+        
 
 
 class MapAgent:
@@ -1624,13 +1594,6 @@ class MapController:
         img2 = map.crop((left, up, right, low))
         return img2
 
-    def getCoordSysToDraw(self):
-        supp_coords = ('TWD67', 'TWD97')
-        for desc in self.__map_descs:
-            if desc.enabled and desc.coord_sys in supp_coords:
-                return desc.coord_sys
-        return None
-
     @classmethod
     def __getCoordByPixel(cls, px, py, level, coord_sys):
         geo = GeoPoint(px=px, py=py, level=level)
@@ -1657,9 +1620,10 @@ class MapController:
         if attr.level <= 12:  #too crowded to show
             return
 
-        coord_sys = self.getCoordSysToDraw()
+        coord_sys = [desc.coord_sys for desc in self.__map_descs if desc.enabled and desc.coord_sys in ("TWD67", "TWD97")]
         if not coord_sys:
             return
+        coord_sys = coord_sys[0]
 
         #set draw
         py_shift = 20
