@@ -13,6 +13,7 @@ import conf
 import logging
 import util
 import random
+import time
 from xml.etree import ElementTree as ET
 from datetime import datetime, timedelta
 from os import listdir
@@ -31,7 +32,7 @@ class MapDescriptor:
 
         #set default value
         self.enabled = False
-        self.alpha = 0.5
+        self.alpha = 1.00
 
     def save(self, dirpath, id=None):
         root = ET.Element("customMapSource")
@@ -75,8 +76,8 @@ class MapDescriptor:
         #tile_update = ET.SubElement(root, "tileUpdate")
         #tile_update.text = "IfNotMatch"
 
-        if self.expire:
-            exp_text = "%.3f" % (self.expire.total_seconds() / 86400.0,)
+        if self.expire_sec:
+            exp_text = "%.3f" % (self.expire_sec / 86400.0,)
             if exp_text.endswith(".000"):
                 exp_text = exp_text[:-4]
             expire = ET.SubElement(root, "expireDays")
@@ -100,7 +101,7 @@ class MapDescriptor:
         desc.coord_sys = self.coord_sys
         desc.lower_corner = self.lower_corner
         desc.upper_corner = self.upper_corner
-        desc.expire = self.expire
+        desc.expire_sec = self.expire_sec
         desc.tile_side = self.tile_side
         desc.alpha = self.alpha
         desc.enabled = self.enabled
@@ -146,13 +147,10 @@ class MapDescriptor:
     def __parseExpireDays(cls, expire_txt, id):
         try:
             expire_val = float(expire_txt)
-            if expire_val:
-                days = int(expire_val)
-                secs = int((expire_val - days) * 86400)
-                return timedelta(days=days, seconds=secs)
+            return int(expire_val * 86400)
         except Exception as ex:
             logging.warning("[map desc '%s'] parsing expire_days '%s', error: %s" % (id, expire_txt, str(ex)))
-        return None
+        return 0
 
     @classmethod
     def __parseXml(cls, xml_root, id):
@@ -191,7 +189,7 @@ class MapDescriptor:
         upper_corner = cls.__parseLatlon(cls.__getElemText(xml_root, "./upperCorner", ""), (180, 85))
 
         expire_days = cls.__getElemText(xml_root, "./expireDays", "0")
-        expire = cls.__parseExpireDays(expire_days, id)
+        expire_sec = cls.__parseExpireDays(expire_days, id)
 
         #collection data
         desc = MapDescriptor()
@@ -205,7 +203,7 @@ class MapDescriptor:
         desc.coord_sys = coord_sys
         desc.lower_corner = lower_corner
         desc.upper_corner = upper_corner
-        desc.expire = expire
+        desc.expire_sec = expire_sec
         desc.tile_format = tile_type
         desc.tile_side = 256
         return desc
@@ -267,7 +265,7 @@ class TileAgent:
     @property
     def upper_corner(self): return self.__map_desc.upper_corner
     @property
-    def expire(self): return self.__map_desc.expire
+    def expire_sec(self): return self.__map_desc.expire_sec
     @property
     def tile_format(self): return self.__map_desc.tile_format
     @property
@@ -464,13 +462,13 @@ class TileAgent:
 
     def __getTileFromDisk(self, level, x, y):
         try:
-            data = self.__disk_cache.get(level, x, y)
+            data, ts = self.__disk_cache.get(level, x, y)
             if data is not None:
                 img = Image.open(BytesIO(data))
-                return img, None #todo: get tiemstamp from db
+                return img, ts
         except Exception as ex:
             logging.warning("[%s] Error to read tile data: %s" % (self.map_id, str(ex)))
-        return None, None #todo: get tiemstamp from db
+        return None, None
 
     def __getTile(self, level, x, y, auto_req=True, cb=None):
         #check level
@@ -488,7 +486,7 @@ class TileAgent:
             return img    # None or Expire
 
         if (status & 0xF0) == self.TILE_REQ_FAILED:
-            if (datetime.now() - ts).total_seconds() < 60: #todo: user to specify retry period
+            if (time.time() - ts) < 60: #todo: user to specify retry period
                 return None
             status &= 0x0F    #remove req_failed status
 
@@ -496,7 +494,7 @@ class TileAgent:
             img, ts = self.__getTileFromDisk(level, x, y)   #READ FROM disk
             if img is None:
                 status = self.TILE_NOT_IN_DISK
-            elif ts and self.expire and (datetime.now() - ts) > self.expire:
+            elif ts and self.expire_sec and (time.time() - ts) > self.expire_sec:
                 status = self.TILE_EXPIRE
             else:
                 self.__mem_cache.set(id, self.TILE_VALID, img)
@@ -608,12 +606,12 @@ class MemoryCache:
             item = self.__repo.get(id)
             if item is not None:
                 data = item[0]
-        self.__repo[id] = (data, status, datetime.now())
+        self.__repo[id] = (data, status, time.time())
 
     def __get(self, id):
         item = self.__repo.get(id)
         if item is None:
-            item = (None, self.__init_status, datetime.now())
+            item = (None, self.__init_status, time.time())
             self.__repo[id] = item
         return item
 
@@ -679,25 +677,31 @@ class DBDiskCache(DiskCache):
         return self.__map_desc.map_id
 
     def __init__(self, cache_dir, map_desc, db_schema, is_concurrency=True):
-        self.__db_path = os.path.join(cache_dir, map_desc.map_id + ".mbtiles")
-        self.__db_schema = db_schema
         self.__map_desc = map_desc
-        self.__is_concurrency = is_concurrency
+        self.__db_path = os.path.join(cache_dir, map_desc.map_id + ".mbtiles")
         self.__conn = None
-        self.__surrogate = None  #the thread do All DB operations, due to sqlite3 requiring only the same thread.
 
-        self.__is_closed = False
+        #configs
+        self.__db_schema = db_schema
+        self.__has_timestamp = True
 
-        #concurrency get/put
-        self.__sql_queue = []
-        self.__sql_queue_lock = Lock()
-        self.__sql_queue_cv = Condition(self.__sql_queue_lock)
+        self.__is_concurrency = is_concurrency
 
-        self.__get_lock = Lock()    #block the 'get' action
+        if is_concurrency:
+            self.__surrogate = None  #the thread do All DB operations, due to sqlite3 requiring only the same thread.
 
-        self.__get_respose = None   #the pair (data, exception)
-        self.__get_respose_lock = Lock()
-        self.__get_respose_cv = Condition(self.__get_respose_lock)
+            self.__is_closed = False
+
+            #concurrency get/put
+            self.__sql_queue = []
+            self.__sql_queue_lock = Lock()
+            self.__sql_queue_cv = Condition(self.__sql_queue_lock)
+
+            self.__get_lock = Lock()    #block the 'get' action
+
+            self.__get_respose = None   #the pair (data, exception)
+            self.__get_respose_lock = Lock()
+            self.__get_respose_cv = Condition(self.__get_respose_lock)
 
     def __initDB(self):
         def getBoundsText(map_desc):
@@ -725,6 +729,7 @@ class DBDiskCache(DiskCache):
         tiles_create_sql += "tile_column INTEGER, "
         tiles_create_sql += "tile_row    INTEGER, "
         tiles_create_sql += "tile_data   BLOB     NOT NULL, "
+        tiles_create_sql += "timestamp   INTEGER  NOT NULL, "
         tiles_create_sql += "PRIMARY KEY (zoom_level, tile_column, tile_row))"
 
         #tiles_idx
@@ -738,6 +743,7 @@ class DBDiskCache(DiskCache):
             conn.execute(sql)
         conn.commit()
 
+
     def __getMetadata(self, name):
         try:
             sql = 'SELECT value FROM metadata WHERE name="%s"' % (name,)
@@ -747,19 +753,33 @@ class DBDiskCache(DiskCache):
             return data
         except Exception as ex:
             logging.warning('[%s] Get mbtiles metadata error: %s' % (self.map_id, str(ex)))
-
         return None
 
-    def __readMetadata(self):
-        #overwrite db schema from metadta
+    def __tableHasColumn(self, tbl_name, col_name):
+        try:
+            sql = "PRAGMA table_info(%s)" % tbl_name
+            cursor = self.__conn.execute(sql)
+            rows = cursor.fetchall()
+
+            for row in rows:
+                if row[1] == col_name:
+                    return True
+
+        except Exception as ex:
+            logging.warning("[%s] detect table '%s' has column '%s' error: %s" % (self.map_id, tbl_name, col_name, str(ex)))
+        return False
+
+    def __readConfig(self):
+        #db schema from metadta
         schema = self.__getMetadata('schema')
         if schema and self.__db_schema != schema:
+            logging.info("[%s] Reset db schema from %s to %s" % (self.map_id, self.__db_schema, schema))
             self.__db_schema = schema
-            logging.info("[%s] Reset db schema to %s" % (self.map_id, self.__db_schema))
+
+        self.__has_timestamp = self.__tableHasColumn("tiles", "timestamp")
 
     #the true actions which are called by Surrogate
     def __start(self):
-        logging.info("[%s] The db schema default is %s" % (self.map_id, self.__db_schema))
         if not os.path.exists(self.__db_path):
             logging.info("[%s] Initializing local cache DB..." % (self.map_id,))
             mkdirSafely(os.path.dirname(self.__db_path))
@@ -767,7 +787,10 @@ class DBDiskCache(DiskCache):
             self.__initDB()
         else:
             self.__conn = sqlite3.connect(self.__db_path)
-            self.__readMetadata()
+            self.__readConfig()
+
+        logging.info("[%s][Config] db schema: %s" % (self.map_id, self.__db_schema))
+        logging.info("[%s][Config] suuport tile timestamp: %s" % (self.map_id, self.__has_timestamp))
 
     def __close(self):
         logging.info("[%s] Closing local cache DB..." % (self.map_id,))
@@ -778,37 +801,55 @@ class DBDiskCache(DiskCache):
         return (1 << level) - 1 - y
 
     def __put(self, level, x, y, data):
-        ex = None
+        #sql
+        if self.__db_schema == 'tms':
+            y = self.flipY(y, level)
+
+        sql = None
+        if self.__has_timestamp:
+            sql  = "INSERT OR REPLACE INTO tiles(zoom_level, tile_column, tile_row, tile_data, timestamp)"
+            sql += " VALUES(%d, %d, %d, ?, %d)" % (level, x, y, int(time.time()))
+        else:
+            sql = "INSERT OR REPLACE INTO tiles(zoom_level, tile_column, tile_row, tile_data)"
+            sql += " VALUES(%d, %d, %d, ?)" % (level, x, y)
+
+        #query
         try:
-            if self.__db_schema == 'tms':
-                y = self.flipY(y, level)
-            sql = "INSERT OR REPLACE INTO tiles(zoom_level, tile_column, tile_row, tile_data) VALUES(%d, %d, %d, ?)" % \
-                    (level, x, y)
             self.__conn.execute(sql, (data,))
             self.__conn.commit()
-        except Exception as _ex:
-            ex = _ex
-
-        logging.info("[%s] %s [%s]" % (self.map_id, sql, ("Fail" if ex else "OK")))
-        if ex:
+            logging.info("[%s] %s [OK]" % (self.map_id, sql))
+        except Exception as ex:
+            logging.info("[%s] %s [Fail]" % (self.map_id, sql))
             raise ex
 
     def __get(self, level, x, y):
-        data, ex = None, None
+        #sql
+        if self.__db_schema == 'tms':
+            y = self.flipY(y, level)
+
+        cols = "tile_data, timestamp" if self.__has_timestamp else "tile_data"
+        sql = "SELECT %s FROM tiles WHERE zoom_level=%d AND tile_column=%d AND tile_row=%d" % \
+                (cols, level, x, y,)
+
+        row = None
         try:
-            if self.__db_schema == 'tms':
-                y = self.flipY(y, level)
-            sql = "SELECT tile_data FROM tiles WHERE zoom_level=%d AND tile_column=%d AND tile_row=%d" % (level, x, y)
+            #query
             cursor = self.__conn.execute(sql)
             row = cursor.fetchone()
-            data = None if row is None else row[0]
-        except Exception as _ex:
-            ex = _ex
-
-        logging.info("[%s] %s [%s]" % (self.map_id, sql, ("Fail" if ex else "OK" if data else "NA")))
-        if ex:
+        except Exception as ex:
+            logging.info("[%s] %s [Fail]" % (self.map_id, sql))
             raise ex
-        return data
+
+        #result (tile, timestamp)
+        if row is None:
+            logging.info("[%s] %s [NA]" % (self.map_id, sql))
+            return (None, None)
+        elif self.__has_timestamp:
+            logging.info("[%s] %s [OK][TS]" % (self.map_id, sql))
+            return row
+        else:
+            logging.info("[%s] %s [OK]" % (self.map_id, sql))
+            return (row[0], None)
 
     #the interface which are called by the user
     def start(self):
@@ -838,7 +879,7 @@ class DBDiskCache(DiskCache):
 
     def get(self, level, x, y):
         if not self.__is_concurrency:
-            self.__get(level, x, y)
+            return self.__get(level, x, y)
         else:
             def has_respose():
                 return self.__get_respose is not None
@@ -854,7 +895,7 @@ class DBDiskCache(DiskCache):
                 res = None
                 with self.__get_respose_cv:
                     self.__get_respose_cv.wait_for(has_respose)
-                    res, self.__get_respose = self.__get_respose, None   #swap
+                    res, self.__get_respose = self.__get_respose, res   #swap: pop response of get()
 
                 #return data
                 data, ex = res
