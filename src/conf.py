@@ -34,16 +34,27 @@ def __genUserMapLine(item):
     en, alpha = item
     return "%d,%.2f" % (1 if en else 0, alpha)
 
-def __readUserMaps(user_conf):
+def __readUserMaps(conf):
     maps = OrderedDict()
 
-    if user_conf.has_section('maps'):
-        for id, line in user_conf['maps'].items():
+    if conf.has_section('maps'):
+        for id, line in conf['maps'].items():
             try:
                 maps[id] = __parseUserMapLine(line)
             except Exception as ex:
                 logging.warning("parsing user maps for line '%s' error: %s" % (line, str(ex)))
     return maps
+
+__trk_colors = ('White', 'Cyan', 'Magenta', 'Blue', 'Yellow', 'Green', 'Red',
+                'DarkGray', 'LightGray', 'DarkCyan', 'DarkMagenta', 'DarkBlue', 'DarkGreen', 'DarkRed', 'Black')
+
+def __readTrkColors(conf):
+    if not conf.has_section('trk_colors'):
+        return __trk_colors
+    else:
+        #return conf['trk_colors'].values()
+        return [v for k, v in conf['trk_colors'].items()]
+
 
 def abspath(path, related_home):
     return path if os.path.isabs(path) else os.path.join(related_home, path)
@@ -79,8 +90,7 @@ DEF_SYMBOL = _tosymkey(__app_conf.get('settings', 'def_symbol', fallback='Waypoi
 DB_SCHEMA = __app_conf.get('settings', 'db_schema', fallback='tms') #valid value is 'tms' or 'zyx'
 TZ = timedelta(hours=__app_conf.getfloat('settings', 'tz', fallback=8.0))  #todo: get the info from system of geo location
 
-__trk_colors = ('White', 'Cyan', 'Magenta', 'Blue', 'Yellow', 'Green', 'Red',
-                'DarkGray', 'LightGray', 'DarkCyan', 'DarkMagenta', 'DarkBlue', 'DarkGreen', 'DarkRed', 'Black')
+TRK_COLORS = __readTrkColors(__app_conf)
 
 def writeAppConf():
     '''
@@ -94,6 +104,11 @@ def writeAppConf():
     f.write("def_symbol=%s\n" % (DEF_SYMBOL,))
     f.write("db_schema=%s\n" % (DB_SCHEMA,))
     '''
+
+    __app_conf['trk_colors'] = OrderedDict()
+    for i in range(len(TRK_COLORS)):
+        __app_conf['trk_colors']['trk_colors.' + str(i)] = TRK_COLORS[i]
+
     __writeConf(__app_conf, __APP_CONF)
 
 # User conf ###########################################

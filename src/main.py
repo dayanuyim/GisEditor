@@ -2181,8 +2181,7 @@ class TrkSingleBoard(tk.Toplevel):
         self._var_color.trace('w', self.onColorSelected)
         color_combo = ttk.Combobox(frame, font=font, width=20, textvariable=self._var_color)
         color_combo.grid(row=1, column=1, sticky='w')
-        color_combo['values'] = ('White', 'Cyan', 'Magenta', 'Blue', 'Yellow', 'Green', 'Red',
-                'DarkGray', 'LightGray', 'DarkCyan', 'DarkMagenta', 'DarkBlue', 'DarkGreen', 'DarkRed', 'Black')
+        color_combo['values'] = conf.TRK_COLORS
 
         #tk.Checkbutton(frame, text='Focus Track point', variable=self._var_focus).grid(row=2, column=1, sticky='w')
 
