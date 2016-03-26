@@ -339,7 +339,7 @@ class AreaSelectorSettings(Dialog):
         conf.SELECT_AREA_FIXED = self.var_fixed.get()
         conf.SELECT_AREA_X = self.var_w.get()
         conf.SELECT_AREA_Y = self.var_h.get()
-        conf.save()
+        conf.writeUserConf()
 
 class AreaSizeTooLarge(Exception):
     pass

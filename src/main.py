@@ -187,7 +187,7 @@ class MapBoard(tk.Frame):
 
     @classmethod
     def __getUserMapDescriptors(cls):
-        app_descs = cls.__loadMapDescriptors(conf.CACHE_DIR)
+        app_descs = cls.__loadMapDescriptors(conf.MAPCACHE_DIR)
 
         user_descs = []
         for id, (en, alpha) in conf.USER_MAPS.items():
@@ -1237,7 +1237,7 @@ class MapController:
                 else:
                     agent.pause()
             elif desc.enabled:
-                self.__map_agents[desc] = MapAgent(desc, conf.CACHE_DIR)
+                self.__map_agents[desc] = MapAgent(desc, conf.MAPCACHE_DIR)
 
         #config desc
         self.__map_descs = descs
