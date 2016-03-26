@@ -3,7 +3,7 @@ __pycache__/
 bak/
 cache/
 giseditor.conf
-giseditor.map.conf
+giseditor.user.conf
 sym_rule.conf
 giseditor.bat
 giseditor.exe

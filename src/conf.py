@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 
 import os
-import platform
 import logging
+import codecs
 from os import path
 from PIL import ImageFont, Image
-from sym import SymbolRules
 from datetime import timedelta
 from coord import CoordinateSystem
+from configparser import ConfigParser
+from collections import OrderedDict
 
 #constance util
 def _tosymkey(sym):
@@ -33,27 +34,57 @@ def __readConfig(conf_path):
             conf[k] = v
     return conf
 
-#constance
-OS = platform.system()
-SRC_DIR = os.path.dirname(os.path.abspath(__file__))
-HOME_DIR = os.path.abspath(os.path.join(SRC_DIR, ".."))
-CONF_DIR = os.path.join(HOME_DIR, 'conf')
-DATA_DIR = os.path.join(HOME_DIR, 'data')
-ICON_DIR = os.path.join(HOME_DIR, 'icon')
-GISEDITOR_CONF = os.path.join(CONF_DIR, 'giseditor.conf')
-DEF_SYMS_CONF = os.path.join(CONF_DIR, 'def_syms.conf')
-SYM_RULE_CONF = os.path.join(CONF_DIR, 'sym_rule.conf')
-USER_MAP_CONF = os.path.join(CONF_DIR, 'giseditor.map.conf')
-EXE_ICON = os.path.join(DATA_DIR, 'giseditor.ico')
+def __readConf(fpath):
+    cp = ConfigParser()
+    cp.optionxform = str #case sensitive
+    cp.read(fpath, encoding='utf-8')
+    return cp
 
-#read conf
-__config = __readConfig(GISEDITOR_CONF)
+def __writeConf(conf, fpath):
+    with codecs.open(fpath, 'w', encoding='utf-8') as f:
+        conf.write(f, space_around_delimiters=False)
+
+def __parseUserMapLine(line):
+    tokens = line.split(',')
+    en = tokens[0] == "1"
+    alpha = float(tokens[1])
+    return en, alpha
+
+def __genUserMapLine(item):
+    en, alpha = item
+    return "%d,%.2f" % (1 if en else 0, alpha)
+
+def __readUserMaps(user_conf):
+    maps = OrderedDict()
+
+    if user_conf.has_section('maps'):
+        for id, line in user_conf['maps'].items():
+            maps[id] = __parseUserMapLine(line)
+    return maps
+
+
+#constance
+__SRC_DIR = os.path.dirname(os.path.abspath(__file__))
+__HOME_DIR = os.path.abspath(os.path.join(__SRC_DIR, ".."))
+__CONF_DIR = os.path.join(__HOME_DIR, 'conf')
+__DATA_DIR = os.path.join(__HOME_DIR, 'data')
+__ICON_DIR = os.path.join(__HOME_DIR, 'icon')
+
+__APP_CONF = os.path.join(__CONF_DIR, 'giseditor.conf')
+__USER_CONF = os.path.join(__CONF_DIR, 'giseditor.user.conf')
+
+DEF_SYMS_CONF = os.path.join(__CONF_DIR, 'def_syms.conf')
+SYM_RULE_CONF = os.path.join(__CONF_DIR, 'sym_rule.conf')
+EXE_ICON = os.path.join(__DATA_DIR, 'giseditor.ico')
+
+# App conf ###########################################
+__config = __readConfig(__APP_CONF)
 
 __cache_dir = __config['cache_dir']
-CACHE_DIR = __cache_dir if os.path.isabs(__cache_dir ) else os.path.join(HOME_DIR, __cache_dir)
+CACHE_DIR = __cache_dir if os.path.isabs(__cache_dir ) else os.path.join(__HOME_DIR, __cache_dir)
 
 __gpsbabel_exe = __config['gpsbabel_exe']
-GPSBABEL_EXE = __gpsbabel_exe if os.path.isabs(__gpsbabel_exe) else os.path.join(HOME_DIR, __gpsbabel_exe)
+GPSBABEL_EXE = __gpsbabel_exe if os.path.isabs(__gpsbabel_exe) else os.path.join(__HOME_DIR, __gpsbabel_exe)
 
 IMG_FONT_SIZE = int(__config['img_font_size'])
 IMG_FONT = ImageFont.truetype(__config['img_font'], IMG_FONT_SIZE) #global use font (Note: the operation is time wasting)
@@ -63,6 +94,7 @@ DEF_SYMBOL = _tosymkey(__config['def_symbol'])
 MAX_SUPP_LEVEL = int(__config['max_supp_level'])
 MIN_SUPP_LEVEL = int(__config['min_supp_level'])
 DB_SCHEMA = __config['db_schema']
+
 SPLIT_TIME_GAP = timedelta(hours=float(__config['split_time_gap']))
 SPLIT_DIST_GAP = float(__config['split_dist_gap']) #unit:km
 SELECT_AREA_X = float(__config['select_area_x'])
@@ -71,8 +103,27 @@ SELECT_AREA_ALIGN = __config['select_area_align'] == 'y'
 SELECT_AREA_FIXED = __config['select_area_fixed'] == 'y'
 SELECT_AREA_LEVEL = int(__config['select_area_level'])
 
+# User conf ###########################################
+__user_conf = __readConf(__USER_CONF)
+
+USER_MAPS = __readUserMaps(__user_conf)
+
+
+# Save ###########################################
+def writeUserConf():
+    maps = OrderedDict()
+    for id, item in USER_MAPS.items():
+        maps[id] = __genUserMapLine(item)
+    __user_conf['maps'] = maps
+
+    __writeConf(__user_conf, __USER_CONF)
+
+def writeAppConf():
+    __writeConf(app_conf, __USER_CONF)
+
+
 #save conf
-def save(path=GISEDITOR_CONF):
+def save(path=__APP_CONF):
     with open(path, 'w') as f:
         f.write("cache_dir=%s\n" % (__config['cache_dir'],))
         f.write("gpsbabel_exe=%s\n" % (__config['gpsbabel_exe'],))
@@ -160,14 +211,6 @@ gpsbabel_ext_fmt = {
         ".wbt" : ("wbt",),
     }
 
-#global variables
-Sym_rules = SymbolRules(SYM_RULE_CONF)
-
-def getSymbol(name):
-    rule = Sym_rules.getMatchRule(name)
-    sym = rule.symbol if rule is not None else DEF_SYMBOL
-    return sym
-
 __def_syms = None
 def getDefSymList():
     global __def_syms
@@ -184,8 +227,8 @@ def getDefSymList():
 def __getSymIcons():
     sym_icons = {}
     try:
-        for f in os.listdir(ICON_DIR):
-            p = path.join(ICON_DIR, f)
+        for f in os.listdir(__ICON_DIR):
+            p = path.join(__ICON_DIR, f)
             if path.isfile(p):
                 name, ext = path.splitext(f)
                 sym = _tosymkey(name)
@@ -245,4 +288,10 @@ def getPtTimeText(wpt):
         time = wpt.time + TZ
         return  time.strftime("%Y-%m-%d %H:%M:%S")
     return "N/A"
+
+
+if __name__ == "__main__":
+
+    for k, v in __user_conf['maps'].items():
+        print(k + '=' + v)
 

@@ -12,12 +12,14 @@ import tempfile
 import time
 import logging
 import argparse
+import platform
 from os import path
 from PIL import Image, ImageTk, ImageDraw, ImageFont, ImageColor
 from math import floor, ceil, sqrt
 from tkinter import messagebox, filedialog, ttk
 from datetime import datetime
 from threading import Lock, Thread
+from collections import OrderedDict
 
 #my modules
 import conf
@@ -25,7 +27,7 @@ import util
 from ui import Dialog, MapSelectDialog
 from gpx import GpsDocument, WayPoint
 from pic import PicDocument
-from sym import SymRuleType, SymRule
+from sym import SymRuleType, SymRule, SymbolRules
 from util import GeoPoint, getPrefCornerPos, DrawGuard, imageIsTransparent
 from util import AreaSelector, AreaSizeTooLarge, GeoInfo  #should move to ui.py
 from tile import TileAgent, MapDescriptor
@@ -158,32 +160,6 @@ class MapBoard(tk.Frame):
         self.__ver_label['text'] = 'ver. ' + v
 
     @classmethod
-    def __getUserMapConf(cls, filepath):
-        enabled_maps = []
-        if os.path.exists(filepath):
-            try:
-                with open(filepath, 'r') as map_conf:
-                    for line in map_conf:
-                        line = line.rstrip()
-                        if line.startswith('#') or line.isspace():
-                            continue
-                        id, alpha, en = line.split(',')
-                        item = (id, float(alpha), en == "1")
-                        enabled_maps.append(item)
-            except Exception as ex:
-                logging.error('Read user map conf error: %s' % (str(ex),))
-        return enabled_maps;
-
-    def __putUserMapConf(self, filepath):
-        map_descs = self.__map_descs
-        try:
-            with open(filepath, 'w') as map_conf:
-                for desc in map_descs:
-                    map_conf.write("%s,%.2f,%d\n" % (desc.map_id, desc.alpha, 1 if desc.enabled else 0))
-        except Exception as ex:
-            logging.error('Write user map conf error: %s' % (str(ex),))
-
-    @classmethod
     def __loadMapDescriptors(cls, dirpath):
         map_descs = []
         for f in os.listdir(dirpath):
@@ -202,20 +178,27 @@ class MapBoard(tk.Frame):
                 return d
         return None
 
+    def __writeUserMapsConf(self):
+        maps = OrderedDict()
+        for desc in self.__map_descs:
+            maps[desc.map_id] = (desc.enabled, desc.alpha)
+        conf.USER_MAPS = maps
+        conf.writeUserConf()
+
     @classmethod
     def __getUserMapDescriptors(cls):
-        user_enabled_map = cls.__getUserMapConf(conf.USER_MAP_CONF)
-        map_descs = cls.__loadMapDescriptors(conf.CACHE_DIR)
+        app_descs = cls.__loadMapDescriptors(conf.CACHE_DIR)
 
         user_descs = []
-        for id, alpha, en in user_enabled_map:
-            desc = cls.__findMapDescriptor(map_descs, id)
+        for id, (en, alpha) in conf.USER_MAPS.items():
+            desc = cls.__findMapDescriptor(app_descs, id)
             if desc is not None:
-                map_descs.remove(desc)
                 desc.enabled = en
                 desc.alpha = alpha
+                app_descs.remove(desc)
                 user_descs.append(desc)
-        user_descs.extend(map_descs)
+
+        user_descs.extend(app_descs)
         return user_descs
 
     def __init__(self, master):
@@ -267,7 +250,7 @@ class MapBoard(tk.Frame):
         self.__init_h = 600  #deprecated
         self.disp_canvas = tk.Canvas(self, bg='#808080')
         self.disp_canvas.pack(expand=1, fill='both', anchor='n')
-        if conf.OS == "Linux":
+        if platform.system() == "Linux":
             self.disp_canvas.bind('<Button-4>', lambda e: self.onMouseWheel(e, 1))  #roll up
             self.disp_canvas.bind('<Button-5>', lambda e: self.onMouseWheel(e, -1)) #roll down
         else:
@@ -455,7 +438,7 @@ class MapBoard(tk.Frame):
 
         self.__map_descs = self.__showMapSelector()
         self.__map_sel_dialog = None #todo: resue this
-        self.__putUserMapConf(conf.USER_MAP_CONF)
+        self.__writeUserMapsConf()
         if not self.__is_closed:   #NOTICE: the check is Needed because dialog close may be caused by main board close
             self.setMapInfo()
 
@@ -697,7 +680,7 @@ class MapBoard(tk.Frame):
         is_alter = False
 
         for wpt in self.__map_ctrl.getAllWpts():
-            sym = conf.getSymbol(wpt.name)
+            sym = getSymbol(wpt.name)
             if wpt.sym != sym:
                 wpt.sym = sym
                 is_alter = True
@@ -1765,7 +1748,7 @@ class WptBoard(tk.Toplevel):
         #set focus
         self.transient(self.master)
         self.focus_set()
-        if conf.OS == 'Linux':
+        if platform.system() == 'Linux':
             self.withdraw() #ensure update silently
             self.update()   #ensure viewable before grab, 
             self.deiconify() #show
@@ -1823,7 +1806,7 @@ class WptBoard(tk.Toplevel):
         name = self._var_name.get()
         if self._curr_wpt.name != name:
             self._curr_wpt.name = name
-            self._curr_wpt.sym = conf.getSymbol(name)
+            self._curr_wpt.sym = getSymbol(name)
             self._is_changed = True
             self.showWptIcon(self._curr_wpt)
 
@@ -2165,7 +2148,7 @@ class TrkSingleBoard(tk.Toplevel):
         #set focus
         self.transient(self.master)
         self.focus_set()
-        if conf.OS == 'Linux':
+        if platform.system() == 'Linux':
             self.withdraw() #ensure update silently
             self.update()   #ensure viewable before grab, 
             self.deiconify() #show
@@ -2471,6 +2454,14 @@ class SymBoard(tk.Toplevel):
         self.__sym = e.widget.sym
         self.onClosed(None)
 
+#sym rules ==================================================
+Sym_rules = SymbolRules(conf.SYM_RULE_CONF)
+
+def getSymbol(name):
+    rule = Sym_rules.getMatchRule(name)
+    sym = rule.symbol if rule is not None else conf.DEF_SYMBOL
+    return sym
+
 class SymRuleBoard(tk.Toplevel):
     @property
     def pos(self): return self.__pos
@@ -2490,7 +2481,7 @@ class SymRuleBoard(tk.Toplevel):
         self.__focused_rule = None
         self.__widgets = {}
         self.__var_widgets = {}
-        self.__rules = conf.Sym_rules
+        self.__rules = Sym_rules
         if not hasattr(self.__rules, 'is_altered'):
             self.__rules.is_altered = tk.BooleanVar(value=False)
         self.__font = 'Arialuni 12'
@@ -2682,8 +2673,8 @@ class SymRuleBoard(tk.Toplevel):
                 
         #rec
         self.__focused_rule = curr
-        self.__dec_btn.config(state=('disabled' if curr == conf.Sym_rules[0] else 'normal'))
-        self.__inc_btn.config(state=('disabled' if curr == conf.Sym_rules[-1] else 'normal'))
+        self.__dec_btn.config(state=('disabled' if curr == Sym_rules[0] else 'normal'))
+        self.__inc_btn.config(state=('disabled' if curr == Sym_rules[-1] else 'normal'))
 
     def setRuleBgColor(self, rule, color):
         if rule is not None:
@@ -2916,7 +2907,7 @@ if __name__ == '__main__':
         root = tk.Tk()
         pmw.initialise(root)
         root.withdraw() #hidden
-        if conf.OS == "Windows":
+        if platform.system() == "Windows":
             root.iconbitmap(conf.EXE_ICON)
             #icon = ImageTk.PhotoImage(conf.EXE_ICON)
             #root.tk.call('wm', 'iconphoto', root._w, icon)
