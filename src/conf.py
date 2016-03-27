@@ -97,7 +97,7 @@ __SRC_DIR = os.path.dirname(os.path.abspath(__file__))
 __HOME_DIR = os.path.abspath(os.path.join(__SRC_DIR, ".."))
 __CONF_DIR = os.path.join(__HOME_DIR, 'conf')
 __DATA_DIR = os.path.join(__HOME_DIR, 'data')
-__ICON_DIR = os.path.join(__HOME_DIR, 'icon')
+ICON_DIR = os.path.join(__HOME_DIR, 'icon')
 
 __APP_CONF = os.path.join(__CONF_DIR, 'giseditor.conf')
 __USER_CONF = os.path.join(__CONF_DIR, 'giseditor.user.conf')
@@ -201,50 +201,6 @@ if not os.path.exists(__USER_CONF):
     writeUserConf()
 
 # utils ###########################################
-
-def __getSymIcons():
-    sym_icons = {}
-    try:
-        for f in os.listdir(__ICON_DIR):
-            p = path.join(__ICON_DIR, f)
-            if path.isfile(p):
-                name, ext = path.splitext(f)
-                sym = _tosymkey(name)
-                sym_icons[sym] = (p, None)
-    except Exception as ex:
-        logging.error('read icons error: ' + str(ex))
-    return sym_icons
-
-#sym->icon_path, icon_image
-__sym_icons = __getSymIcons()
-
-def getTotalSymbols():
-    return __sym_icons.keys()
-
-def getIcon(sym):
-    sym = _tosymkey(sym)
-    icon = __getIcon(sym)
-    if not icon and sym != DEF_SYMBOL:
-        return __getIcon(DEF_SYMBOL) #return default
-    return icon
-
-def __getIcon(sym):
-    icon = __sym_icons.get(sym)
-    if not icon:
-        return None
-    path, img = icon
-    if img is None:
-        img = __readIcon(path, ICON_SIZE)
-        if img:
-            __sym_icons[sym] = (path, img)
-    return img
-
-def __readIcon(path, sz):
-    if path is None:
-        return None
-    icon = Image.open(path)
-    icon = icon.resize((sz, sz))
-    return icon
 
 def _getWptPos(wpt):
     x_tm2_97, y_tm2_97 = CoordinateSystem.TWD97_LatLonToTWD97_TM2(wpt.lat, wpt.lon)

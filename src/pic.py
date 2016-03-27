@@ -3,10 +3,11 @@
 """ handle pic """
 
 import logging
-import conf
 from PIL import Image, ExifTags
 from gpx import WayPoint
 from datetime import datetime
+#my
+import sym
 
 class PicDocument(WayPoint):
     @property
@@ -29,7 +30,7 @@ class PicDocument(WayPoint):
                 self.__exif['ImageDescription'].encode('latin-1').decode('utf-8') #PIL use latin-1 by default
         self.ele = self.exifToAltitude(self.__exif['GPSAltitudeRef'], self.__exif['GPSAltitude'], 0.0)
         self.time = self.exifToDateTime(self.__exif['DateTimeOriginal'])
-        self.sym = conf.getSymbol(self.name)
+        self.sym = sym.toSymbol(self.name)
 
         orientation = self.__exif['Orientation']
         if orientation is not None:
