@@ -41,7 +41,7 @@ def showmsg(msg):
 def isGpsFile(path):
     (fname, ext) = os.path.splitext(path)
     ext = ext.lower()
-    return ext in conf.gpsbabel_ext_fmt
+    return ext in conf.GPSBABEL_EXT_FMT
 
 def isPicFile(path):
     (fname, ext) = os.path.splitext(path)
@@ -84,7 +84,7 @@ def __toGpx(src_path, flag):
     (fname, ext) = os.path.splitext(src_path)
     if ext == '':
         raise ValueError("cannot identify gps format deu to no file extension")
-    input_fmt = conf.gpsbabel_ext_fmt.get(ext)
+    input_fmt = conf.GPSBABEL_EXT_FMT.get(ext)
     if not input_fmt:
         raise ValueError("cannot identify gps format for the file extension: " + ext)
     if len(input_fmt) > 1:
@@ -2339,17 +2339,17 @@ class SymBoard(tk.Toplevel):
         self.protocol('WM_DELETE_WINDOW', lambda: self.onClosed(None))
 
         #init
-        total_sym = conf.getTotalSymbols()
-        self.__def_sym = conf.getDefSymList()
-        self.__ext_sym = util.listdiff(total_sym, self.__def_sym)
+        total_syms = conf.getTotalSymbols()
+        self.__app_syms = conf.APP_SYMS;
+        self.__ext_syms = util.listdiff(total_syms, self.__app_syms)
 
         sn = 0
-        for sym in self.__def_sym:
+        for sym in self.__app_syms:
             self.showSym(sym, sn, self.__bg_color)
             sn += 1
 
         sn = self.getNextRowSn(sn)
-        for sym in self.__ext_sym:
+        for sym in self.__ext_syms:
             self.showSym(sym, sn, self.__ext_bg_color)
             sn += 1
 
@@ -2427,7 +2427,7 @@ class SymBoard(tk.Toplevel):
                 w['bg'] = self.__filter_bg_color if f and f in sym else self.getWidgetsBgColor(w)
 
     def getWidgetsBgColor(self, widget):
-        return self.__bg_color if widget.sym in self.__def_sym else self.__ext_bg_color
+        return self.__bg_color if widget.sym in self.__app_syms else self.__ext_bg_color
 
     #careful: widget could be None
     def selectSymWidget(self, widget):
