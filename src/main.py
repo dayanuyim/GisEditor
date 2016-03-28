@@ -792,7 +792,7 @@ class MapBoard(tk.Frame):
             ext_geo = sel_geo.addPixel(w, h, org_level)            #lower-right
             dx, dy = ext_geo.diffPixel(sel_geo, out_level)
             #get map
-            map, attr = self.__map_ctrl.getMap(dx, dy, geo=sel_geo, level=out_level)
+            map, attr = self.__map_ctrl.getMap(dx, dy, geo=sel_geo, level=out_level, req_type="sync")
             map.save(fpath, format='png')
 
         except AreaSizeTooLarge as ex:
@@ -1048,7 +1048,7 @@ class MapAgent:
                not cache_attr.fail_count and \
                cache_attr.containsImgae(req_attr)
 
-    def genMap(self, req_attr, cb=None):
+    def genMap(self, req_attr, req_type, cb=None):
         if self.__isCacheValid(req_attr):
             return (self.__cache_basemap, self.__cache_attr)
 
@@ -1056,12 +1056,12 @@ class MapAgent:
         level = min(max(self.level_min, req_attr.level), self.level_max)
 
         if req_attr.level == level:
-            tile_map = self.__genTileMap(req_attr, self.__extra_p, cb)
+            tile_map = self.__genTileMap(req_attr, self.__extra_p, req_type, cb)
         else:
             #get approx map
             aprx_attr = req_attr.zoomToLevel(level)
             extra_p = self.__extra_p * 2**(level - req_attr.level)
-            aprx_map, aprx_attr = self.__genTileMap(aprx_attr, extra_p, cb)
+            aprx_map, aprx_attr = self.__genTileMap(aprx_attr, extra_p, req_type, cb)
 
             #zoom to request level
             if aprx_map is not None:
@@ -1132,7 +1132,7 @@ class MapAgent:
         return True
 
     #could return None map
-    def __genTileMap(self, map_attr, extra_p, cb=None):
+    def __genTileMap(self, map_attr, extra_p, req_type, cb=None):
         SIDE = 256
 
         notifier = lambda level, x, y: self.__notifyTileUpdate(level, x, y, map_attr, cb) if cb is not None else None
@@ -1150,7 +1150,7 @@ class MapAgent:
 
         for x in range(tx_num):
             for y in range(ty_num):
-                tile = self.__tile_agent.getTile(map_attr.level, t_left +x, t_upper +y, notifier)
+                tile = self.__tile_agent.getTile(map_attr.level, t_left +x, t_upper +y, req_type, notifier)
                 #if self.isCompleteColor(tile):
                     #tile.putalpha(0)  #set to be transparent, for blending maps
 
@@ -1297,7 +1297,7 @@ class MapController:
                 return wpt
         return None
 
-    def getMap(self, width, height, force=None, geo=None, level=None, cb=None):
+    def getMap(self, width, height, force=None, geo=None, level=None, req_type="async", cb=None):
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: begin")
         if geo is None: geo = self.geo
         if level is None: level = self.level
@@ -1305,7 +1305,7 @@ class MapController:
 
         #The image attributes with which we want to create a image compatible.
         req_attr = MapAttr(level, px, py, px+width, py+height, 0)
-        map, attr = self.__genGpsMap(req_attr, force, cb)
+        map, attr = self.__genGpsMap(req_attr, force, req_type, cb)
 
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  crop map")
         map = self.__genCropMap(map, attr, req_attr)
@@ -1378,7 +1378,7 @@ class MapController:
         else:
             return Image.blend(basemap, map, alpha)
 
-    def __getMaps(self, req_attr, cb=None):
+    def __getMaps(self, req_attr, req_type, cb=None):
         maps = []
         for desc in self.__map_descs:
             if not desc.enabled:
@@ -1396,14 +1396,14 @@ class MapController:
                 continue
 
             #create map
-            map, attr = agent.genMap(req_attr, cb)
+            map, attr = agent.genMap(req_attr, req_type, cb)
             maps.append((map, attr, desc.alpha))
 
             #logging.debug('The map %s is transparent: %s' % (desc.map_id, "NA" if map is None else imageIsTransparent(map)))
         return maps
 
-    def __genBaseMap(self, req_attr, cb=None):
-        maps = self.__getMaps(req_attr, cb)
+    def __genBaseMap(self, req_attr, req_type, cb=None):
+        maps = self.__getMaps(req_attr, req_type, cb)
 
         #create attr
         baseattr = None
@@ -1425,12 +1425,12 @@ class MapController:
 
         return basemap, baseattr
 
-    def __genGpsMap(self, req_attr, force=None, cb=None):
+    def __genGpsMap(self, req_attr, force=None, req_type="async", cb=None):
         if force not in ('all', 'gps', 'trk', 'wpt') and self.__isCacheValid(self.__cache_gpsmap, req_attr):
             #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  get gps map from cache")
             return (self.__cache_gpsmap, self.__cache_attr)
 
-        basemap, attr = self.__genBaseMap(req_attr, cb)
+        basemap, attr = self.__genBaseMap(req_attr, req_type, cb)
 
         #create gpsmap, also cache
         self.__cache_gpsmap = basemap.copy()

@@ -361,11 +361,9 @@ class TileAgent:
         #logging.critical('url: ' + url)
         return url
 
-    #The therad to download
-    def __runDownloadJob(self, id, req):
+    def __downloadTile(self, id, req):
         level, x, y, status, cb = req  #unpack the req
 
-        #do download
         tile_data = None
         try:
             url = self.genTileUrl(level, x, y)
@@ -376,16 +374,35 @@ class TileAgent:
             logging.warning('[%s] Error to download %s: %s' % (self.map_id, url, str(ex)))
         logging.info('[%s] DL %s [%s]' % (self.map_id, url, 'SUCCESS' if tile_data else 'FAILED'))
 
-        #cache
-        #(for data coherence, do this before moving self from workers queue: if download thread is done, data is ready)
-        if tile_data:
-            tile_img = Image.open(BytesIO(tile_data))
-            self.__mem_cache.set(id, self.TILE_VALID, tile_img)
-        else:
+        #as failed, and not save to memory/disk
+        if self.__state == self.ST_CLOSING:
+            return None
+
+        if tile_data is None:
+            #save to memory
             status = self.TILE_REQ_FAILED | (status & 0x0F)
             self.__mem_cache.set(id, status)
+            return None
+        else:
+            #save to memory
+            tile_img = Image.open(BytesIO(tile_data))
+            self.__mem_cache.set(id, self.TILE_VALID, tile_img)
 
-        #done the download
+            #save to disk
+            try:
+                self.__disk_cache.put(level, x, y, tile_data)
+            except Exception as ex:
+                logging.error("[%s] Error to save tile data: %s" % (self.map_id, str(ex)))
+
+            return tile_img
+
+    #The therad to download
+    def __runDownloadJob(self, id, req):
+
+        #do download
+        tile_img = self.__downloadTile(id, req)
+
+        #the download is done
         #(do this before thread exit, to ensure monitor is notified)
         with self.__download_cv:
             self.__workers.pop(id, None)
@@ -394,20 +411,15 @@ class TileAgent:
             if self.__state == self.ST_CLOSING:
                 return
 
-        #side effect
-        if tile_data:
-            #notify if need
+        level, x, y, status, cb = req  #unpack the req
+
+        #notify
+        if tile_img is not None and cb is not None:
             try:
-                if cb is not None:
-                    cb(level, x, y)
+                cb(level, x, y)
             except Exception as ex:
                 logging.warning("[%s] Invoke cb of download tile error: %s" % (self.map_id, str(ex)))
 
-            #save file
-            try:
-                self.__disk_cache.put(level, x, y, tile_data)
-            except Exception as ex:
-                logging.error("[%s] Error to save tile data: %s" % (self.map_id, str(ex)))
 
     #The thread to handle all download requests
     def __runDownloadMonitor(self):
@@ -470,7 +482,7 @@ class TileAgent:
             logging.warning("[%s] Error to read tile data: %s" % (self.map_id, str(ex)))
         return None, None
 
-    def __getTile(self, level, x, y, auto_req=True, cb=None):
+    def __getTile(self, level, x, y, req_type=None, cb=None):
         #check level
         if level > self.level_max or level < self.level_min:
             raise ValueError("level is out of range")
@@ -500,28 +512,34 @@ class TileAgent:
                 self.__mem_cache.set(id, self.TILE_VALID, img)
                 return img
 
-        if status != self.TILE_NOT_IN_DISK and status != self.TILE_EXPIRE:
+        #check status, should be 'not in disk' or 'expire'
+        if status == self.TILE_NOT_IN_DISK:
+            pass
+        elif status == self.TILE_EXPIRE:
+            logging.warning("[%s] Tile(%d,%d,%d) is expired" % (self.map_id, level, x, y))
+        else:
             logging.critical("[%s] Error: unexpected tile status: %d" % (self.map_id, status))
             return None
 
-        if status == self.TILE_EXPIRE:
-            logging.warning("[%s] Tile(%d,%d,%d) is expired" % (self.map_id, level, x, y))
-
-        if auto_req:
+        #req or not
+        if not req_type:
+            if status != status_bak:
+                self.__mem_cache.set(id, status)
+            return img
+        else:
             status |= self.TILE_REQ
-            req = (level, x, y, status, cb)   #pack req
-            self.__requestTile(id, req)       #req tile FROM WMTS (async)
-
-        if status != status_bak:
             self.__mem_cache.set(id, status)
-
-        return img
+            if req_type == "async":
+                self.__requestTile(id, (level, x, y, status, cb))
+                return img
+            else:      # sync
+                return self.__downloadTile(id, (level, x, y, status, cb))
 
     def __genMagnifyFakeTile(self, level, x, y, diff=1):
         side = self.tile_side
         for i in range(1, diff+1):
             scale = 2**i
-            img = self.__getTile(level-i, int(x/scale), int(y/scale), False)
+            img = self.__getTile(level-i, int(x/scale), int(y/scale))
             if img:
                 step = int(side/scale)
                 px = step * (x%scale)
@@ -542,7 +560,7 @@ class TileAgent:
             #paste tiles
             for p in range(scale):
                 for q in range(scale):
-                    t = self.__getTile(level+i, x*scale+p, y*scale+q, False)
+                    t = self.__getTile(level+i, x*scale+p, y*scale+q)
                     if t:
                         img.paste(t, (p*side, q*side))
                         has_tile = True
@@ -569,8 +587,8 @@ class TileAgent:
 
         return None
 
-    def getTile(self, level, x, y, cb=None, allow_fake=True):
-        img = self.__getTile(level, x, y, True, cb)
+    def getTile(self, level, x, y, req_type, cb=None, allow_fake=True):
+        img = self.__getTile(level, x, y, req_type, cb)
         if img is not None:
             img.is_fake = False
             return img
