@@ -66,7 +66,7 @@ def __readAppSyms(conf):
 def __defaultGpsbabelExe():
     system = platform.system()
     if system == "Linux":
-        return "gpsbabel"
+        return "/usr/bin/gpsbabel"
     if system == "Windows":
         if os.path.exists("C:\\Program Files (x86)"):
             return "C:\\Program Files (x86)\\GPSBabel\\gpsbabel.exe"
