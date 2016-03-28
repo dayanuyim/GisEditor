@@ -64,10 +64,10 @@ def __readAppSyms(conf):
         return [_tosymkey(v) for k, v in conf['app_syms'].items()]
 
 def __defaultGpsbabelExe():
-    os = platform.system()
-    if os == "Linux":
+    system = platform.system()
+    if system == "Linux":
         return "gpsbabel"
-    if os == "Windows":
+    if system == "Windows":
         if os.path.exists("C:\\Program Files (x86)"):
             return "C:\\Program Files (x86)\\GPSBabel\\gpsbabel.exe"
         else:
@@ -75,10 +75,10 @@ def __defaultGpsbabelExe():
     return "gpsbabel.exe"
 
 def __defaultImgFont():
-    os = platform.system()
-    if os == "Linux":
+    system = platform.system()
+    if system == "Linux":
         return "ukai.ttc"
-    if os == "Windows":
+    if system == "Windows":
         return "ARIALUNI.TTF"
     return "unifont.ttf"
 
