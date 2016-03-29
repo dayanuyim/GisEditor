@@ -52,11 +52,26 @@ def isPicFile(path):
         return True
     return False
 
+def downloadAsTemp(url):
+    ext = url.split('.')[-1]
+    tmp_path = os.path.join(tempfile.gettempdir(),  "giseditor_dl." + ext)
+
+    with urllib.request.urlopen(url, timeout=30) as response, open(tmp_path, 'wb') as tmp_file:
+        tmp_file.write(response.read())
+
+    return tmp_path
+
+
 def getGpsDocument(path):
     try:
+        #support http
+        if path.startswith("http"):
+            path = downloadAsTemp(path)
+
         (fname, ext) = os.path.splitext(path)
         ext = ext.lower()
         gps = GpsDocument(conf.TZ)
+
         if ext == '.gpx':
             gps.load(filename=path)
         else:
