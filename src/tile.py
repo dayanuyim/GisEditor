@@ -480,13 +480,6 @@ class TileAgent:
             logging.warning("[%s] Error to read tile data: %s" % (self.map_id, str(ex)))
         return None, None
 
-    def __notifyTileReady(self, level, x, y, cb):
-        try:
-            if cb is not None:
-                cb(level, x, y)
-        except Exception as ex:
-            logging.error("invoke cb for tile ready error: %s" % (self.map_id, str(ex)))
-
     def __getTile(self, level, x, y, req_type=None, cb=None):
         #check level
         if level > self.level_max or level < self.level_min:
@@ -538,9 +531,7 @@ class TileAgent:
                 self.__requestTile(id, (level, x, y, status, cb))
                 return img
             else:      # sync
-                img = self.__downloadTile(id, (level, x, y, status, None))
-                self.__notifyTileReady(level, x, y, cb)
-                return img
+                return self.__downloadTile(id, (level, x, y, status, None))
 
     def __genMagnifyFakeTile(self, level, x, y, diff=1):
         side = to_pixel(1,1)[0]
@@ -594,6 +585,8 @@ class TileAgent:
 
         return None
 
+    # @cb is only for req_type == "async" to nitify the tile is done,
+    # which call cb(level, x, y)
     def getTile(self, level, x, y, req_type, cb=None, allow_fake=True):
         img = self.__getTile(level, x, y, req_type, cb)
         if img is not None:

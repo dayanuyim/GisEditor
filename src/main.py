@@ -392,6 +392,9 @@ class MapBoard(tk.Frame):
         self.__ver_label = tk.Label(frame, font=font, bg=bg)
         self.__ver_label.pack(side='right', expand=0, anchor='ne')
 
+        self.__prog_bar = ttk.Progressbar(frame)
+        self.__prog_bar.pack(side='right', expand=0, anchor='ne')
+
         self.__status_label = tk.Label(frame, font=font, bg=bg)
         self.__status_label.pack(side='left', expand=0, anchor='nw')
         return frame
@@ -768,10 +771,29 @@ class MapBoard(tk.Frame):
         #wpt_board.show()
         self.__focused_wpt = None
 
-    def __updateSavingProgress(self, map_id, map_attr):
+    def __setProgress(self, val, max):
+        self.__prog_bar['maximum'] = max
+        self.__prog_bar['value'] = val
+        self.__prog_bar.update()
+
+    def __numOfNeededTiles(self, map_attr):
         left, top, right, bottom = map_attr.boundTiles()
         ntiles = (right - left + 1) * (bottom - top + 1)
-        logging.critical("map '%s' with %d tiles has update" % (map_id, ntiles))
+        nmaps = len([desc for desc in self.__map_descs if desc.enabled])
+        return nmaps * ntiles
+
+    def __updateSavingProgress(self, map_id, map_attr):
+        if not self.__saving_tiles_total:
+            self.__saving_tiles_total = self.__numOfNeededTiles(map_attr)
+            self.__saving_tiles_count = 0
+
+        self.__saving_tiles_count += 1
+
+        progress = 100 if not self.__saving_tiles_total else \
+                100.0 * self.__saving_tiles_count / self.__saving_tiles_total
+        logging.info("saving image for map '%s'...%.1f%%" % (map_id, progress))
+
+        self.__setProgress(int(progress), 100)
 
     def onImageSave(self):
         if self.isSavingImage():
@@ -815,9 +837,18 @@ class MapBoard(tk.Frame):
             sel_geo = self.__map_ctrl.geo.addPixel(x, y, org_level)  #upper-left
             ext_geo = sel_geo.addPixel(w, h, org_level)            #lower-right
             dx, dy = ext_geo.diffPixel(sel_geo, out_level)
+
             #get map
-            map, attr = self.__map_ctrl.getMap(dx, dy, geo=sel_geo, level=out_level, req_type="sync", cb=self.__updateSavingProgress)
+            self.__saving_tiles_total = 0
+            self.__saving_tiles_count = 0
+            self.__setProgress(0, 1)
+            map, attr = self.__map_ctrl.getMap(dx, dy, geo=sel_geo, level=out_level, req_type="sync",
+                    cb=self.__updateSavingProgress)
+
             map.save(fpath, format='png')
+
+            self.__setProgress(0, 1)
+            messagebox.showwarning('', 'The saving is done!')
 
         except AreaSizeTooLarge as ex:
             messagebox.showwarning(str(ex), 'Please zoom out or resize the window to enlarge the map')
@@ -1071,6 +1102,8 @@ class MapAgent:
                not cache_attr.fail_count and \
                cache_attr.containsImgae(req_attr)
 
+    # @cb is used to notify the part of the map has update.
+    #  which call cb(map_id, map_attr)
     def genMap(self, req_attr, req_type, cb=None):
         if self.__isCacheValid(req_attr):
             return (self.__cache_basemap, self.__cache_attr)
@@ -1128,10 +1161,6 @@ class MapAgent:
             return (t_left <= x and x <= t_right) and (t_upper <= y and y <= t_lower)
         return False
 
-    def __tileIsReady(self, level, x, y, map_attr, cb):
-        logging.info("[%s] tile(%d,%d,%d) is ready" % (self.map_id, level, x, y))
-        cb(self.map_id, map_attr)
-
     @classmethod
     def isCompleteColor(cls, img):
         extrema = img.getextrema()
@@ -1145,9 +1174,22 @@ class MapAgent:
                     return False
         return True
 
+    def __notifyTileReady(self, level, x, y, cb):
+        try:
+            if cb is not None:
+                cb(level, x, y)
+        except Exception as ex:
+            logging.error("invoke cb for tile ready error: %s" % (self.map_id, str(ex)))
+
+    def __tileIsReady(self, level, x, y, map_attr, cb):
+        logging.info("[%s] tile(%d,%d,%d) is ready" % (self.map_id, level, x, y))
+        cb(self.map_id, map_attr)
+
     #could return None map
     def __genTileMap(self, map_attr, extra_p, req_type, cb=None):
-        notifier = None if cb is None else lambda level, x, y: self.__tileIsReady(level, x, y, map_attr, cb) 
+        async_cb = None
+        if cb is not None and req_type == "async":
+            async_cb = lambda level, x, y: self.__tileIsReady(level, x, y, map_attr, cb) 
 
         #get tile x, y.
         t_left, t_upper, t_right, t_lower = map_attr.boundTiles(extra_p)
@@ -1162,9 +1204,10 @@ class MapAgent:
 
         for x in range(tx_num):
             for y in range(ty_num):
-                tile = self.__tile_agent.getTile(map_attr.level, t_left +x, t_upper +y, req_type, notifier)
-                #if self.isCompleteColor(tile):
-                    #tile.putalpha(0)  #set to be transparent, for blending maps
+                tile = self.__tile_agent.getTile(map_attr.level, t_left +x, t_upper +y, req_type, async_cb)
+
+                if req_type == "sync" and cb is not None:
+                    cb(self.map_id, map_attr)
 
                 if tile is None or tile.is_fake:
                     fail_count += 1
