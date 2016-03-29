@@ -9,9 +9,7 @@ import tkinter as tk
 import urllib.request
 import shutil
 import sqlite3
-import conf
 import logging
-import util
 import random
 import time
 from xml.etree import ElementTree as ET
@@ -23,7 +21,14 @@ from threading import Thread, Lock, Condition
 from math import tan, sin, cos, radians, degrees
 from collections import OrderedDict
 from io import BytesIO
+
+import coord
+import conf
+import util
 from util import mkdirSafely, saveXml
+
+to_pixel = coord.TileSystem.getPixcelXYByTileXY
+to_tile = coord.TileSystem.getTileXYByPixcelXY
 
 class MapDescriptor:
     #should construct from static methods.
@@ -102,7 +107,6 @@ class MapDescriptor:
         desc.lower_corner = self.lower_corner
         desc.upper_corner = self.upper_corner
         desc.expire_sec = self.expire_sec
-        desc.tile_side = self.tile_side
         desc.alpha = self.alpha
         desc.enabled = self.enabled
         return desc
@@ -205,7 +209,6 @@ class MapDescriptor:
         desc.upper_corner = upper_corner
         desc.expire_sec = expire_sec
         desc.tile_format = tile_type
-        desc.tile_side = 256
         return desc
 
     @classmethod
@@ -268,8 +271,6 @@ class TileAgent:
     def expire_sec(self): return self.__map_desc.expire_sec
     @property
     def tile_format(self): return self.__map_desc.tile_format
-    @property
-    def tile_side(self): return self.__map_desc.tile_side
 
     @property
     def state(self): return self.__state
@@ -394,6 +395,13 @@ class TileAgent:
             except Exception as ex:
                 logging.error("[%s] Error to save tile data: %s" % (self.map_id, str(ex)))
 
+            #notify
+            try:
+                if cb is not None:
+                    cb(level, x, y)
+            except Exception as ex:
+                 logging.warning("[%s] Invoke cb of download tile error: %s" % (self.map_id, str(ex)))
+
             return tile_img
 
     #The therad to download
@@ -410,16 +418,6 @@ class TileAgent:
             #premature done
             if self.__state == self.ST_CLOSING:
                 return
-
-        level, x, y, status, cb = req  #unpack the req
-
-        #notify
-        if tile_img is not None and cb is not None:
-            try:
-                cb(level, x, y)
-            except Exception as ex:
-                logging.warning("[%s] Invoke cb of download tile error: %s" % (self.map_id, str(ex)))
-
 
     #The thread to handle all download requests
     def __runDownloadMonitor(self):
@@ -482,6 +480,13 @@ class TileAgent:
             logging.warning("[%s] Error to read tile data: %s" % (self.map_id, str(ex)))
         return None, None
 
+    def __notifyTileReady(self, level, x, y, cb):
+        try:
+            if cb is not None:
+                cb(level, x, y)
+        except Exception as ex:
+            logging.error("invoke cb for tile ready error: %s" % (self.map_id, str(ex)))
+
     def __getTile(self, level, x, y, req_type=None, cb=None):
         #check level
         if level > self.level_max or level < self.level_min:
@@ -533,10 +538,12 @@ class TileAgent:
                 self.__requestTile(id, (level, x, y, status, cb))
                 return img
             else:      # sync
-                return self.__downloadTile(id, (level, x, y, status, cb))
+                img = self.__downloadTile(id, (level, x, y, status, None))
+                self.__notifyTileReady(level, x, y, cb)
+                return img
 
     def __genMagnifyFakeTile(self, level, x, y, diff=1):
-        side = self.tile_side
+        side = to_pixel(1,1)[0]
         for i in range(1, diff+1):
             scale = 2**i
             img = self.__getTile(level-i, int(x/scale), int(y/scale))
@@ -551,7 +558,7 @@ class TileAgent:
 
     def __genMinifyFakeTile(self, level, x, y, diff=1):
         bg = 'lightgray'
-        side = self.tile_side
+        side = to_pixel(1,1)[0]
 
         for i in range(1, diff+1):
             scale = 2**i

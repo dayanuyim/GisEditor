@@ -25,6 +25,7 @@ from collections import OrderedDict
 import conf
 import util
 import sym
+import coord
 from ui import Dialog, MapSelectDialog
 from gpx import GpsDocument, WayPoint
 from pic import PicDocument
@@ -32,6 +33,9 @@ from util import GeoPoint, getPrefCornerPos, DrawGuard, imageIsTransparent
 from util import AreaSelector, AreaSizeTooLarge, GeoInfo  #should move to ui.py
 from tile import TileAgent, MapDescriptor
 from sym import askSym
+
+to_pixel = coord.TileSystem.getPixcelXYByTileXY
+to_tile = coord.TileSystem.getTileXYByPixcelXY
 
 #print to console/log and messagebox (generalize this with LOG, moving to util.py)
 def showmsg(msg):
@@ -764,6 +768,11 @@ class MapBoard(tk.Frame):
         #wpt_board.show()
         self.__focused_wpt = None
 
+    def __updateSavingProgress(self, map_id, map_attr):
+        left, top, right, bottom = map_attr.boundTiles()
+        ntiles = (right - left + 1) * (bottom - top + 1)
+        logging.critical("map '%s' with %d tiles has update" % (map_id, ntiles))
+
     def onImageSave(self):
         if self.isSavingImage():
             return
@@ -807,7 +816,7 @@ class MapBoard(tk.Frame):
             ext_geo = sel_geo.addPixel(w, h, org_level)            #lower-right
             dx, dy = ext_geo.diffPixel(sel_geo, out_level)
             #get map
-            map, attr = self.__map_ctrl.getMap(dx, dy, geo=sel_geo, level=out_level, req_type="sync")
+            map, attr = self.__map_ctrl.getMap(dx, dy, geo=sel_geo, level=out_level, req_type="sync", cb=self.__updateSavingProgress)
             map.save(fpath, format='png')
 
         except AreaSizeTooLarge as ex:
@@ -957,11 +966,12 @@ class MapBoard(tk.Frame):
                 except Exception as ex:
                     showmsg("Auto reset map error: ", str(ex))
 
-    def __notifyMapUpdate(self, map_attr):
+    def __notifyMapUpdate(self, map_id, map_attr):
         with self.__map_req_lock:
             if self.__map_attr is not None and \
                self.__map_attr.fail_count and \
                self.__map_attr.containsImgae(map_attr):
+                logging.debug("map '%s' has update" % (map_id,))
                 self.__map_has_update = True
 
     def resetMap(self, geo=None, w=None, h=None, force=None):
@@ -1028,8 +1038,6 @@ class MapAgent:
     def upper_corner(self): return self.__map_desc.upper_corner
     @property
     def tile_format(self): return self.__map_desc.tile_format
-    @property
-    def tile_side(self): return self.__map_desc.tile_side
     @property
     def alpha(self): return self.__map_desc.alpha
     @property
@@ -1107,15 +1115,6 @@ class MapAgent:
 
         return (zoom_img, zoom_attr)
 
-    #return tile no. of left, right, upper, lower
-    def __tileRangeOfAttr(self, map_attr, extra_p=0):
-        side = self.tile_side
-        t_left  = int((map_attr.left_px  - extra_p) / side)
-        t_right = int((map_attr.right_px + extra_p) / side)
-        t_upper = int((map_attr.up_py    - extra_p) / side)
-        t_lower = int((map_attr.low_py   + extra_p) / side)
-        return (t_left, t_right, t_upper, t_lower)
-
     #looks the method is not needed
     def __tileInAttr(self, level, x, y, attr):
         #handle psudo level beyond min level or max level
@@ -1125,13 +1124,13 @@ class MapAgent:
 
         #check range
         if level == attr.level:
-            t_left, t_right, t_upper, t_lower = self.__tileRangeOfAttr(attr, self.__extra_p)
+            t_left, t_upper, t_right, t_lower = attr.boundTiles(self.__extra_p)
             return (t_left <= x and x <= t_right) and (t_upper <= y and y <= t_lower)
         return False
 
-    def __notifyTileUpdate(self, level, x, y, map_attr, cb):
-        logging.info("Tile(%s,%d,%d,%d) Update is available." % (self.map_id, level, x, y))
-        cb(map_attr)
+    def __tileIsReady(self, level, x, y, map_attr, cb):
+        logging.info("[%s] tile(%d,%d,%d) is ready" % (self.map_id, level, x, y))
+        cb(self.map_id, map_attr)
 
     @classmethod
     def isCompleteColor(cls, img):
@@ -1148,12 +1147,10 @@ class MapAgent:
 
     #could return None map
     def __genTileMap(self, map_attr, extra_p, req_type, cb=None):
-        SIDE = 256
-
-        notifier = lambda level, x, y: self.__notifyTileUpdate(level, x, y, map_attr, cb) if cb is not None else None
+        notifier = None if cb is None else lambda level, x, y: self.__tileIsReady(level, x, y, map_attr, cb) 
 
         #get tile x, y.
-        t_left, t_right, t_upper, t_lower = self.__tileRangeOfAttr(map_attr, extra_p)
+        t_left, t_upper, t_right, t_lower = map_attr.boundTiles(extra_p)
         tx_num = t_right - t_left +1
         ty_num = t_lower - t_upper +1
 
@@ -1174,13 +1171,15 @@ class MapAgent:
 
                 if tile is not None:
                     if disp_map is None:
-                        disp_map = Image.new("RGBA", (tx_num*SIDE, ty_num*SIDE), 'lightgray')
-                    disp_map.paste(tile, (x*SIDE, y*SIDE))
+                        disp_map = Image.new("RGBA", to_pixel(tx_num, ty_num), 'lightgray')
+                    disp_map.paste(tile, to_pixel(x, y))
 
         logging.debug("pasting tile...done")
 
         #reset map_attr
-        disp_attr = MapAttr(map_attr.level, t_left*SIDE, t_upper*SIDE, (t_right+1)*SIDE -1, (t_lower+1)*SIDE -1, fail_count)
+        left, top = to_pixel(t_left, t_upper)
+        right, bottom = to_pixel(t_right+1, t_lower+1)
+        disp_attr = MapAttr(map_attr.level, left, top, right-1, bottom-1, fail_count)
 
         return  (disp_map, disp_attr)
 
@@ -1691,6 +1690,11 @@ class MapAttr:
             return MapAttr(level, self.left_px >> s, self.up_py >> s, self.right_px >> s, self.low_py >> s, self.fail_count)
         else:
             return self
+
+    def boundTiles(self, extra_p=0):
+        t_left, t_upper  = to_tile(self.left_px - extra_p, self.up_py - extra_p)
+        t_right, t_lower = to_tile(self.right_px + extra_p, self.low_py  + extra_p)
+        return (t_left, t_upper, t_right, t_lower)
 
     @classmethod
     def getMaxOverlapAttr(cls, attrs, fail_count_method=None):
