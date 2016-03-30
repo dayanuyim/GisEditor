@@ -392,7 +392,7 @@ class MapBoard(tk.Frame):
         self.__ver_label = tk.Label(frame, font=font, bg=bg)
         self.__ver_label.pack(side='right', expand=0, anchor='ne')
 
-        self.__prog_bar = ttk.Progressbar(frame)
+        self.__prog_bar = ttk.Progressbar(frame, mode='determinate', maximum=100)
         self.__prog_bar.pack(side='right', expand=0, anchor='ne')
 
         self.__status_label = tk.Label(frame, font=font, bg=bg)
@@ -538,8 +538,13 @@ class MapBoard(tk.Frame):
             self.__info_97tm2.variable.set("%.3f, %.3f" % (geo.twd97_x/1000, geo.twd97_y/1000))
             self.__info_67tm2.variable.set("%.3f, %.3f" % (geo.twd67_x/1000, geo.twd67_y/1000))
 
-    def setStatus(self, txt):
-        self.__status_label['text'] = txt
+    def __setStatus(self, txt = None, prog=None):
+        if txt is not None:
+            self.__status_label['text'] = txt
+
+        if prog is not None:
+            self.__prog_bar['value'] = int(prog)
+            self.__prog_bar.update()
 
     def addGpx(self, gpx):
         if gpx is not None:
@@ -771,11 +776,6 @@ class MapBoard(tk.Frame):
         #wpt_board.show()
         self.__focused_wpt = None
 
-    def __setProgress(self, val, max):
-        self.__prog_bar['maximum'] = max
-        self.__prog_bar['value'] = val
-        self.__prog_bar.update()
-
     def __numOfNeededTiles(self, map_attr):
         left, top, right, bottom = map_attr.boundTiles()
         ntiles = (right - left + 1) * (bottom - top + 1)
@@ -793,7 +793,7 @@ class MapBoard(tk.Frame):
                 100.0 * self.__saving_tiles_count / self.__saving_tiles_total
         logging.info("saving image for map '%s'...%.1f%%" % (map_id, progress))
 
-        self.__setProgress(int(progress), 100)
+        self.__setStatus(prog=progress)
 
     def onImageSave(self):
         if self.isSavingImage():
@@ -841,14 +841,14 @@ class MapBoard(tk.Frame):
             #get map
             self.__saving_tiles_total = 0
             self.__saving_tiles_count = 0
-            self.__setProgress(0, 1)
+            self.__setStatus(prog=0)
             map, attr = self.__map_ctrl.getMap(dx, dy, geo=sel_geo, level=out_level, req_type="sync",
                     cb=self.__updateSavingProgress)
 
             map.save(fpath, format='png')
 
-            self.__setProgress(0, 1)
-            messagebox.showwarning('', 'The saving is done!')
+            self.__setStatus(prog=0)
+            messagebox.showwarning('', 'The saving is OK!')
 
         except AreaSizeTooLarge as ex:
             messagebox.showwarning(str(ex), 'Please zoom out or resize the window to enlarge the map')
@@ -983,7 +983,7 @@ class MapBoard(tk.Frame):
             should_update = False
             with self.__map_req_lock:
                 #logging.debug("[MapUpdater] %s" % ('map attr is None' if self.__map_attr is None else 'map attr is not None',))
-                #logging.debug("[MapUpdater] fail cout=%s" % (str(self.__map_attr.fail_count) if self.__map_attr else "NA",))
+                #logging.debug("[MapUpdater] fail cout=%s" % (str(self.__map_attr.fail_tiles) if self.__map_attr else "NA",))
                 #logging.debug("[MapUpdater] time diff=%d sec" % ((datetime.now()-self.__map_req_time).total_seconds(),))
                 #logging.debug("[MapUpdater] %s" % ('has update' if self.__map_has_update else 'no update',))
 
@@ -1000,7 +1000,7 @@ class MapBoard(tk.Frame):
     def __notifyMapUpdate(self, map_id, map_attr):
         with self.__map_req_lock:
             if self.__map_attr is not None and \
-               self.__map_attr.fail_count and \
+               self.__map_attr.fail_tiles and \
                self.__map_attr.containsImgae(map_attr):
                 logging.debug("map '%s' has update" % (map_id,))
                 self.__map_has_update = True
@@ -1023,13 +1023,14 @@ class MapBoard(tk.Frame):
         self.__setMap(self.__map)
 
         #set status
-        if self.__map_attr.fail_count:
-            txt = "Map Loading...(%d)" % (self.__map_attr.fail_count,)
+        if self.__map_attr.fail_tiles:
+            prog = 100 * (1 - float(self.__map_attr.fail_tiles) / self.__numOfNeededTiles(self.__map_attr))
+            txt = "Map Loading...%.1f%%" % (prog,)
             logging.info(txt)
-            self.setStatus(txt)
+            self.__setStatus(txt, prog)
         else:
             logging.info("Map Loading...OK")
-            self.setStatus('')
+            self.__setStatus('', 0)
 
     def restore(self):
         self.__setMap(self.__map)
@@ -1099,7 +1100,7 @@ class MapAgent:
         cache_attr = self.__cache_attr
         return cache_map is not None and \
                cache_attr is not None and \
-               not cache_attr.fail_count and \
+               not cache_attr.fail_tiles and \
                cache_attr.containsImgae(req_attr)
 
     # @cb is used to notify the part of the map has update.
@@ -1200,7 +1201,7 @@ class MapAgent:
         logging.debug("pasting tile...")
 
         disp_map = None
-        fail_count = 0
+        fail_tiles = 0
 
         for x in range(tx_num):
             for y in range(ty_num):
@@ -1210,7 +1211,7 @@ class MapAgent:
                     cb(self.map_id, map_attr)
 
                 if tile is None or tile.is_fake:
-                    fail_count += 1
+                    fail_tiles += 1
 
                 if tile is not None:
                     if disp_map is None:
@@ -1222,7 +1223,7 @@ class MapAgent:
         #reset map_attr
         left, top = to_pixel(t_left, t_upper)
         right, bottom = to_pixel(t_right+1, t_lower+1)
-        disp_attr = MapAttr(map_attr.level, left, top, right-1, bottom-1, fail_count)
+        disp_attr = MapAttr(map_attr.level, left, top, right-1, bottom-1, fail_tiles)
 
         return  (disp_map, disp_attr)
 
@@ -1370,14 +1371,14 @@ class MapController:
         self.__drawCoordValue(map, req_attr)
 
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: done")
-        req_attr.fail_count = attr.fail_count
+        req_attr.fail_tiles = attr.fail_tiles
         return map, req_attr
 
     def __isCacheValid(self, cache_map, req_attr):
         cache_attr = self.__cache_attr
         return cache_map and \
                cache_attr and \
-               cache_attr.fail_count == 0 and \
+               cache_attr.fail_tiles == 0 and \
                cache_attr.containsImgae(req_attr)
 
     @classmethod
@@ -1466,7 +1467,7 @@ class MapController:
         baseattr = None
         if not maps:
             baseattr = req_attr.clone() 
-            baseattr.fail_count = 0
+            baseattr.fail_tiles = 0
         else:
             attrs = [attr for map, attr, alpha in maps]
             baseattr = MapAttr.getMaxOverlapAttr(attrs, fail_count_method="sum")
@@ -1698,17 +1699,17 @@ class MapAttr:
     def size(self):
         return (self.right_px - self.left_px, self.low_py - self.up_py)
 
-    def __init__(self, level, left_px, up_py, right_px, low_py, fail_count):
+    def __init__(self, level, left_px, up_py, right_px, low_py, fail_tiles=0):
         #self.img = None
         self.level = level
         self.left_px = left_px
         self.up_py = up_py
         self.right_px = right_px
         self.low_py = low_py
-        self.fail_count = fail_count
+        self.fail_tiles = fail_tiles
 
     def clone(self):
-        return MapAttr(self.level, self.left_px, self.up_py, self.right_px, self.low_py, self.fail_count)
+        return MapAttr(self.level, self.left_px, self.up_py, self.right_px, self.low_py, self.fail_tiles)
 
     def containsImgae(self, attr):
         if self.level == attr.level and \
@@ -1727,10 +1728,10 @@ class MapAttr:
     def zoomToLevel(self, level):
         if level > self.level:
             s = level - self.level
-            return MapAttr(level, self.left_px << s, self.up_py << s, self.right_px << s, self.low_py << s, self.fail_count)
+            return MapAttr(level, self.left_px << s, self.up_py << s, self.right_px << s, self.low_py << s, self.fail_tiles)
         elif self.level > level:
             s = self.level - level
-            return MapAttr(level, self.left_px >> s, self.up_py >> s, self.right_px >> s, self.low_py >> s, self.fail_count)
+            return MapAttr(level, self.left_px >> s, self.up_py >> s, self.right_px >> s, self.low_py >> s, self.fail_tiles)
         else:
             return self
 
@@ -1745,7 +1746,7 @@ class MapAttr:
             return None
 
         res = attrs[0].clone()
-        res.fail_count = 0
+        res.fail_tiles = 0
 
         for attr in attrs:
             if res.level != attr.level:
@@ -1756,11 +1757,11 @@ class MapAttr:
             res.right_px = min(res.right_px, attr.right_px)
             res.low_py   = min(res.low_py,   attr.low_py)
 
-            #fail_count
+            #fail_tiles
             if not fail_count_method:
                 continue
             elif fail_count_method == "sum":
-                res.fail_count += attr.fail_count
+                res.fail_tiles += attr.fail_tiles
 
         return res
 
