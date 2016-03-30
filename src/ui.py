@@ -545,6 +545,8 @@ class SingleEditBoard(Dialog):
             self.__right_btn.config(state=('disabled' if idx == sz-1 else 'normal'))
 
 class MapRow(tk.Frame):
+    ALPHA_MIN = 1
+    ALPHA_MAX = 100
     @property
     def map_desc(self):
         return self.__map_desc
@@ -565,8 +567,6 @@ class MapRow(tk.Frame):
         self.__setBtnTxt()
         self.__btn.pack(side='right', anchor='e', expand=0)
 
-        A_MIN = 0
-        A_MAX = 100
         #variable
         alpha = int(map_desc.alpha * 100)
         self.__alpha_var = tk.IntVar(value=alpha)
@@ -574,10 +574,10 @@ class MapRow(tk.Frame):
         #spin
         alpha_label = tk.Label(self, text="%")
         alpha_label.pack(side='right', anchor='e', expand=0)
-        alpha_spin = tk.Spinbox(self, from_=A_MIN, to=A_MAX, width=3, textvariable=self.__alpha_var)
+        alpha_spin = tk.Spinbox(self, from_=self.ALPHA_MIN, to=self.ALPHA_MAX, width=3, textvariable=self.__alpha_var)
         alpha_spin.pack(side='right', anchor='e', expand=0)
         #sacle
-        #alpha_scale = tk.Scale(self, label="Transparency", from_=A_MIN, to=A_MAX, orient='horizontal',
+        #alpha_scale = tk.Scale(self, label="Transparency", from_=ALPHA_MIN, to=ALPHA_MAX, orient='horizontal',
                 #resolution=1, showvalue=0, variable=self.__alpha_var)
         #alpha_scale.pack(side='right', anchor='e', expand=0, fill='x')
 
@@ -589,8 +589,9 @@ class MapRow(tk.Frame):
 
     def __onEnableChanged(self):
         old_val = self.__map_desc.enabled
+        new_val = not old_val
 
-        self.__map_desc.enabled = not old_val
+        self.__map_desc.enabled = new_val
         self.__setBtnTxt()
 
         if self.__enable_handler is not None:
@@ -598,16 +599,23 @@ class MapRow(tk.Frame):
 
     def __onAlphaChanged(self, *args):
         old_val = self.__map_desc.alpha
-        new_val = 0.0
+
         try:
-            new_val = self.__alpha_var.get() / 100.0
+            #get new value
+            raw_val = self.__alpha_var.get()
+            if raw_val < self.ALPHA_MIN or raw_val > self.ALPHA_MAX: #only accept valid value
+                return
+            new_val = raw_val / 100.0
+
+            #update
+            if self.__map_desc.alpha != new_val:
+                self.__map_desc.alpha = new_val
+
+                if self.__alpha_handler is not None:
+                    self.__alpha_handler(self, old_val)
         except Exception as ex:
             logging.warning("get alpha value error: " + str(ex))
 
-        self.__map_desc.alpha = new_val
-        
-        if self.__alpha_handler is not None:
-            self.__alpha_handler(self, old_val)
 
 
 class MapSelectFrame(pmw.ScrolledFrame):
