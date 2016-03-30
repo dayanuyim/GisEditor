@@ -17,7 +17,7 @@ from os import path
 from PIL import Image, ImageTk, ImageDraw, ImageFont, ImageColor
 from math import floor, ceil, sqrt
 from tkinter import messagebox, filedialog, ttk
-from datetime import datetime
+from datetime import datetime, timedelta
 from threading import Lock, Thread
 from collections import OrderedDict
 
@@ -246,6 +246,7 @@ class MapBoard(tk.Frame):
         self.__some_geo = GeoPoint(lon=121.334754, lat=24.987969)
         self.__left_click_pos = None
         self.__right_click_pos = None
+        self.__mouse_wheel_ts = datetime.min
         self.__version = ''
         self.master.bind("<Configure>", lambda e: self.__relocateMapSelector())
         self.master.bind("<Visibility>", self.__onVisibility)
@@ -572,6 +573,11 @@ class MapBoard(tk.Frame):
     def onMouseWheel(self, event, delta):
         if self.isSavingImage():
             return
+
+        if datetime.now() < (self.__mouse_wheel_ts + timedelta(milliseconds=500)):
+            return
+
+        self.__mouse_wheel_ts = datetime.now()
 
         ctrl = self.__map_ctrl
         level = ctrl.level + (1 if delta > 0 else -1)
