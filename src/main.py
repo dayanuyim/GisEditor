@@ -538,12 +538,15 @@ class MapBoard(tk.Frame):
             self.__info_97tm2.variable.set("%.3f, %.3f" % (geo.twd97_x/1000, geo.twd97_y/1000))
             self.__info_67tm2.variable.set("%.3f, %.3f" % (geo.twd67_x/1000, geo.twd67_y/1000))
 
-    def __setStatus(self, txt = None, prog=None):
+    def __setStatus(self, txt = None, prog=None, is_immediate=False):
         if txt is not None:
             self.__status_label['text'] = txt
 
         if prog is not None:
             self.__prog_bar['value'] = int(prog)
+
+        if is_immediate:
+            self.__status_label.update()
             self.__prog_bar.update()
 
     def addGpx(self, gpx):
@@ -793,7 +796,7 @@ class MapBoard(tk.Frame):
                 100.0 * self.__saving_tiles_count / self.__saving_tiles_total
         logging.info("saving image for map '%s'...%.1f%%" % (map_id, progress))
 
-        self.__setStatus(prog=progress)
+        self.__setStatus(prog=progress, is_immediate=True)
 
     def onImageSave(self):
         if self.isSavingImage():
