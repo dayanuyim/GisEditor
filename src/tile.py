@@ -395,13 +395,6 @@ class TileAgent:
             except Exception as ex:
                 logging.error("[%s] Error to save tile data: %s" % (self.map_id, str(ex)))
 
-            #notify
-            try:
-                if cb is not None:
-                    cb(level, x, y)
-            except Exception as ex:
-                 logging.warning("[%s] Invoke cb of download tile error: %s" % (self.map_id, str(ex)))
-
             return tile_img
 
     #The therad to download
@@ -418,6 +411,16 @@ class TileAgent:
             #premature done
             if self.__state == self.ST_CLOSING:
                 return
+
+        #invoke cb. cb may be blocking, so do this AFTER removing the thread from __workers
+        if tile_img is not None:
+            level, x, y, status, cb = req  #unpack the req
+            if cb is not None:
+                tile_info = (self.map_id, level, x, y)
+                try:
+                    cb(tile_info)
+                except Exception as ex:
+                     logging.warning("[%s] Invoke cb of download tile error: %s" % (self.map_id, str(ex)))
 
     #The thread to handle all download requests
     def __runDownloadMonitor(self):
@@ -586,7 +589,7 @@ class TileAgent:
         return None
 
     # @cb is only for req_type == "async" to nitify the tile is done,
-    # which call cb(level, x, y)
+    # which call cb(tile_info), tile_info = (map_id, level, x, y)
     def getTile(self, level, x, y, req_type, cb=None, allow_fake=True):
         img = self.__getTile(level, x, y, req_type, cb)
         if img is not None:

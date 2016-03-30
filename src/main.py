@@ -1217,7 +1217,8 @@ class MapAgent:
                 tile = self.__tile_agent.getTile(map_attr.level, t_left +x, t_upper +y, req_type, async_cb)
 
                 if req_type == "sync" and cb is not None:
-                    cb(self.map_id, map_attr)
+                    tile_info = (self.map_id, map_attr.level, t_left + x, t_upper +y)
+                    cb(tile_info)
 
                 if tile is None or tile.is_fake:
                     fail_tiles += 1
