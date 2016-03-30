@@ -791,7 +791,7 @@ class MapBoard(tk.Frame):
         nmaps = len([desc for desc in self.__map_descs if desc.enabled])
         return nmaps * ntiles
 
-    def __updateSavingProgress(self, map_id, map_attr):
+    def __updateSavingProgress(self, tile_info):
         if not self.__saving_tiles_total:
             self.__saving_tiles_total = self.__numOfNeededTiles(map_attr)
             self.__saving_tiles_count = 0
@@ -1112,8 +1112,9 @@ class MapAgent:
                not cache_attr.fail_tiles and \
                cache_attr.containsImgae(req_attr)
 
-    # @cb is used to notify the part of the map has update.
-    #  which call cb(map_id, map_attr)
+    # @cb is used to notify some tile is ready.
+    # sync cb is handled by genMap, and async cb by getTile
+    # which call cb(tile_info), tile_info = (map_id, level, x, y)
     def genMap(self, req_attr, req_type, cb=None):
         if self.__isCacheValid(req_attr):
             return (self.__cache_basemap, self.__cache_attr)
@@ -1191,15 +1192,17 @@ class MapAgent:
         except Exception as ex:
             logging.error("invoke cb for tile ready error: %s" % (self.map_id, str(ex)))
 
+    '''
     def __tileIsReady(self, level, x, y, map_attr, cb):
         logging.info("[%s] tile(%d,%d,%d) is ready" % (self.map_id, level, x, y))
         cb(self.map_id, map_attr)
+    '''
 
     #could return None map
     def __genTileMap(self, map_attr, extra_p, req_type, cb=None):
-        async_cb = None
-        if cb is not None and req_type == "async":
-            async_cb = lambda level, x, y: self.__tileIsReady(level, x, y, map_attr, cb) 
+        async_cb = cb if cb is not None and req_type == "async" else None
+        #if cb is not None and req_type == "async":
+        #    async_cb = lambda level, x, y: self.__tileIsReady(level, x, y, map_attr, cb) 
 
         #get tile x, y.
         t_left, t_upper, t_right, t_lower = map_attr.boundTiles(extra_p)
