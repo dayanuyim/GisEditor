@@ -237,7 +237,7 @@ class MapBoard(tk.Frame):
         self.__focused_geo = None
         self.__map = None         #buffer disp image for restore map
         self.__map_attr = None
-        self.__map_req_time = None
+        self.__map_req_time = datetime.min
         self.__map_has_update = False
         self.__map_req_lock = Lock()
         self.__alter_time = None
@@ -791,18 +791,26 @@ class MapBoard(tk.Frame):
         nmaps = len([desc for desc in self.__map_descs if desc.enabled])
         return nmaps * ntiles
 
-    def __updateSavingProgress(self, tile_info):
-        if not self.__saving_tiles_total:
-            self.__saving_tiles_total = self.__numOfNeededTiles(map_attr)
-            self.__saving_tiles_count = 0
+    def __initMapProg(self, prog_area, prog_max, prog_count=0):
+        self.__map_prog_area = prog_area
+        self.__map_prog_max = prog_max
+        self.__map_prog_count = prog_count
 
-        self.__saving_tiles_count += 1
+    def __getMapProgOverlay(self, tile_info):
+        map_id, level, x, y = tile_info
+        tile_area = TileArea.fromTile(level, x, y)
 
-        progress = 100 if not self.__saving_tiles_total else \
-                100.0 * self.__saving_tiles_count / self.__saving_tiles_total
-        logging.info("saving image for map '%s'...%.1f%%" % (map_id, progress))
+        return self.__map_prog_area.overlay(tile_area)
+        
+    def __updateMapProg(self, inc_count, is_immediate=False):
+        self.__map_prog_count += inc_count
 
-        self.__setStatus(prog=progress, is_immediate=True)
+        progress = 100 if self.__map_prog_max <= 0 else \
+                   100 * float(self.__map_prog_count) / self.__map_prog_max
+
+        txt = "Loading...%.1f%%" % (progress,)
+
+        self.__setStatus(txt, progress, is_immediate)
 
     def onImageSave(self):
         if self.isSavingImage():
@@ -847,16 +855,23 @@ class MapBoard(tk.Frame):
             ext_geo = sel_geo.addPixel(w, h, org_level)            #lower-right
             dx, dy = ext_geo.diffPixel(sel_geo, out_level)
 
-            #get map
-            self.__saving_tiles_total = 0
-            self.__saving_tiles_count = 0
-            self.__setStatus(prog=0)
-            map, attr = self.__map_ctrl.getMap(dx, dy, geo=sel_geo, level=out_level, req_type="sync",
-                    cb=self.__updateSavingProgress)
+            #prepare map progress info
+            img_area = TileArea(out_level, sel_geo.pixel(out_level), (dx, dy))
+            total = len(enabled_maps) * img_area.area
+            self.__initMapProg(img_area, total)
+            self.__setStatus('', 0 , is_immediate=True)
 
+            def update_prog_cb(tile_info):
+                overlay = self.__getMapProgOverlay(tile_info)
+                if overlay is not None:
+                    self.__updateMapProg(overlay.area, is_immediate=True)
+
+            #get and save
+            map, attr = self.__map_ctrl.getMap(dx, dy, geo=sel_geo, level=out_level, req_type="sync", cb=update_prog_cb)
             map.save(fpath, format='png')
 
-            self.__setStatus(prog=0)
+            #notify the saving is  done
+            self.__setStatus('', 0 , is_immediate=True)
             messagebox.showwarning('', 'The saving is OK!')
 
         except AreaSizeTooLarge as ex:
@@ -991,54 +1006,58 @@ class MapBoard(tk.Frame):
             
             should_update = False
             with self.__map_req_lock:
-                #logging.debug("[MapUpdater] %s" % ('map attr is None' if self.__map_attr is None else 'map attr is not None',))
-                #logging.debug("[MapUpdater] fail cout=%s" % (str(self.__map_attr.fail_tiles) if self.__map_attr else "NA",))
-                #logging.debug("[MapUpdater] time diff=%d sec" % ((datetime.now()-self.__map_req_time).total_seconds(),))
-                #logging.debug("[MapUpdater] %s" % ('has update' if self.__map_has_update else 'no update',))
-
                 #update if req, prevent from frequent updating
-                if self.__map_has_update and (datetime.now()-self.__map_req_time).total_seconds() >= 2:
+                if self.__map_has_update and (datetime.now() - self.__map_req_time) >= conf.MAP_UPDATE_PERIOD:
                     should_update = True
 
             if should_update:
+                logging.debug("map should auto update")
                 try:
                     self.resetMap()
                 except Exception as ex:
                     showmsg("Auto reset map error: ", str(ex))
 
-    def __notifyMapUpdate(self, map_id, map_attr):
+    def __notifyTileReady(self, tile_info):
+        logging.debug("tile (%s, %d, %d, %d) is ready" % tile_info)
+
         with self.__map_req_lock:
-            if self.__map_attr is not None and \
-               self.__map_attr.fail_tiles and \
-               self.__map_attr.containsImgae(map_attr):
-                logging.debug("map '%s' has update" % (map_id,))
+            overlay = self.__getMapProgOverlay(tile_info) #need the lock due to access to data members
+            if overlay is not None:
                 self.__map_has_update = True
+                #self.__updateMapProg(overlay.area, is_immediate=False)  #need the lock due to access to data members
+                logging.debug("has update")
 
     def resetMap(self, geo=None, w=None, h=None, force=None):
         if w is None: w = self.disp_canvas.winfo_width()
         if h is None: h = self.disp_canvas.winfo_height()
 
+        level = self.__map_ctrl.level
         if geo is not None:
-            self.__map_ctrl.geo = geo
-            self.__map_ctrl.shiftGeoPixel(-w/2, -h/2)
+            self.__map_ctrl.geo = geo.addPixel(int(-w/2), int(-h/2), level)
+        ref_geo = self.__map_ctrl.geo
+
+        #prepare map progress info
+        map_area = TileArea(level, ref_geo.pixel(level), (w, h))
+        total = len([d for d in self.__map_descs if d.enabled]) * map_area.area
+        #self.__updateMapProg(0, is_immediate=False)
 
         #request map
+        map_prog = 0
         with self.__map_req_lock:
             self.__map_has_update = False #reset flag
             self.__map_req_time = datetime.now()
-            self.__map, self.__map_attr = self.__map_ctrl.getMap(w, h, force, cb=self.__notifyMapUpdate)  #buffer the image
+            self.__initMapProg(map_area, total)  #need the lock to access data members
+            self.__map, self.__map_attr = self.__map_ctrl.getMap(w, h, force, cb=self.__notifyTileReady)  #buffer the image
+            map_prog = 100 * (1 - float(self.__map_attr.fail_tiles) / self.__numOfNeededTiles(self.__map_attr))
 
         #set map
         self.__setMap(self.__map)
 
-        #set status
-        if self.__map_attr.fail_tiles:
-            prog = 100 * (1 - float(self.__map_attr.fail_tiles) / self.__numOfNeededTiles(self.__map_attr))
-            txt = "Map Loading...%.1f%%" % (prog,)
-            logging.info(txt)
-            self.__setStatus(txt, prog)
+        #set statufs
+        if map_prog < 100:
+            txt = "Map Loading...%.1f%%" % (map_prog,)
+            self.__setStatus(txt, map_prog)
         else:
-            logging.info("Map Loading...OK")
             self.__setStatus('', 0)
 
     def restore(self):
@@ -1219,10 +1238,6 @@ class MapAgent:
             for y in range(ty_num):
                 tile = self.__tile_agent.getTile(map_attr.level, t_left +x, t_upper +y, req_type, async_cb)
 
-                if req_type == "sync" and cb is not None:
-                    tile_info = (self.map_id, map_attr.level, t_left + x, t_upper +y)
-                    cb(tile_info)
-
                 if tile is None or tile.is_fake:
                     fail_tiles += 1
 
@@ -1230,6 +1245,10 @@ class MapAgent:
                     if disp_map is None:
                         disp_map = Image.new("RGBA", to_pixel(tx_num, ty_num), 'lightgray')
                     disp_map.paste(tile, to_pixel(x, y))
+
+                if req_type == "sync" and cb is not None:
+                    tile_info = (self.map_id, map_attr.level, t_left + x, t_upper +y)
+                    cb(tile_info)
 
         logging.debug("pasting tile...done")
 
@@ -1704,6 +1723,72 @@ class MapController:
                 px -= attr.left_px
                 py -= attr.up_py
                 draw.text((px, py -py_shift), str(y), fill="black", font=font)
+
+class TileArea:
+    @property
+    def level(self): return self.__level
+
+    @property
+    def pos(self): return self.__pos
+
+    @property
+    def size(self): return self.__size
+
+    @property
+    def area(self):
+        w, h = self.__size
+        return w * h
+
+    def __init__(self, level, pos, size):
+        self.__level = level
+        self.__pos = pos
+        self.__size = size
+
+    def __str__(self):
+        x, y = self.pos
+        w, h = self.size
+        return "TileArea{level=%d, pos=(%d, %d), size=(%d, %d)}" % (self.level, x, y, w, h)
+
+    # return overlayed area or None
+    def overlay(self, rhs):
+        if self.level != rhs.level:
+           return None
+
+        x1, y1 = self.pos
+        w1, h1 = self.size
+
+        x2, y2 = rhs.pos
+        w2, h2 = rhs.size
+
+        x_overlay = self.lineOverlay(x1, w1, x2, w2)
+        if x_overlay is None:
+            return None
+
+        y_overlay = self.lineOverlay(y1, h1, y2, h2)
+        if y_overlay is None:
+            return None
+
+        x, w = x_overlay
+        y, h = y_overlay
+        return TileArea(self.level, (x, y), (w, h))
+
+    @classmethod
+    def lineOverlay(cls, x1, w1, x2, w2):
+        if x1 <= x2 and x2 < (x1 + w1):
+            x = x2
+        elif x2 <= x1 and x1 < (x2 + w2):
+            x = x1
+        else:
+            return None
+
+        w = min(x1 + w1, x2 + w2) - x
+        return x, w
+
+    @classmethod
+    def fromTile(cls, level, x, y):
+        pos = to_pixel(x, y)
+        size = to_pixel(1, 1)
+        return TileArea(level, pos, size)
 
 
 #record image atrr
@@ -2476,4 +2561,19 @@ if __name__ == '__main__':
         logging.error("Startup failed: %s" % str(ex,))
         messagebox.showwarning('Startup failed', str(ex))
         #raise ex  #@@!
+
+def __testTileArea():
+    a1 = TileArea(16, (0, 0), (10, 10))
+    a2 = TileArea(16, (5, 5), (2, 2))
+    a3 = TileArea(15, (0, 0), (10, 10))
+    a4 = TileArea(16, (5, 5), (10, 10))
+    a5 = TileArea(16, (5, 5), (2, 10))
+
+    print(a1)
+    print(a2)
+    print(a1.overlay(a2)) #a1 contains a2
+    print(a1.overlay(a3)) # not the same level
+    print(a1.overlay(a4)) # part
+    print(a1.overlay(a5)) # part
+    print(a4.overlay(a1)) # part
 
