@@ -13,6 +13,7 @@ import time
 import logging
 import argparse
 import platform
+import re
 from os import path
 from PIL import Image, ImageTk, ImageDraw, ImageFont, ImageColor
 from math import floor, ceil, sqrt
@@ -483,26 +484,34 @@ class MapBoard(tk.Frame):
             return
 
     def onSetPos(self, e):
-        #get pos
+        #if val_txt is digit, regarding as int with unit 'meter'
+        #          otherwise, regarding as float with unit 'kilimeter'
+        def toTM2(val_txt):
+            val_txt = val_txt.strip()
+            return int(val_txt) if val_txt.isdigit() else int(float(val_txt)*1000)
+
+        def toDegree(val_txt):
+            val_txt = val_txt.strip()
+            return float(val_txt)
+
+        #get geo point
+        geo = None
         try:
             pos = e.widget.get()
-            x, y = pos.split(',')
-            x = float(x.strip())
-            y = float(y.strip())
-            #print('x=%f, y=%f' % (x, y))
-        except:
-            messagebox.showwarning('Bad Format', "Please use format '%d,%d'")
-            return
+            x, y = re.split(',| ', pos)
 
-        #make geo according to the coordinate
-        if e.widget == self.__info_67tm2:
-            geo = GeoPoint(twd67_x=int(x*1000), twd67_y=int(y*1000))
-        elif e.widget == self.__info_97tm2:
-            geo = GeoPoint(twd97_x=int(x*1000), twd97_y=int(y*1000))
-        elif e.widget == self.__info_97latlon:
-            geo = GeoPoint(lat=x, lon=y)
-        else:
-            raise ValueError("Code flow error to set location")
+            #make geo according to the coordinate
+            if e.widget == self.__info_67tm2:
+                geo = GeoPoint(twd67_x=toTM2(x), twd67_y=toTM2(y))
+            elif e.widget == self.__info_97tm2:
+                geo = GeoPoint(twd97_x=toTM2(x), twd97_y=toTM2(y))
+            elif e.widget == self.__info_97latlon:
+                geo = GeoPoint(lat=toDegree(x), lon=toDegree(y))
+            else:
+                raise ValueError("Code flow error to set location") #should not happen
+        except Exception as ex:
+            messagebox.showwarning("Please use format '%d,%d'.", "get locatoin error: %s" % (str(ex),))
+            return
 
         #check
         if not self.__map_ctrl.mapContainsPt(geo):
