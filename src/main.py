@@ -736,7 +736,7 @@ class MapBoard(tk.Frame):
 
     def onEditTrk(self, mode, trk=None):
         trk_list = self.__map_ctrl.getAllTrks()
-        if len(trk_list) == 0:
+        if not trk_list:
             messagebox.showwarning('', "No Tracks Found")
             return
 
@@ -2302,13 +2302,12 @@ class TrkSingleBoard(tk.Toplevel):
         pt_scroll = tk.Scrollbar(self, orient='vertical')
         pt_scroll.config(command=self.pt_list.yview)
         pt_scroll.pack(side='right', fill='y')
-        self.pt_list.config(selectmode='extended', yscrollcommand=pt_scroll.set, width=43, height=30)
+        self.pt_list.config(selectmode='extended', yscrollcommand=pt_scroll.set, width=50, height=30)
         self.pt_list.pack(side='left', anchor='nw', expand=1, fill='both')
         self.pt_list.bind('<ButtonRelease-1>', self.onPtSelected)
         self.pt_list.bind('<KeyRelease-Up>', self.onPtSelected)
         self.pt_list.bind('<KeyRelease-Down>', self.onPtSelected)
         self.pt_list.bind('<Delete>', self.onPtDeleted)
-
 
         #set trk
         if trk is not None:
