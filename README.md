@@ -4,22 +4,18 @@ Map Adapter to WMTS
 緣起
 ----
 
-本軟體目的是在 Desktop (Windows/Linux) 上實作如 Anroid 上的 [OruxMaps][] 之地圖瀏覽軟體，可支援 WMTS用以瀏覽[經建三版地圖等其它台灣地圖][Sinica-WMTS]；並支援圖層功能，如[中研院線上百年地圖][Sinica-100y]。
+本軟體目的是在 Desktop (Windows/Linux) 上實作如 Anroid 上的 [OruxMaps][] 之地圖瀏覽軟體，可支援 WMTS用以瀏覽[經建三版地圖等其它台灣地圖][Sinica-WMTS]；並支援圖層功能，如[中研院線上百年地圖][Sinica-100y]。計有以下目標：
+  -  支援 WMTS (線上圖磚服務)
+  -  PC使用，至少支援 Windows 和 Linux
+  -  至少支援 GPX、GDB、圖檔(內嵌地理資訊之相片)等格式
+  -  簡易航點、航跡編輯
+  -  自動化功能：自動選擇航點圖示、分割航跡
+  -  航跡檔輸出 (GPX 格式)
+  -  地圖截圖輸出
 
 [OruxMaps]: http://www.oruxmaps.com/index.html
 [Sinica-WMTS]: http://gis.sinica.edu.tw/tileserver/
 [Sinica-100y]: http://gissrv4.sinica.edu.tw/gis/twhgis.aspx
-
-目標
-----
-
- -  支援 WMTS (線上圖磚服務)
- -  PC使用，至少支援 Windows 和 Linux
- -  至少支援 GPX、GDB、圖檔(內嵌地理資訊之相片)等格式
- -  簡易航點、航跡編輯
- -  自動化功能：自動選擇航點圖示、分割航跡
- -  航跡檔輸出 (GPX 格式)
- -  地圖截圖輸出
 
 軟體安裝 (Windows)
 ------------------
