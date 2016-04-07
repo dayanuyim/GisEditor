@@ -4,62 +4,48 @@ Map Adapter to WMTS
 緣起
 ----
 
-本軟體目的是在 Desktop (Windows/Linux) 上實作如 Anroid 上的 [OruxMaps][] 之地圖瀏覽軟體，可支援 WMTS用以瀏覽[經建三版地圖等其它台灣地圖][Sinica-WMTS]；並支援圖層功能，如[中研院線上百年地圖][Sinica-100y]。
+本軟體目的是在 Desktop (Windows/Linux) 上實作如 Anroid 上的 [OruxMaps][] 之地圖瀏覽軟體，可支援 WMTS用以瀏覽[經建三版地圖等其它台灣地圖][Sinica-WMTS]；並支援圖層功能，如[中研院線上百年地圖][Sinica-100y]。計有以下目標：
+  -  支援 WMTS (線上圖磚服務)
+  -  PC使用，至少支援 Windows 和 Linux
+  -  至少支援 GPX、GDB、圖檔(內嵌地理資訊之相片)等格式
+  -  簡易航點、航跡編輯
+  -  自動化功能：自動選擇航點圖示、分割航跡
+  -  航跡檔輸出 (GPX 格式)
+  -  地圖截圖輸出
 
 [OruxMaps]: http://www.oruxmaps.com/index.html
 [Sinica-WMTS]: http://gis.sinica.edu.tw/tileserver/
 [Sinica-100y]: http://gissrv4.sinica.edu.tw/gis/twhgis.aspx
 
-目標
-----
+軟體安裝 (Windows)
+------------------
 
- -  支援 WMTS (線上圖磚服務)
- -  PC使用，至少支援 Windows 和 Linux
- -  至少支援 GPX、GDB、圖檔(內嵌地理資訊之相片)等格式
- -  簡易航點、航跡編輯
- -  自動化功能：自動選擇航點圖示、分割航跡
- -  航跡檔輸出 (GPX 格式)
- -  地圖截圖輸出
+ *  免安裝檔：
+     *  [version 0.1, 32bit版](https://drive.google.com/file/d/0B7ryOauZNjlbd0pmVFJmYWVNTkU/view?usp=sharing)
+     *  [version 0.1, 64bit版](https://drive.google.com/file/d/0B7ryOauZNjlbSE9mOFZvVjhVOWs/view?usp=sharing)
+ *  自動安裝：暫無。
+ *  手動安裝：請參考[手動安裝](#win_install)。
 
-Windows 安裝：
--------------
+軟體安裝 (Linux)
+----------------
 
-Windows 免安裝檔下載：
- *  [version 0.1, 32bit版](https://drive.google.com/file/d/0B7ryOauZNjlbd0pmVFJmYWVNTkU/view?usp=sharing)
- *  [version 0.1, 64bit版](https://drive.google.com/file/d/0B7ryOauZNjlbSE9mOFZvVjhVOWs/view?usp=sharing)
+ *  自動安裝：暫無。
+ *  手動安裝：請參考[手動安裝](#linux_install)。
 
-
-    手動安裝請見下方安裝說明。
-
-Linux 安裝：
------------
-
-    手動安裝請見下方安裝說明。
-
-MBTiles 下載:
--------------
+MBTiles 下載 (可選)
+-------------------
  *  [經建三版 (3500 MB)](https://drive.google.com/file/d/0B7ryOauZNjlbT2EwbzBlSEpwT1U/view?usp=sharing)
  *  [經建三版(北部山區局部) (550 MB)](https://drive.google.com/file/d/0B7ryOauZNjlbWGpJTl84S1Y2OXM/view?usp=sharing)
 
-操作說明：
----------
+操作說明
+--------
 
 請見[操作手冊](https://github.com/dayanuyim/GisEditor/blob/dev/manual.md)
 
 -------------------------------------------------------
 
-安裝 (Windows)
-==============
-Windows 可直接下載免安裝檔：
-* [version 0.1, 32bit版](https://drive.google.com/file/d/0B7ryOauZNjlbd0pmVFJmYWVNTkU/view?usp=sharing)
-* [version 0.1, 64bit版](https://drive.google.com/file/d/0B7ryOauZNjlbSE9mOFZvVjhVOWs/view?usp=sharing)
-
-*注意* 執行檔 giseditor.exe 實際上是個 python loader，若系統上已安裝 python3，也可修改 giseditor.exe.config 中的 PythonDirPath 路徑，指到你的系統上的 python3 版本
-
-以下為手動安裝步驟。
-
-手動安裝 (Windows)
-------------------
+手動安裝 (Windows) <a name="win_install"></a>
+==================
 
 1. 下載並安裝 [python3][] (安裝過程請勾選安裝 pip)
 
@@ -94,18 +80,7 @@ Windows 可直接下載免安裝檔：
      *  [經建三版 (3500 MB)](https://drive.google.com/file/d/0B7ryOauZNjlbT2EwbzBlSEpwT1U/view?usp=sharing)
      *  [經建三版(北部山區局部) (550 MB)](https://drive.google.com/file/d/0B7ryOauZNjlbWGpJTl84S1Y2OXM/view?usp=sharing)
 
-6. 設定程式參數
-
-     *  將 `$GISEDITOR_HOME/conf/giseditor.conf.win.sample` 複製至 `$GISEDITOR_HOME/conf/giseditor.conf`
-
-        開啟此檔，請確認 gpsbabel 執行檔所在位置:
-
-            64位元系統設定 `gpsbabel_exe=C:\Program Files (x86)\GPSBabel\gpsbabel.exe`
-            32位元系統設定 `gpsbabel_exe=C:\Program Files\GPSBabel\gpsbabel.exe`
-
-        修改後存檔。
-
-7. 建立執行檔
+6. 建立執行檔
 
      *  複製 `$GISEDITOR_HOME/install/win/giseditor.exe` 及 `$GISEDITOR_HOME/install/win/giseditor.exe.config` 兩個檔案至
     `$GISEDITOR_HOME` 之下
@@ -116,8 +91,9 @@ Windows 可直接下載免安裝檔：
      *  雙擊 `giseditor.exe`，應可開啟。
      *  開啟 `giseditor.exe`，`右鍵->Add Files...`，選擇 `$GISEDITOR_HOME/sample.gpx`，應可開啟地圖與航跡。
      *  開啟 `giseditor.exe`，`右鍵->Add Files...`，選擇 `$GISEDITOR_HOME/sample.gdb`，應可開啟地圖與航跡。
+         *  若無法開啟請確認 `$GISEDITOR_HOME/conf/giseditor.conf 的 gpsbabel_exe` 之設定是否正確
 
-8. 建立桌面環境與檔案關聯
+7. 建立桌面環境與檔案關聯
 
     如果上一步驟的測試都PASS的話，安裝應該已成功。再來只要設定檔案關聯就好。
 
@@ -127,8 +103,9 @@ Windows 可直接下載免安裝檔：
 
 [FileMenuTools]: https://briian.com/11030/filemenu-tools.html
 
+-------------------------------------------------------
 
-安裝 (Linux)
+手動安裝 (Linux)  <a name="linux_install"></a>  
 ============
 
 1. 下載並安裝 python3
@@ -165,13 +142,7 @@ Windows 可直接下載免安裝檔：
      *  [經建三版 (3500 MB)](https://drive.google.com/file/d/0B7ryOauZNjlbT2EwbzBlSEpwT1U/view?usp=sharing)
      *  [經建三版(北部山區局部) (550 MB)](https://drive.google.com/file/d/0B7ryOauZNjlbWGpJTl84S1Y2OXM/view?usp=sharing)
 
-6. 設定程式參數
-
-    將 `$GISEDITOR_HOME/conf/sample/giseditor.conf.linux.sample` 複製至 `$GISEDITOR_HOME/conf/giseditor.conf`
-
-    開啟此檔，確認參數是否正確，修改後存檔。
-
-7. 建立執行檔
+6. 建立執行檔
 
         mkdir ~/bin
         chmod +x $GISEDITOR_HOME/src/main.py
@@ -183,8 +154,9 @@ Windows 可直接下載免安裝檔：
      *  下指令 giseditor，應可開啟地圖
      *  下指令 giseditor `$GISEDITOR_HOME/data/test.gpx`，應可開啟地圖與航跡
      *  下指令 giseditor `$GISEDITOR_HOME/data/test.gdb`，應可開啟地圖與航跡
+         *  若無法開啟請確認 `$GISEDITOR_HOME/conf/giseditor.conf 的 gpsbabel_exe` 之設定是否正確
 
-8. 建立桌面環境與檔案關聯
+7. 建立桌面環境與檔案關聯
 
      *  建立 desktop 檔
 

@@ -1,8 +1,14 @@
 操作手冊
 ========
+1. [地圖瀏覽](#sec_browsing)
+2. [航點編輯](#sec_wpt)
+3. [航跡編輯](#sec_trk)
+4. [輸出地圖截圖](#sec_saveimg)
+5. [地圖疊圖](#sec_maplist)
+
 ![程式畫面][img_main]
 
-1\. 地圖瀏覽
+1\. 地圖瀏覽<a name="sec_browsing"></a>
 ------------
 
 1. 開啟
@@ -39,7 +45,7 @@
 
     於座標列任一座標系統，輸入座標並鍵入[Enter]，可移至該位置。二度分帶單位為KM, 經緯度單位為度。
 
-2\. 航點編輯
+2\. 航點編輯<a name=sec_wpt></a>
 ------------
 
 1. 新增航點
@@ -108,7 +114,7 @@
 
     `右鍵->Apply sumbol rules`
 
-3\. 航跡編輯
+3\. 航跡編輯<a name="sec_trk"></a>
 ------------
 
 1. 航跡編輯視窗
@@ -132,7 +138,7 @@
 
     `右鍵->Save to gpx...`
 
-4\. 輸出地圖截圖
+4\. 輸出地圖截圖<a name="sec_saveimg"></a>
 ----------------
 
 `右鍵->Save to image...`
@@ -149,6 +155,34 @@
      *  上/下/左/右邊界延展：滑鼠移至選取區邊界，鼠標變為Resize圖示時可拖曳做縮放；或可[Ctrl+方向鍵]放大、[Shift+方向鍵]縮小。
      *  右下邊界延展：滑鼠移至選取區右下角，鼠標變為Resize圖示時可拖曳做縮放。
 
+5\. 地圖疊圖<a name="sec_maplist"></a>
+------------
+
+![地圖疊圖][img_maplist]
+
+1. 設定地圖來源
+     *  系統會讀取 `$GISEDITOR_HOME/mapcache` 的 XML 檔，格式可參考 [MOBAC customMapSource][custom_map_source]。
+
+2. 開啟地圖列表
+     * 點選地圖名稱旁的 [<] 按鈕可展開地圖列表。
+
+3. 收闔地圖列表
+     * 按 ESC 鍵可收起地圖列表
+
+4. 啟用地圖
+     * 按 [+] 鈕可啟用地圖，預設會放置於圖層最下方。
+
+5. 不啟用地圖
+     * 按 [-] 鈕可不啟用地圖。
+
+6. 調整不透明度
+     * 百分比可調整地圖的不透明度，100%為完全不透明，0%表示完全透明。
+
+7. 疊圖順序
+     * *疊圖順序*即為啟用中的地圖*由上而下*之順序。
+     * 目前尚無直接調整順序的方法，可先將所有地圖不啟用，再依序啟用欲選擇的地圖。
+
+[custom_map_source]: http://mobac.sourceforge.net/wiki/index.php/Custom_XML_Map_Sources#customMapSource
 [img_main]: https://github.com/dayanuyim/GisEditor/raw/dev/doc/pic/02_main.png
 [img_wptedit]: https://github.com/dayanuyim/GisEditor/raw/dev/doc/pic/03_wpt_edit.png
 [img_wptlist]: https://github.com/dayanuyim/GisEditor/raw/dev/doc/pic/04_wpt_list.png
@@ -156,3 +190,4 @@
 [img_symrule]: https://github.com/dayanuyim/GisEditor/raw/dev/doc/pic/06_sym_rule.png
 [img_trkboard]: https://github.com/dayanuyim/GisEditor/raw/dev/doc/pic/07_trk_board.png
 [img_saveimage]: https://github.com/dayanuyim/GisEditor/raw/dev/doc/pic/08_save_image.png
+[img_maplist]: https://github.com/dayanuyim/GisEditor/raw/dev/doc/pic/09_maplist.png
