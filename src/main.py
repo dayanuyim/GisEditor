@@ -498,7 +498,7 @@ class MapBoard(tk.Frame):
         geo = None
         try:
             pos = e.widget.get()
-            x, y = re.split(',| ', pos)
+            x, y = filter(None, re.split(',| ', pos)) #split by ',' and ' ', removing empty string
 
             #make geo according to the coordinate
             if e.widget == self.__info_67tm2:
