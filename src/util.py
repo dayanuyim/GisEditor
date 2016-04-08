@@ -2,6 +2,10 @@
 import os
 import platform
 import tkinter as tk
+import xml.dom.minidom
+import logging
+from tkinter import messagebox
+from xml.etree import ElementTree as ET
 from threading import Timer
 from PIL import Image, ImageTk, ImageDraw, ImageColor
 
@@ -20,6 +24,28 @@ class DrawGuard:
     def __exit__(self, type, value, traceback):
         if self.__draw is not None:
             del self.__draw
+
+def imageIsTransparent(img):
+    if img is None:
+        raise ValueError("img is None for transparent detect")
+    if img.mode == 'RGBA' and img.getextrema()[3][0] != 255:
+        return True
+    if img.mode == 'LA':
+        return True
+    if img.mode == 'P' and 'transparency' in img.info:
+        return True
+    return False
+
+def saveXml(xml_root, filepath, enc="UTF-8"):
+    #no fromat
+    #tree = ET.ElementTree(element=root)
+    #tree.write(filepath, encoding=enc, xml_declaration=True)
+
+    #pretty format
+    txt = ET.tostring(xml_root, method='xml', encoding=enc)
+    txt = xml.dom.minidom.parseString(txt).toprettyxml(encoding=enc) #the encoding is for xml-declaration
+    with open(filepath, 'wb') as f:
+        f.write(txt)
 
 def listdiff(list1, list2):
     result = []
@@ -197,7 +223,46 @@ class Dialog(tk.Toplevel):
         pos = (0,0) if pos is None else getPrefCornerPos(self, pos)
         self.geometry('+%d+%d' % pos)
 
-#The UI for the user to access conf
+class GeoInfo:
+    def __init__(self, ref_geo, level, coord_sys):
+        self.__ref_geo = ref_geo
+        self.__level = level
+        self.__coord_sys = coord_sys
+
+    def getNearbyGridPoint(self, pos, grid_sz=(1000,1000)):
+        if self.__coord_sys not in ("TWD67", "TWD97"):
+            raise ValueError("Cannot get near by grid point for coordinate system '%s'" % (self.__coord_sys,))
+
+        geo = self.__ref_geo.addPixel(pos[0], pos[1], self.__level)
+        grid_x, grid_y = grid_sz
+
+        grid_geo = None
+        if self.__coord_sys == "TWD67":
+            x = round(geo.twd67_x/grid_x) * grid_x
+            y = round(geo.twd67_y/grid_y) * grid_y
+            grid_geo = GeoPoint(twd67_x=x, twd67_y=y)
+        elif self.__coord_sys == "TWD97":
+            x = round(geo.twd97_x/grid_x) * grid_x
+            y = round(geo.twd97_y/grid_y) * grid_y
+            grid_geo = GeoPoint(twd97_x=x, twd97_y=y)
+
+        return grid_geo.diffPixel(self.__ref_geo, self.__level)
+
+    def toPixelLength(self, km):
+        geo2 = None
+        if self.__coord_sys == "TWD67":
+            x = self.__ref_geo.twd67_x + km*1000
+            y = self.__ref_geo.twd67_y
+            geo2 = GeoPoint(twd67_x=x, twd67_y=y)
+        else:
+            #if self.__coord_sys == "TWD97":  #as default
+            x = self.__ref_geo.twd97_x + km*1000
+            y = self.__ref_geo.twd97_y
+            geo2 = GeoPoint(twd97_x=x, twd97_y=y)
+
+        return geo2.diffPixel(self.__ref_geo, self.__level)[0]
+
+#The UI of settings to access conf
 class AreaSelectorSettings(Dialog):
     def __init__(self, master):
         super().__init__(master)
@@ -274,7 +339,7 @@ class AreaSelectorSettings(Dialog):
         conf.SELECT_AREA_FIXED = self.var_fixed.get()
         conf.SELECT_AREA_X = self.var_w.get()
         conf.SELECT_AREA_Y = self.var_h.get()
-        conf.save()
+        conf.writeUserConf()
 
 class AreaSizeTooLarge(Exception):
     pass
@@ -291,10 +356,9 @@ class AreaSelector:
         else:
             return self.__getpos()
 
-    def __init__(self, canvas, pos_adjuster=None, geo_scaler=None):
+    def __init__(self, canvas, geo_info=None):
         self.__canvas = canvas
-        self.__pos_adjuster = pos_adjuster
-        self.__geo_scaler = geo_scaler
+        self.__geo_info = geo_info
         self.__button_side = 20
         self.__resizer_side = 15
         self.__done = tk.BooleanVar(value=False)
@@ -473,9 +537,14 @@ class AreaSelector:
         self.__canvas.tag_raise('resizer')
 
     def adjustPos(self):
-        if conf.SELECT_AREA_ALIGN and self.__pos_adjuster is not None:
-            dx, dy = self.__pos_adjuster(self.pos)
-            self.move(dx, dy)
+        if conf.SELECT_AREA_ALIGN and self.__geo_info is not None:
+            try:
+                grid_x, grid_y = self.__geo_info.getNearbyGridPoint(self.pos)
+                dx = grid_x - self.pos[0]
+                dy = grid_y - self.pos[1]
+                self.move(dx, dy)
+            except Exception as ex:
+                messagebox.showwarning("Adjust pos error", str(ex))
 
     def applySettings(self):
         self.scaleGeo()
@@ -495,9 +564,10 @@ class AreaSelector:
             self.resize(sz, pos)
 
     def getFixedSize(self):
-        if conf.SELECT_AREA_FIXED and self.__geo_scaler is not None:
-            geo_xy = (conf.SELECT_AREA_X, conf.SELECT_AREA_Y)
-            return self.__geo_scaler(geo_xy)
+        if conf.SELECT_AREA_FIXED and self.__geo_info is not None:
+            w = self.__geo_info.toPixelLength(conf.SELECT_AREA_X)
+            h = self.__geo_info.toPixelLength(conf.SELECT_AREA_Y)
+            return w, h
         return None
 
     def resize(self, size, pos=None):

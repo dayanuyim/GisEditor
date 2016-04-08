@@ -3,6 +3,8 @@
 """ handle gpx file """
 
 import os
+import logging
+import util
 from xml.etree import ElementTree as ET
 from datetime import datetime
 from PIL import Image
@@ -57,7 +59,7 @@ class GpsDocument:
             ns, name = xml_root.tag[1:].split("}")
             self.ns["gpx"] = ns 
             if name != "gpx":
-                print("Warning: the root element's namespace is not 'gpx'")
+                logging.warning("Warning: the root element's namespace is not 'gpx'")
 
         #load data
         self.loadMetadata(xml_root)
@@ -197,14 +199,7 @@ class GpsDocument:
         self.subWptElement(gpx)
         self.subTrkElement(gpx)
 
-        #tree = ET.ElementTree(element=gpx)
-        #tree.write(path, encoding="UTF-8", xml_declaration=True)#, default_namespace=self.ns['gpx'])
-
-        #write
-        txt = ET.tostring(gpx, method='xml', encoding="UTF-8")
-        txt = xml.dom.minidom.parseString(txt).toprettyxml(encoding="UTF-8") # prettify!!  #the encoding is for xml-declaration
-        with open(path, 'wb') as gpx_file:
-            gpx_file.write(txt)
+        util.saveXml(gpx, path)
 
     def genRootElement(self):
         gpx = ET.Element('gpx')

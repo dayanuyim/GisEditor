@@ -1,0 +1,10 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<customMapSource>
+    <name>1945-美軍繪製臺灣城市地圖</name>
+    <minZoom>12</minZoom>
+    <maxZoom>17</maxZoom>
+    <tileType>png</tileType>
+    <tileUpdate>Academia Sinica WMTS</tileUpdate>
+    <url>http://gis.sinica.edu.tw/tileserver/wmts?SERVICE=WMTS&amp;REQUEST=GetTile&amp;VERSION=1.0.0&amp;LAYER=AMCityPlan_1945&amp;STYLE=_null&amp;TILEMATRIXSET=GoogleMapsCompatible&amp;TILEMATRIX={$z}&amp;TILEROW={$y}&amp;TILECOL={$x}&amp;FORMAT=image/png</url>
+    <backgroundColor>#000000</backgroundColor>
+</customMapSource>

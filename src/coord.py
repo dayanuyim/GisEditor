@@ -62,14 +62,14 @@ class TileSystem:
 
     @staticmethod
     def getTileXYByPixcelXY(pixel_x, pixel_y):
-        tile_x = pixel_x >> 8    # x/256
-        tile_y = pixel_y >> 8    # y/256
+        tile_x = int(pixel_x) >> 8    # x/256
+        tile_y = int(pixel_y) >> 8    # y/256
         return (tile_x, tile_y)
 
     @staticmethod
     def getPixcelXYByTileXY(tile_x, tile_y):
-        pixel_x = tile_x << 8    # x*256
-        pixel_y = tile_y << 8    # y*256
+        pixel_x = int(tile_x) << 8    # x*256
+        pixel_y = int(tile_y) << 8    # y*256
         return (pixel_x, pixel_y)
 
     @classmethod

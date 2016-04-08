@@ -1,0 +1,11 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<customMapSource>
+    <name>OpenSeaMap</name>
+    <minZoom>0</minZoom>
+    <maxZoom>18</maxZoom>
+    <tileType>png</tileType>
+    <tileUpdate>OpenSeaMap</tileUpdate>
+    <url>http://tiles.openseamap.org/seamark/{$z}/{$x}/{$y}.png</url>
+    <backgroundColor>#000000</backgroundColor>
+	<serverParts>a b c</serverParts>
+</customMapSource>

@@ -1,0 +1,14 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<customMapSource>
+    <name>2001-臺灣經建3版地形圖-1:25,000</name>
+    <minZoom>7</minZoom>
+    <maxZoom>16</maxZoom>
+    <tileType>jpg</tileType>
+    <tileUpdate>IfNotMatch</tileUpdate>
+    <url>http://gis.sinica.edu.tw/tileserver/file-exists.php?img=TM25K_2001-jpg-{$z}-{$x}-{$y}</url>
+    <coordinatesystem>TWD67</coordinatesystem>
+    <lowerCorner>117.84953432 21.65607265</lowerCorner>
+    <upperCorner>123.85924109 25.64233621</upperCorner>
+    <backgroundColor>#000000</backgroundColor>
+    <expireDays>0</expireDays>
+</customMapSource>

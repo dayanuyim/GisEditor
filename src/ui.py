@@ -3,18 +3,43 @@
 import tkinter as tk
 import Pmw as pmw
 import platform
+import logging
 from PIL import ImageTk
+from tkinter import ttk, messagebox
+from tile import MapDescriptor
 
 class Dialog(tk.Toplevel):
+    FOCUSOUT_NOOP = 0
+    FOCUSOUT_HIDE = 1
+    FOCUSOUT_CLOSE = 2
+
+    @property
+    def pos(self):
+        return self.__pos
+
+    @pos.setter
+    def pos(self, v):
+        self.__pos = v
+        self.geometry('+%d+%d' % v)
+
+    @property
+    def focusout_act(self):
+        return self.__focusout_act
+
+    @focusout_act.setter
+    def focusout_act(self, v):
+        self.__focusout_act = v
+
     def __init__(self, master):
         super().__init__(master)
 
+        self.__focusout_act = self.FOCUSOUT_NOOP
 
         #handler
-        self._handlers = {}
+        #self._handlers = {}
 
         #board
-        self.geometry('+0+0')
+        self.pos = (0, 0)
         self.protocol('WM_DELETE_WINDOW', lambda: self._onClosed(None))
         self.bind('<Escape>', self._onClosed)
 
@@ -22,30 +47,64 @@ class Dialog(tk.Toplevel):
         self.withdraw()  #hidden
         self._visible = tk.BooleanVar(value=False)
 
-    def show(self):
+    def show(self, pos=None, has_title=True):
+        if pos is not None:
+            self.pos = pos
+
+        if self.__focusout_act != self.FOCUSOUT_NOOP:
+            self.__bindFocusout(has_title)
+
+        self.overrideredirect(not has_title)
+
         #UI
         self.transient(self.master)  #remove max/min buttons
-        self.focus_set()  #prevent key-press sent back to parent
         
         self.update()  #update window size
 
         self.deiconify() #show
         self._visible.set(True)
 
+        #self.attributes("-topmost", 1) #topmost
+        self.lift()
+        self.focus_set()  #prevent key-press sent back to parent
         self.grab_set()   #disalbe interact of parent
         self.master.wait_variable(self._visible)
 
-    def _onClosed(self, e):
-        self.onClosed()
-        
+    def hidden(self):
         if self.master is not None:
             self.master.focus_set()
         self.grab_release()
 
-        self.destroy()
-        #self.withdraw()
+        self.withdraw()
         self._visible.set(False)
 
+    def close(self):
+        self.hidden()
+        self.destroy()
+
+    def _onClosed(self, e):
+        self.close()
+
+    def __bindFocusout(self, has_title):
+        def on_focusout(e):
+            if self == e.widget:
+                self.__doFocusoutAction()
+
+        self.bind('<FocusOut>', on_focusout)
+        #focusout is not work if overrideredirect set, using enter/leave as workaround
+        if not has_title:
+            self.bind('<Leave>', on_focusout)
+
+    def __doFocusoutAction(self):
+        if self.__focusout_act == self.FOCUSOUT_HIDE:
+            logging.debug("dialog is focus out, hidden...")
+            self.hidden()
+        elif self.__focusout_act == self.FOCUSOUT_CLOSE:
+            logging.debug("dialog is focus out, closing...")
+            self.close()
+
+
+    '''
     #{{ handler
     def invokeHandler(self, name):
         if name in self._handlers:
@@ -53,8 +112,8 @@ class Dialog(tk.Toplevel):
 
     def addClosedHandler(self, h): self._handlers['closed'] = h;
     def onClosed(self): self.invokeHandler('closed')
-
-        #}} handler
+    #}} handler
+    '''
 
 class EditBoard(Dialog):
     COL_TYPE_STR= 0
@@ -485,12 +544,214 @@ class SingleEditBoard(Dialog):
             self.__left_btn.config(state=('disabled' if idx == 0 else 'normal'))
             self.__right_btn.config(state=('disabled' if idx == sz-1 else 'normal'))
 
+class MapRow(tk.Frame):
+    ALPHA_MIN = 1
+    ALPHA_MAX = 100
+    @property
+    def map_desc(self):
+        return self.__map_desc
 
-if __name__ == '__main__':
-    import conf
+    def __init__(self, master, map_desc, alpha_handler=None, enable_handle=None):
+        super().__init__(master)
+
+        FONT = "Arialuni 12"
+        BFONT = FONT + " bold"
+
+        self.__alpha_handler = alpha_handler
+        self.__enable_handler = enable_handle
+
+        self.__map_desc = map_desc
+
+        cmd = lambda:enable_handle(self) if enable_handle is not None else None
+        self.__btn = tk.Button(self, command=self.__onEnableChanged)
+        self.__setBtnTxt()
+        self.__btn.pack(side='right', anchor='e', expand=0)
+
+        #variable
+        alpha = int(map_desc.alpha * 100)
+        self.__alpha_var = tk.IntVar(value=alpha)
+        self.__alpha_var.trace('w', self.__onAlphaChanged)
+        #spin
+        alpha_label = tk.Label(self, text="%")
+        alpha_label.pack(side='right', anchor='e', expand=0)
+        alpha_spin = tk.Spinbox(self, from_=self.ALPHA_MIN, to=self.ALPHA_MAX, width=3, textvariable=self.__alpha_var)
+        alpha_spin.pack(side='right', anchor='e', expand=0)
+        #sacle
+        #alpha_scale = tk.Scale(self, label="Transparency", from_=ALPHA_MIN, to=ALPHA_MAX, orient='horizontal',
+                #resolution=1, showvalue=0, variable=self.__alpha_var)
+        #alpha_scale.pack(side='right', anchor='e', expand=0, fill='x')
+
+        label = tk.Label(self, text=map_desc.map_title, font=BFONT, anchor='w')
+        label.pack(side='left', anchor='w', expand='1', fill='x')
+
+    def __setBtnTxt(self):
+        self.__btn['text'] = '-' if self.__map_desc.enabled else '+'
+
+    def __onEnableChanged(self):
+        old_val = self.__map_desc.enabled
+        new_val = not old_val
+
+        self.__map_desc.enabled = new_val
+        self.__setBtnTxt()
+
+        if self.__enable_handler is not None:
+            self.__enable_handler(self, old_val)
+
+    def __onAlphaChanged(self, *args):
+        old_val = self.__map_desc.alpha
+
+        try:
+            #get new value
+            raw_val = self.__alpha_var.get()
+            if raw_val < self.ALPHA_MIN or raw_val > self.ALPHA_MAX: #only accept valid value
+                return
+            new_val = raw_val / 100.0
+
+            #update
+            if self.__map_desc.alpha != new_val:
+                self.__map_desc.alpha = new_val
+
+                if self.__alpha_handler is not None:
+                    self.__alpha_handler(self, old_val)
+        except Exception as ex:
+            logging.warning("get alpha value error: " + str(ex))
+
+
+
+class MapSelectFrame(pmw.ScrolledFrame):
+    @property
+    def map_descriptors(self):
+        descs = []
+        for row in self.__rows:
+            descs.append(row.map_desc)
+        return descs
+
+    def __init__(self, master, map_descriptors):
+        super().__init__(master, usehullsize=1, hull_width=450, hull_height=600)
+
+        #event handlers
+        self.__on_enable_changed_handler = None
+        self.__on_alpha_changed_handler = None
+
+        #enabled maps are put at head
+        map_descriptors = sorted(map_descriptors, key=lambda desc:desc.enabled, reverse=True)
+
+        #create widgets
+        self.__rows = []
+        for desc in map_descriptors:
+            row = MapRow(self.interior(), desc, self.__onAlphaChanged, self.__onEnableChanged)
+            self.__rows.append(row)
+
+        self.__splitor = tk.Frame(self.interior(), bg='darkgray', height=10, border=1)
+
+        #show
+        self.__pack()
+
+    def setAlphaHandler(self, h):
+        self.__on_alpha_changed_handler = h
+
+    def setEnableHandler(self, h):
+        self.__on_enable_changed_handler = h
+
+    def __pack(self):
+        show_once = False
+
+        for row in self.__rows:
+            if not show_once and not row.map_desc.enabled:
+                self.__splitor.pack(side='top', anchor='nw', expand=1, fill='x')
+                show_once = True
+
+            row.pack(side='top', anchor='nw', expand=1, fill='x')
+
+    def __unpack(self):
+        self.__splitor.pack_forget()
+        for row in self.__rows:
+            row.pack_forget()
+
+    def __getFirstDisabledRow(self):
+        for row in self.__rows:
+            if not row.map_desc.enabled:
+                return row
+        return None
+
+    def __onEnableChanged(self, row, old_val):
+        #reorder
+        self.__rows.remove(row)
+        dst_row = self.__getFirstDisabledRow()
+        dst_idx = self.__rows.index(dst_row) if dst_row is not None else len(self.__rows)
+        self.__rows.insert(dst_idx, row)
+
+        #pack again
+        self.__unpack()
+        self.__pack()
+
+        if self.__on_enable_changed_handler is not None:
+            self.__on_enable_changed_handler(row.map_desc, old_val)
+
+    def __onAlphaChanged(self, row, old_val):
+        if self.__on_alpha_changed_handler is not None:
+            self.__on_alpha_changed_handler(row.map_desc, old_val)
+
+
+class MapSelectDialog(Dialog):
+
+    @property
+    def map_descriptors(self):
+        return self.__map_sel_frame.map_descriptors
+
+    def __init__(self, master, descs):
+        super().__init__(master)
+
+        self.__map_sel_frame = MapSelectFrame(self, descs)
+        self.__map_sel_frame.pack(side='top', anchor='nw', expand=0)
+
+    def setEnableHandler(self, h):
+        self.__map_sel_frame.setEnableHandler(h)
+
+    def setAlphaHandler(self, h):
+        self.__map_sel_frame.setAlphaHandler(h)
+        
+
+def testMapSelector():
+    import os
+    import sys
+    sys.path.insert(0, 'src')
+    from tile import MapDescriptor
 
     root = tk.Tk()
 
+    #desc
+    map_descs = []
+    mapcache = "mapcache"
+    for f in os.listdir(mapcache):
+        if os.path.splitext(f)[1].lower() == ".xml":
+            try:
+                desc = MapDescriptor.parseXml(os.path.join(mapcache, f))
+                if desc.map_id in ('TM25K_2001',  'JM25K_1921'):
+                    desc.enabled = True
+                    desc.alpha = 0.75
+                map_descs.append(desc)
+            except Exception as ex:
+                print("parse file '%s' error: %s" % (f, str(ex)))
+    map_descs = sorted(map_descs, key=lambda d:d.map_title)
+
+    #show
+    dialog = Dialog(root)
+    selector = MapSelectFrame(dialog, map_descs)
+    selector.pack(side='top', anchor='nw', expand=0)
+    dialog.show()
+
+    for desc in selector.map_descriptors:
+        print(desc.map_id, desc.alpha, desc.enabled)
+
+    root.mainloop()
+
+if __name__ == '__main__':
+
+    testMapSelector()
+
+    '''
+    import conf
     hdr1 = (EditBoard.COL_TYPE_BOOL, 'COL1', True)
     hdr2 = (EditBoard.COL_TYPE_PIC, 'COL2', False)
     hdr3 = (EditBoard.COL_TYPE_STR, 'COL3', True)
@@ -502,6 +763,5 @@ if __name__ == '__main__':
     brd.addRow((True, conf.getIcon('summit'), 'Editable Str', 'UnEditable Str'))
     brd.title('I am Dialog')
     brd.show()
-
-    #root.mainloop()
+    '''
 

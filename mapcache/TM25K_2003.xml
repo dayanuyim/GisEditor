@@ -1,0 +1,11 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<customMapSource>
+    <name>2003-臺灣經建4版地形圖-1:25,000</name>
+    <minZoom>5</minZoom>
+    <maxZoom>17</maxZoom>
+    <tileType>jpg</tileType>
+    <tileUpdate>Academia Sinica WMTS</tileUpdate>
+    <url>http://gis.sinica.edu.tw/tileserver/wmts?SERVICE=WMTS&amp;REQUEST=GetTile&amp;VERSION=1.0.0&amp;LAYER=TM25K_2003&amp;STYLE=_null&amp;TILEMATRIXSET=GoogleMapsCompatible&amp;TILEMATRIX={$z}&amp;TILEROW={$y}&amp;TILECOL={$x}&amp;FORMAT=image/jpeg</url>
+    <coordinatesystem>TWD97</coordinatesystem>
+    <backgroundColor>#000000</backgroundColor>
+</customMapSource>
