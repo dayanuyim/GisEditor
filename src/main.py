@@ -33,7 +33,7 @@ from pic import PicDocument
 from util import GeoPoint, getPrefCornerPos, DrawGuard, imageIsTransparent
 from util import AreaSelector, AreaSizeTooLarge, GeoInfo  #should move to ui.py
 from tile import TileAgent, MapDescriptor
-from sym import askSym
+from sym import askSym, toSymbol
 
 to_pixel = coord.TileSystem.getPixcelXYByTileXY
 to_tile = coord.TileSystem.getTileXYByPixcelXY
@@ -726,7 +726,7 @@ class MapBoard(tk.Frame):
         is_alter = False
 
         for wpt in self.__map_ctrl.getAllWpts():
-            sym = sym.toSymbol(wpt.name)
+            sym = toSymbol(wpt.name)
             if wpt.sym != sym:
                 wpt.sym = sym
                 is_alter = True
@@ -1977,7 +1977,7 @@ class WptBoard(tk.Toplevel):
         name = self._var_name.get()
         if self._curr_wpt.name != name:
             self._curr_wpt.name = name
-            self._curr_wpt.sym = sym.toSymbol(name)
+            self._curr_wpt.sym = toSymbol(name)
             self._is_changed = True
             self.showWptIcon(self._curr_wpt)
 

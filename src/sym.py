@@ -546,6 +546,7 @@ class SymRuleBoard(tk.Toplevel):
         #data
         self.__rules.remove(rule1)
         self.__rules.insert(idx2, rule1)
+        self.__rules.is_altered.set(True)
 
     def setRuleWidgets(self, rule):
         en_w, type_w, txt_w, sym_w = self.__widgets[rule]
