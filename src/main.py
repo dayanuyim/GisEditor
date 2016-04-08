@@ -2443,16 +2443,18 @@ class TrkSingleBoard(tk.Toplevel):
     def setCurrTrk(self, trk):
         self._curr_trk = trk
 
+        idx = self._trk_list.index(trk)
+        sz = len(self._trk_list)
+
         #title
-        self.title(trk.name)
+        title_txt = "%s (%d/%d)" % (trk.name, idx+1, sz)
+        self.title(title_txt)
 
         #info
         self._var_name.set(trk.name)
         self._var_color.set(trk.color)
 
         #button state
-        idx = self._trk_list.index(trk)
-        sz = len(self._trk_list)
         self.__left_btn.config(state=('disabled' if idx == 0 else 'normal'))
         self.__right_btn.config(state=('disabled' if idx == sz-1 else 'normal'))
 
