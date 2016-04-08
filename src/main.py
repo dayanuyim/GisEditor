@@ -2494,6 +2494,20 @@ def getTextImag(text, size):
 
     return img
 
+def __testTileArea():
+    a1 = TileArea(16, (0, 0), (10, 10))
+    a2 = TileArea(16, (5, 5), (2, 2))
+    a3 = TileArea(15, (0, 0), (10, 10))
+    a4 = TileArea(16, (5, 5), (10, 10))
+    a5 = TileArea(16, (5, 5), (2, 10))
+
+    print(a1)
+    print(a2)
+    print(a1.overlay(a2)) #a1 contains a2
+    print(a1.overlay(a3)) # not the same level
+    print(a1.overlay(a4)) # part
+    print(a1.overlay(a5)) # part
+    print(a4.overlay(a1)) # part
 
 def canExit(disp_board):
 
@@ -2531,7 +2545,7 @@ def initArguments():
     return parser.parse_args()
 
 if __name__ == '__main__':
-    __version = '0.1'
+    __version = '0.2'
     args = initArguments()
 
     #init logging
@@ -2572,19 +2586,4 @@ if __name__ == '__main__':
         logging.error("Startup failed: %s" % str(ex,))
         messagebox.showwarning('Startup failed', str(ex))
         #raise ex  #@@!
-
-def __testTileArea():
-    a1 = TileArea(16, (0, 0), (10, 10))
-    a2 = TileArea(16, (5, 5), (2, 2))
-    a3 = TileArea(15, (0, 0), (10, 10))
-    a4 = TileArea(16, (5, 5), (10, 10))
-    a5 = TileArea(16, (5, 5), (2, 10))
-
-    print(a1)
-    print(a2)
-    print(a1.overlay(a2)) #a1 contains a2
-    print(a1.overlay(a3)) # not the same level
-    print(a1.overlay(a4)) # part
-    print(a1.overlay(a5)) # part
-    print(a4.overlay(a1)) # part
 
