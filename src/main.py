@@ -615,6 +615,9 @@ class MapBoard(tk.Frame):
         geo = self.getGeoPointAt(e.x, e.y)
         self.setMapInfo(geo)
 
+        if self.isSavingImage():
+            return
+
         #wpt context, if any
         wpt = self.__map_ctrl.getWptAround(geo)
         if wpt:
@@ -1036,6 +1039,16 @@ class MapBoard(tk.Frame):
                 #self.__updateMapProg(overlay.area, is_immediate=False)  #need the lock due to access to data members
                 logging.debug("has update")
 
+    def __toMapProgress(self, map_attr):
+        SCALE = 100;
+
+        ntiles = self.__numOfNeededTiles(self.__map_attr)
+        if not ntiles:
+            return SCALE
+
+        rate = 1 - float(self.__map_attr.fail_tiles) / ntiles
+        return SCALE * rate;
+
     def resetMap(self, geo=None, w=None, h=None, force=None):
         if w is None: w = self.disp_canvas.winfo_width()
         if h is None: h = self.disp_canvas.winfo_height()
@@ -1057,7 +1070,7 @@ class MapBoard(tk.Frame):
             self.__map_req_time = datetime.now()
             self.__initMapProg(map_area, total)  #need the lock to access data members
             self.__map, self.__map_attr = self.__map_ctrl.getMap(w, h, force, cb=self.__notifyTileReady)  #buffer the image
-            map_prog = 100 * (1 - float(self.__map_attr.fail_tiles) / self.__numOfNeededTiles(self.__map_attr))
+            map_prog = self.__toMapProgress(self.__map_attr)
 
         #set map
         self.__setMap(self.__map)
