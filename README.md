@@ -21,10 +21,15 @@ Map Adapter to WMTS
 ------------------
 
  *  免安裝檔：
-     *  [version 0.1, 32bit版](https://drive.google.com/file/d/0B7ryOauZNjlbd0pmVFJmYWVNTkU/view?usp=sharing)
-     *  [version 0.1, 64bit版](https://drive.google.com/file/d/0B7ryOauZNjlbSE9mOFZvVjhVOWs/view?usp=sharing)
+     *  [version 0.2, 32bit版][giseditor-0.2-32]
+     *  [version 0.2, 64bit版][giseditor-0.2-64]
  *  自動安裝：暫無。
  *  手動安裝：請參考[手動安裝](#win_install)。
+
+ [giseditor-0.1-32]: https://drive.google.com/file/d/0B7ryOauZNjlbd0pmVFJmYWVNTkU/view?usp=sharing
+ [giseditor-0.1-64]: https://drive.google.com/file/d/0B7ryOauZNjlbSE9mOFZvVjhVOWs/view?usp=sharing
+ [giseditor-0.2-32]: https://drive.google.com/file/d/0B7ryOauZNjlbX2NjbnBUUTc4bU0/view?usp=sharing
+ [giseditor-0.2-64]: https://drive.google.com/file/d/0B7ryOauZNjlbTndFbW1oTEtxWWs/view?usp=sharing
 
 軟體安裝 (Linux)
 ----------------

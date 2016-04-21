@@ -27,13 +27,13 @@ import conf
 import util
 import sym
 import coord
-from ui import Dialog, MapSelectDialog
+from ui import Dialog, MapSelectDialog, MapSelectFrame
 from gpx import GpsDocument, WayPoint
 from pic import PicDocument
 from util import GeoPoint, getPrefCornerPos, DrawGuard, imageIsTransparent
 from util import AreaSelector, AreaSizeTooLarge, GeoInfo  #should move to ui.py
 from tile import TileAgent, MapDescriptor
-from sym import askSym
+from sym import askSym, toSymbol
 
 to_pixel = coord.TileSystem.getPixcelXYByTileXY
 to_tile = coord.TileSystem.getTileXYByPixcelXY
@@ -229,7 +229,7 @@ class MapBoard(tk.Frame):
         self.__map_ctrl = MapController(self)
         self.__map_ctrl.configMap(self.__map_descs)
 
-        self.__map_sel_dialog = None
+        self.__map_sel_board = None
 
         #board
         self.__is_closed = False
@@ -249,8 +249,6 @@ class MapBoard(tk.Frame):
         self.__right_click_pos = None
         self.__mouse_wheel_ts = datetime.min
         self.__version = ''
-        self.master.bind("<Configure>", lambda e: self.__relocateMapSelector())
-        self.master.bind("<Visibility>", self.__onVisibility)
 
         Thread(target=self.__runMapUpdater).start()
 
@@ -338,8 +336,8 @@ class MapBoard(tk.Frame):
         self.__info_mapname = tk.Label(frame, font=bfont, anchor='nw', bg='lightgray')
         self.__info_mapname.pack(side='left', expand=0, anchor='nw')
 
-        map_btn = tk.Button(frame, text="<", relief='groove', border=2, command=self.OnMapSelected)
-        map_btn.pack(side='left', expand=0, anchor='nw')
+        self.__map_btn = tk.Button(frame, text="▼", relief='groove', border=2, command=self.OnMapSelected)
+        self.__map_btn.pack(side='left', expand=0, anchor='nw')
 
         #level
         self.__info_level = self.__genInfoWidgetNum(frame, font, 'Level', 2,
@@ -408,8 +406,6 @@ class MapBoard(tk.Frame):
     #release sources to exit
     def exit(self):
         self.__is_closed = True
-        if self.__map_sel_dialog is not None:
-            self.__map_sel_dialog.close()
         if self.isSavingImage():
             self.__canvas_sel_area.exit()
         self.__map_ctrl.close()
@@ -418,24 +414,11 @@ class MapBoard(tk.Frame):
 
     
     #{{{ Events
-    def __onVisibility(self, e):
-        if self.__map_sel_dialog is not None:
-            logging.debug('lift map select dialog on visible')
-            self.__map_sel_dialog.lift()
-
-    def __relocateMapSelector(self):
-        if self.__map_sel_dialog is not None:
-            ref_w = self.__info_frame
-            pos = (ref_w.winfo_rootx(), ref_w.winfo_rooty() + ref_w.winfo_height())
-            #logging.debug('to relocate to pos(%d, %d)' % pos)
-            self.__map_sel_dialog.pos = pos
-
-            logging.debug('lift map select dialog on relocation')
-            self.__map_sel_dialog.lift()
-
     def __onMapEnableChanged(self, desc, old_val):
         logging.debug("desc %s's enable change from %s to %s" % (desc.map_id, old_val, desc.enabled))
-        self.__map_ctrl.configMap(self.__map_sel_dialog.map_descriptors)
+        #re-config
+        self.__map_descs = self.__map_sel_board.map_descriptors
+        self.__map_ctrl.configMap(self.__map_descs)
         self.resetMap()
 
     def __onMapAlphaChanged(self, desc, old_val):
@@ -443,29 +426,47 @@ class MapBoard(tk.Frame):
         if desc.enabled:
             self.resetMap(force='all')
 
+    def __triggerMapSelector(self):
+        if self.__map_sel_board is None:
+            #create
+            self.__map_sel_board = MapSelectFrame(self, self.__map_descs)
+            self.__map_sel_board.visible = False
+
+            self.__map_sel_board.setEnableHandler(self.__onMapEnableChanged)
+            self.__map_sel_board.setAlphaHandler(self.__onMapAlphaChanged)
+            self.master.bind("<Escape>", lambda e: self.__hideMapSelector()) #ESC to hide
+            
+        #to show
+        if not self.__map_sel_board.visible:
+            self.__showMapSelector()
+        #to hidden
+        else:
+            self.__hideMapSelector()
+
     def __showMapSelector(self):
-        if self.__map_sel_dialog is None:
-            self.__map_sel_dialog = MapSelectDialog(self, self.__map_descs)
-            self.__map_sel_dialog.title("Map Select")
-            #self.__map_sel_dialog.focusout_act = Dialog.FOCUSOUT_CLOSE
-            self.__map_sel_dialog.setEnableHandler(self.__onMapEnableChanged)
-            self.__map_sel_dialog.setAlphaHandler(self.__onMapAlphaChanged)
+        if self.__map_sel_board is not None:
+            ref_w = self.__info_frame
+            x = ref_w.winfo_x()
+            y = ref_w.winfo_y() + ref_w.winfo_height()
 
-        self.__relocateMapSelector()
+            self.__map_sel_board.place(x=x, y=y)
+            self.__map_sel_board.visible = True
+            self.__map_btn['text'] = "▲"
 
-        self.__map_sel_dialog.show(has_title=False)
+    def __hideMapSelector(self):
+        if self.__map_sel_board is not None:
+            self.__map_sel_board.place_forget()
+            self.__map_sel_board.visible = False
+            self.__map_btn['text'] = "▼"
 
-        return self.__map_sel_dialog.map_descriptors
+            self.setMapInfo()          #re-show map info
+            self.__writeUserMapsConf() #save config
 
     def OnMapSelected(self):
         if self.isSavingImage():
             return
 
-        self.__map_descs = self.__showMapSelector()
-        self.__map_sel_dialog = None #todo: resue this
-        self.__writeUserMapsConf()
-        if not self.__is_closed:   #NOTICE: the check is Needed because dialog close may be caused by main board close
-            self.setMapInfo()
+        self.__triggerMapSelector()
 
     def onSetLevel(self, *args):
         if self.isSavingImage():
@@ -498,7 +499,7 @@ class MapBoard(tk.Frame):
         geo = None
         try:
             pos = e.widget.get()
-            x, y = re.split(',| ', pos)
+            x, y = filter(None, re.split(',| ', pos)) #split by ',' and ' ', removing empty string
 
             #make geo according to the coordinate
             if e.widget == self.__info_67tm2:
@@ -615,6 +616,9 @@ class MapBoard(tk.Frame):
         geo = self.getGeoPointAt(e.x, e.y)
         self.setMapInfo(geo)
 
+        if self.isSavingImage():
+            return
+
         #wpt context, if any
         wpt = self.__map_ctrl.getWptAround(geo)
         if wpt:
@@ -726,7 +730,7 @@ class MapBoard(tk.Frame):
         is_alter = False
 
         for wpt in self.__map_ctrl.getAllWpts():
-            sym = sym.toSymbol(wpt.name)
+            sym = toSymbol(wpt.name)
             if wpt.sym != sym:
                 wpt.sym = sym
                 is_alter = True
@@ -1036,6 +1040,16 @@ class MapBoard(tk.Frame):
                 #self.__updateMapProg(overlay.area, is_immediate=False)  #need the lock due to access to data members
                 logging.debug("has update")
 
+    def __toMapProgress(self, map_attr):
+        SCALE = 100;
+
+        ntiles = self.__numOfNeededTiles(self.__map_attr)
+        if not ntiles:
+            return SCALE
+
+        rate = 1 - float(self.__map_attr.fail_tiles) / ntiles
+        return SCALE * rate;
+
     def resetMap(self, geo=None, w=None, h=None, force=None):
         if w is None: w = self.disp_canvas.winfo_width()
         if h is None: h = self.disp_canvas.winfo_height()
@@ -1057,7 +1071,7 @@ class MapBoard(tk.Frame):
             self.__map_req_time = datetime.now()
             self.__initMapProg(map_area, total)  #need the lock to access data members
             self.__map, self.__map_attr = self.__map_ctrl.getMap(w, h, force, cb=self.__notifyTileReady)  #buffer the image
-            map_prog = 100 * (1 - float(self.__map_attr.fail_tiles) / self.__numOfNeededTiles(self.__map_attr))
+            map_prog = self.__toMapProgress(self.__map_attr)
 
         #set map
         self.__setMap(self.__map)
@@ -1977,7 +1991,7 @@ class WptBoard(tk.Toplevel):
         name = self._var_name.get()
         if self._curr_wpt.name != name:
             self._curr_wpt.name = name
-            self._curr_wpt.sym = sym.toSymbol(name)
+            self._curr_wpt.sym = toSymbol(name)
             self._is_changed = True
             self.showWptIcon(self._curr_wpt)
 
@@ -2442,16 +2456,18 @@ class TrkSingleBoard(tk.Toplevel):
     def setCurrTrk(self, trk):
         self._curr_trk = trk
 
+        idx = self._trk_list.index(trk)
+        sz = len(self._trk_list)
+
         #title
-        self.title(trk.name)
+        title_txt = "%s (%d/%d)" % (trk.name, idx+1, sz)
+        self.title(title_txt)
 
         #info
         self._var_name.set(trk.name)
         self._var_color.set(trk.color)
 
         #button state
-        idx = self._trk_list.index(trk)
-        sz = len(self._trk_list)
         self.__left_btn.config(state=('disabled' if idx == 0 else 'normal'))
         self.__right_btn.config(state=('disabled' if idx == sz-1 else 'normal'))
 
@@ -2491,6 +2507,20 @@ def getTextImag(text, size):
 
     return img
 
+def __testTileArea():
+    a1 = TileArea(16, (0, 0), (10, 10))
+    a2 = TileArea(16, (5, 5), (2, 2))
+    a3 = TileArea(15, (0, 0), (10, 10))
+    a4 = TileArea(16, (5, 5), (10, 10))
+    a5 = TileArea(16, (5, 5), (2, 10))
+
+    print(a1)
+    print(a2)
+    print(a1.overlay(a2)) #a1 contains a2
+    print(a1.overlay(a3)) # not the same level
+    print(a1.overlay(a4)) # part
+    print(a1.overlay(a5)) # part
+    print(a4.overlay(a1)) # part
 
 def canExit(disp_board):
 
@@ -2528,7 +2558,7 @@ def initArguments():
     return parser.parse_args()
 
 if __name__ == '__main__':
-    __version = '0.1'
+    __version = '0.2'
     args = initArguments()
 
     #init logging
@@ -2569,19 +2599,4 @@ if __name__ == '__main__':
         logging.error("Startup failed: %s" % str(ex,))
         messagebox.showwarning('Startup failed', str(ex))
         #raise ex  #@@!
-
-def __testTileArea():
-    a1 = TileArea(16, (0, 0), (10, 10))
-    a2 = TileArea(16, (5, 5), (2, 2))
-    a3 = TileArea(15, (0, 0), (10, 10))
-    a4 = TileArea(16, (5, 5), (10, 10))
-    a5 = TileArea(16, (5, 5), (2, 10))
-
-    print(a1)
-    print(a2)
-    print(a1.overlay(a2)) #a1 contains a2
-    print(a1.overlay(a3)) # not the same level
-    print(a1.overlay(a4)) # part
-    print(a1.overlay(a5)) # part
-    print(a4.overlay(a1)) # part
 

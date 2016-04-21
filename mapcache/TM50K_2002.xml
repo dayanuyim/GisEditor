@@ -6,6 +6,9 @@
     <tileType>png</tileType>
     <tileUpdate>Academia Sinica WMTS</tileUpdate>
     <url>http://gis.sinica.edu.tw/tileserver/wmts?SERVICE=WMTS&amp;REQUEST=GetTile&amp;VERSION=1.0.0&amp;LAYER=TM50K_2002&amp;STYLE=_null&amp;TILEMATRIXSET=GoogleMapsCompatible&amp;TILEMATRIX={$z}&amp;TILEROW={$y}&amp;TILECOL={$x}&amp;FORMAT=image/png</url>
+    <!--
+    <url>http://gis.sinica.edu.tw/tileserver/file-exists.php?img=TM50K_2002-png-{$z}-{$x}-{$y}</url>
+    -->
     <coordinatesystem>TWD67</coordinatesystem>
     <backgroundColor>#000000</backgroundColor>
 </customMapSource>
