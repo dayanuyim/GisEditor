@@ -27,7 +27,7 @@ import conf
 import util
 import sym
 import coord
-from ui import Dialog, MapSelectDialog
+from ui import Dialog, MapSelectDialog, MapSelectFrame
 from gpx import GpsDocument, WayPoint
 from pic import PicDocument
 from util import GeoPoint, getPrefCornerPos, DrawGuard, imageIsTransparent
@@ -229,7 +229,7 @@ class MapBoard(tk.Frame):
         self.__map_ctrl = MapController(self)
         self.__map_ctrl.configMap(self.__map_descs)
 
-        self.__map_sel_dialog = None
+        self.__map_sel_board = None
 
         #board
         self.__is_closed = False
@@ -249,8 +249,6 @@ class MapBoard(tk.Frame):
         self.__right_click_pos = None
         self.__mouse_wheel_ts = datetime.min
         self.__version = ''
-        self.master.bind("<Configure>", lambda e: self.__relocateMapSelector())
-        self.master.bind("<Visibility>", self.__onVisibility)
 
         Thread(target=self.__runMapUpdater).start()
 
@@ -338,8 +336,8 @@ class MapBoard(tk.Frame):
         self.__info_mapname = tk.Label(frame, font=bfont, anchor='nw', bg='lightgray')
         self.__info_mapname.pack(side='left', expand=0, anchor='nw')
 
-        map_btn = tk.Button(frame, text="<", relief='groove', border=2, command=self.OnMapSelected)
-        map_btn.pack(side='left', expand=0, anchor='nw')
+        self.__map_btn = tk.Button(frame, text="▼", relief='groove', border=2, command=self.OnMapSelected)
+        self.__map_btn.pack(side='left', expand=0, anchor='nw')
 
         #level
         self.__info_level = self.__genInfoWidgetNum(frame, font, 'Level', 2,
@@ -408,8 +406,6 @@ class MapBoard(tk.Frame):
     #release sources to exit
     def exit(self):
         self.__is_closed = True
-        if self.__map_sel_dialog is not None:
-            self.__map_sel_dialog.close()
         if self.isSavingImage():
             self.__canvas_sel_area.exit()
         self.__map_ctrl.close()
@@ -418,24 +414,11 @@ class MapBoard(tk.Frame):
 
     
     #{{{ Events
-    def __onVisibility(self, e):
-        if self.__map_sel_dialog is not None:
-            logging.debug('lift map select dialog on visible')
-            self.__map_sel_dialog.lift()
-
-    def __relocateMapSelector(self):
-        if self.__map_sel_dialog is not None:
-            ref_w = self.__info_frame
-            pos = (ref_w.winfo_rootx(), ref_w.winfo_rooty() + ref_w.winfo_height())
-            #logging.debug('to relocate to pos(%d, %d)' % pos)
-            self.__map_sel_dialog.pos = pos
-
-            logging.debug('lift map select dialog on relocation')
-            self.__map_sel_dialog.lift()
-
     def __onMapEnableChanged(self, desc, old_val):
         logging.debug("desc %s's enable change from %s to %s" % (desc.map_id, old_val, desc.enabled))
-        self.__map_ctrl.configMap(self.__map_sel_dialog.map_descriptors)
+        #re-config
+        self.__map_descs = self.__map_sel_board.map_descriptors
+        self.__map_ctrl.configMap(self.__map_descs)
         self.resetMap()
 
     def __onMapAlphaChanged(self, desc, old_val):
@@ -443,29 +426,47 @@ class MapBoard(tk.Frame):
         if desc.enabled:
             self.resetMap(force='all')
 
+    def __triggerMapSelector(self):
+        if self.__map_sel_board is None:
+            #create
+            self.__map_sel_board = MapSelectFrame(self, self.__map_descs)
+            self.__map_sel_board.visible = False
+
+            self.__map_sel_board.setEnableHandler(self.__onMapEnableChanged)
+            self.__map_sel_board.setAlphaHandler(self.__onMapAlphaChanged)
+            self.master.bind("<Escape>", lambda e: self.__hideMapSelector()) #ESC to hide
+            
+        #to show
+        if not self.__map_sel_board.visible:
+            self.__showMapSelector()
+        #to hidden
+        else:
+            self.__hideMapSelector()
+
     def __showMapSelector(self):
-        if self.__map_sel_dialog is None:
-            self.__map_sel_dialog = MapSelectDialog(self, self.__map_descs)
-            self.__map_sel_dialog.title("Map Select")
-            #self.__map_sel_dialog.focusout_act = Dialog.FOCUSOUT_CLOSE
-            self.__map_sel_dialog.setEnableHandler(self.__onMapEnableChanged)
-            self.__map_sel_dialog.setAlphaHandler(self.__onMapAlphaChanged)
+        if self.__map_sel_board is not None:
+            ref_w = self.__info_frame
+            x = ref_w.winfo_x()
+            y = ref_w.winfo_y() + ref_w.winfo_height()
 
-        self.__relocateMapSelector()
+            self.__map_sel_board.place(x=x, y=y)
+            self.__map_sel_board.visible = True
+            self.__map_btn['text'] = "▲"
 
-        self.__map_sel_dialog.show(has_title=False)
+    def __hideMapSelector(self):
+        if self.__map_sel_board is not None:
+            self.__map_sel_board.place_forget()
+            self.__map_sel_board.visible = False
+            self.__map_btn['text'] = "▼"
 
-        return self.__map_sel_dialog.map_descriptors
+            self.setMapInfo()          #re-show map info
+            self.__writeUserMapsConf() #save config
 
     def OnMapSelected(self):
         if self.isSavingImage():
             return
 
-        self.__map_descs = self.__showMapSelector()
-        self.__map_sel_dialog = None #todo: resue this
-        self.__writeUserMapsConf()
-        if not self.__is_closed:   #NOTICE: the check is Needed because dialog close may be caused by main board close
-            self.setMapInfo()
+        self.__triggerMapSelector()
 
     def onSetLevel(self, *args):
         if self.isSavingImage():
