@@ -392,11 +392,12 @@ class MapBoard(tk.Frame):
         self.__ver_label = tk.Label(frame, font=font, bg=bg)
         self.__ver_label.pack(side='right', expand=0, anchor='ne')
 
-        self.__prog_bar = ttk.Progressbar(frame, mode='determinate', maximum=100)
-        self.__prog_bar.pack(side='right', expand=0, anchor='ne')
+        self.__status_prog = ttk.Progressbar(frame, mode='determinate', maximum=100)
+        self.__status_prog.pack(side='right', expand=0, anchor='ne')
 
         self.__status_label = tk.Label(frame, font=font, bg=bg)
         self.__status_label.pack(side='left', expand=0, anchor='nw')
+
         return frame
 
     #{{{ operations
@@ -549,16 +550,24 @@ class MapBoard(tk.Frame):
             self.__info_97tm2.variable.set("%.3f, %.3f" % (geo.twd97_x/1000, geo.twd97_y/1000))
             self.__info_67tm2.variable.set("%.3f, %.3f" % (geo.twd67_x/1000, geo.twd67_y/1000))
 
+
     def __setStatus(self, txt = None, prog=None, is_immediate=False):
-        if txt is not None:
+        txt_has_change = False
+        if txt is not None and self.__status_label['text'] != txt:
             self.__status_label['text'] = txt
+            txt_has_change = True
 
-        if prog is not None:
-            self.__prog_bar['value'] = int(prog)
+        prog = int(prog)
+        prog_has_change = False
+        if prog is not None and self.__status_prog['value'] != prog:
+            self.__status_prog['value'] = prog
+            prog_has_change = True
 
-        if is_immediate:
+        if txt_has_change and is_immediate:
             self.__status_label.update()
-            self.__prog_bar.update()
+
+        if prog_has_change and is_immediate:
+            self.__status_prog.update()
 
     def addGpx(self, gpx):
         if gpx is not None:
@@ -1043,12 +1052,9 @@ class MapBoard(tk.Frame):
     def __toMapProgress(self, map_attr):
         SCALE = 100;
 
-        ntiles = self.__numOfNeededTiles(self.__map_attr)
-        if not ntiles:
-            return SCALE
-
-        rate = 1 - float(self.__map_attr.fail_tiles) / ntiles
-        return SCALE * rate;
+        ntiles = self.__numOfNeededTiles(map_attr)
+        fail_rate = 0.0 if not ntiles else float(map_attr.fail_tiles) / ntiles
+        return SCALE * (1 - fail_rate);
 
     def resetMap(self, geo=None, w=None, h=None, force=None):
         if w is None: w = self.disp_canvas.winfo_width()
@@ -1066,22 +1072,27 @@ class MapBoard(tk.Frame):
 
         #request map
         map_prog = 0
+        map_prog_is_old = False
+        now = datetime.now()
         with self.__map_req_lock:
-            self.__map_has_update = False #reset flag
-            self.__map_req_time = datetime.now()
+            #for progress
+            map_prog_is_old = (now - self.__map_req_time).total_seconds() > 1
             self.__initMapProg(map_area, total)  #need the lock to access data members
+            #for auto refresh
+            self.__map_has_update = False #reset flag
+            self.__map_req_time = now
             self.__map, self.__map_attr = self.__map_ctrl.getMap(w, h, force, cb=self.__notifyTileReady)  #buffer the image
             map_prog = self.__toMapProgress(self.__map_attr)
 
         #set map
         self.__setMap(self.__map)
 
-        #set statufs
-        if map_prog < 100:
+        #set status
+        if map_prog >= 100:
+            self.__setStatus('', 0)
+        elif map_prog_is_old:
             txt = "Map Loading...%.1f%%" % (map_prog,)
             self.__setStatus(txt, map_prog)
-        else:
-            self.__setStatus('', 0)
 
     def restore(self):
         self.__setMap(self.__map)
