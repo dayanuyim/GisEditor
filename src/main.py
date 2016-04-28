@@ -240,6 +240,8 @@ class MapBoard(tk.Frame):
         self.__map_attr = None
         self.__map_req_time = datetime.min
         self.__map_has_update = False
+        self.__prog_of_reset_map = None
+        self.__prog_of_image_save = None
         self.__map_req_lock = Lock()
         self.__alter_time = None
         self.__pref_dir = None
@@ -1013,7 +1015,7 @@ class MapBoard(tk.Frame):
             update_ts = datetime.now() - conf.MAP_UPDATE_PERIOD
             with self.__map_req_lock:
                 if self.__map_req_time <= update_ts:
-                    if progress_rate != self.__prog_of_reset_map.rate:
+                    if self.__prog_of_reset_map and progress_rate != self.__prog_of_reset_map.rate:
                         progress_rate = self.__prog_of_reset_map.rate
                         should_update_status = True
 
