@@ -1767,23 +1767,34 @@ class MapProgressRec:
 
 class TileArea:
     @property
-    def level(self): return self.__level
+    def level(self): return self._level
 
     @property
-    def pos(self): return self.__pos
+    def pos(self): return self._pos
 
     @property
-    def size(self): return self.__size
+    def size(self): return self._size
+
+    @property
+    def x(self): return self._pos[0]
+
+    @property
+    def y(self): return self._pos[1]
+
+    @property
+    def width(self): return self._size[0]
+
+    @property
+    def height(self): return self._size[1]
 
     @property
     def area(self):
-        w, h = self.__size
-        return w * h
+        return self.width * self.height
 
     def __init__(self, level, pos, size):
-        self.__level = level
-        self.__pos = pos
-        self.__size = size
+        self._level = level
+        self._pos = pos
+        self._size = size
 
     def __str__(self):
         x, y = self.pos
@@ -1820,6 +1831,19 @@ class TileArea:
         t_right, t_lower = to_tile(x + w + extra_p, y + h + extra_p)
         return (t_left, t_upper, t_right, t_lower)
 
+    def zoomToLevel(self, level):
+        x, y = self.pos
+        w, h = self.size
+
+        if level > self.level:
+            s = level - self.level
+            return TileArea(level, (x << s, y << s), (w << s, h << s))
+        elif self.level > level:
+            s = self.level - level
+            return TileArea(level, (x >> s, y >> s), (w >> s, h >> s))
+        else:
+            return self
+
     @classmethod
     def lineOverlay(cls, x1, w1, x2, w2):
         if x1 <= x2 and x2 < (x1 + w1):
@@ -1838,6 +1862,65 @@ class TileArea:
         size = to_pixel(1, 1)
         return TileArea(level, pos, size)
 
+    @classmethod
+    def intersetOverlap(cls, areas):
+        if not areas:
+            return None
+
+        ret = None
+        for area in areas:
+            ret = area if ret is None else ret.overlay(area)
+            if ret is None:
+                break
+        return ret
+
+class MapAttr2(TileArea):
+    @property
+    def left_px(self): return self.x
+
+    @property
+    def up_py(self): return self.y
+
+    @property
+    def right_px(self): return self.x + self.width - 1
+
+    @property
+    def low_py(self): return self.y + self.height - 1
+
+    @property
+    def fail_tiles(self): return self._fail_tiles
+
+    def __init__(self, level, pos, size, fail_tiles=0):
+        super().__init__(level, pos, size)
+        self._fail_tiles = fail_tiles
+
+    def clone(self):
+        return MapAttr2(self.level, self.pos, self.size, self.fail_tiles)
+
+    def containsImgae(self, attr):
+        return self.overlay(attr) is not None
+
+    def containsPoint(self, px, py):
+        return (self.left_px <= px and px <= self.right_px ) and (self.up_py <= py and py <= self.low_py)
+
+    def zoomToLevel(self, level):
+        return self.toMapAttr(area, self.fail_tiles)
+
+    @classmethod
+    def toMapAttr(cls, area, faile_tiles=0):
+        return MapAttr2(area.level, area.pos, area.size, fail_tiles)
+
+    @classmethod
+    def getMaxOverlapAttr(cls, attrs, fail_count_method=None):
+        area = TileArea.intersetOverlap(attrs)
+        if area is None:
+            return None
+
+        faile_tiles = 0
+        if fail_count_method == "sum":
+            fail_tiles += attr.fail_tiles for attr in attrs
+
+        return cls.toMapAttr(area, fail_tiles)
 
 #record image atrr
 class MapAttr:
