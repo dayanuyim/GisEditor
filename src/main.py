@@ -1132,7 +1132,7 @@ class MapAgent:
         return cache_map is not None and \
                cache_attr is not None and \
                not cache_attr.fail_tiles and \
-               cache_attr.containsImgae(req_attr)
+               cache_attr.coversArea(req_attr)
 
     # @cb is used to notify some tile is ready.
     # sync cb is handled by genMap, and async cb by getTile
@@ -1256,9 +1256,9 @@ class MapAgent:
         logging.debug("pasting tile...done")
 
         #reset map_attr
-        left, top = to_pixel(t_left, t_upper)
-        right, bottom = to_pixel(t_right+1, t_lower+1)
-        disp_attr = MapAttr(map_attr.level, left, top, right-1, bottom-1, fail_tiles)
+        pos = to_pixel(t_left, t_upper)
+        size = to_pixel(tx_num, ty_num)
+        disp_attr = MapAttr(map_attr.level, pos, size, fail_tiles)
 
         return  (disp_map, disp_attr)
 
@@ -1397,7 +1397,7 @@ class MapController:
         px, py = geo.px(level), geo.py(level)
 
         #The image attributes with which we want to create a image compatible.
-        req_attr = MapAttr(level, px, py, px+width, py+height, 0)
+        req_attr = MapAttr(level, (px, py), (width, height), 0)
         map, attr = self.__genGpsMap(req_attr, force, req_type, cb)
 
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  crop map")
@@ -1414,7 +1414,7 @@ class MapController:
         return cache_map and \
                cache_attr and \
                cache_attr.fail_tiles == 0 and \
-               cache_attr.containsImgae(req_attr)
+               cache_attr.coversArea(req_attr)
 
     @classmethod
     def __combinePixel(cls, p, q, alpha):
@@ -1504,16 +1504,18 @@ class MapController:
             baseattr = req_attr.clone() 
             baseattr.fail_tiles = 0
         else:
-            attrs = [attr for map, attr, alpha in maps]
-            baseattr = MapAttr.getMaxOverlapAttr(attrs, fail_count_method="sum")
+            baseattr = maps[0][1].clone()    #clone any
+
+            fail_tiles = 0;
+            for map, attr, alpha in maps:
+                fail_tiles += attr.fail_tiles
+            baseattr.fail_tiles = fail_tiles
 
         #create basemap
         basemap = Image.new("RGBA", baseattr.size, "white")
         for map, attr, alpha in reversed(maps):
             if map is None:
                 continue
-
-            map = self.__genCropMap(map, attr, baseattr)
             basemap = self.combineMap(basemap, map, alpha)
 
         return basemap, baseattr
@@ -1596,7 +1598,7 @@ class MapController:
         #if some track point is in disp
         for pt in trk:
             (px, py) = pt.pixel(map_attr.level)
-            if map_attr.containsPoint(px, py):
+            if map_attr.coversPoint(px, py):
                 return True
         return False
 
@@ -1629,7 +1631,7 @@ class MapController:
         #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw wpt'", wpt.name, "'")
         #check range
         (px, py) = wpt.pixel(map_attr.level)
-        if not map_attr.containsPoint(px, py):
+        if not map_attr.coversPoint(px, py):
             return
 
         px -= map_attr.left_px
@@ -1664,11 +1666,11 @@ class MapController:
 
 
     def __genCropMap(self, map, src_attr, dst_attr):
-        left  = dst_attr.left_px - src_attr.left_px
-        up    = dst_attr.up_py - src_attr.up_py
-        right = dst_attr.right_px - src_attr.left_px
-        low   = dst_attr.low_py - src_attr.up_py
-        img2 = map.crop((left, up, right, low))
+        left   = dst_attr.x - src_attr.x
+        top    = dst_attr.y - src_attr.y
+        right  = left + dst_attr.width
+        bottom = top + dst_attr.height
+        img2 = map.crop((left, top, right, bottom))
         return img2
 
     @classmethod
@@ -1826,6 +1828,14 @@ class TileArea:
         y, h = y_overlay
         return TileArea(self.level, (x, y), (w, h))
 
+    def coversArea(self, rhs):
+        return self.level == rhs.level and \
+               self.left_px <= rhs.left_px and self.up_py <= rhs.up_py and \
+               self.right_px >= rhs.right_px and self.low_py >= rhs.low_py
+
+    def coversPoint(self, px, py):
+        return 0 <= px - self.x < self.width and 0 <= py - self.y < self.height
+
     def boundTiles(self, extra_p=0):
         x, y = self.pos
         w, h = self.size
@@ -1876,7 +1886,7 @@ class TileArea:
                 break
         return ret
 
-class MapAttr2(TileArea):
+class MapAttr(TileArea):
     @property
     def left_px(self): return self.x
 
@@ -1892,109 +1902,26 @@ class MapAttr2(TileArea):
     @property
     def fail_tiles(self): return self._fail_tiles
 
+    @fail_tiles.setter
+    def fail_tiles(self, v): self._fail_tiles = v
+
     def __init__(self, level, pos, size, fail_tiles=0):
         super().__init__(level, pos, size)
         self._fail_tiles = fail_tiles
 
+    def __str__(self):
+        return "MapAttr{level=%d, pos=%s, size=%s, fail_tiles=%d}" % (self.level, str(self.pos), str(self.size), self.fail_tiles)
+
     def clone(self):
-        return MapAttr2(self.level, self.pos, self.size, self.fail_tiles)
-
-    def containsImgae(self, attr):
-        return self.overlay(attr) is not None
-
-    def containsPoint(self, px, py):
-        return (self.left_px <= px and px <= self.right_px ) and (self.up_py <= py and py <= self.low_py)
+        return MapAttr(self.level, self.pos, self.size, self.fail_tiles)
 
     def zoomToLevel(self, level):
+        area = super().zoomToLevel(level)
         return self.toMapAttr(area, self.fail_tiles)
 
     @classmethod
-    def toMapAttr(cls, area, faile_tiles=0):
-        return MapAttr2(area.level, area.pos, area.size, fail_tiles)
-
-    @classmethod
-    def getMaxOverlapAttr(cls, attrs, fail_count_method=None):
-        area = TileArea.intersetOverlap(attrs)
-        if area is None:
-            return None
-
-        faile_tiles = 0
-        if fail_count_method == "sum":
-            fail_tiles += attr.fail_tiles for attr in attrs
-
-        return cls.toMapAttr(area, fail_tiles)
-
-#record image atrr
-class MapAttr:
-    @property
-    def size(self):
-        return (self.right_px - self.left_px, self.low_py - self.up_py)
-
-    def __init__(self, level, left_px, up_py, right_px, low_py, fail_tiles=0):
-        #self.img = None
-        self.level = level
-        self.left_px = left_px
-        self.up_py = up_py
-        self.right_px = right_px
-        self.low_py = low_py
-        self.fail_tiles = fail_tiles
-
-    def clone(self):
-        return MapAttr(self.level, self.left_px, self.up_py, self.right_px, self.low_py, self.fail_tiles)
-
-    def containsImgae(self, attr):
-        if self.level == attr.level and \
-                self.left_px <= attr.left_px and self.up_py <= attr.up_py and \
-                self.right_px >= attr.right_px and self.low_py >= attr.low_py:
-            return True
-        return False
-
-    def containsPoint(self, px, py):
-        return self.left_px <= px and self.up_py <= py and px <= self.right_px and py <= self.low_py
-
-    #def isBoxInImage(self, px_left, py_up, px_right, py_low, map_attr):
-        #return self.isPointInImage(px_left, py_up) or self.isPointInImage(px_left, py_low) or \
-              #self.isPointInImage(px_right, py_up) or self.isPointInImage(px_right, py_low)
-
-    def zoomToLevel(self, level):
-        if level > self.level:
-            s = level - self.level
-            return MapAttr(level, self.left_px << s, self.up_py << s, self.right_px << s, self.low_py << s, self.fail_tiles)
-        elif self.level > level:
-            s = self.level - level
-            return MapAttr(level, self.left_px >> s, self.up_py >> s, self.right_px >> s, self.low_py >> s, self.fail_tiles)
-        else:
-            return self
-
-    def boundTiles(self, extra_p=0):
-        t_left, t_upper  = to_tile(self.left_px - extra_p, self.up_py - extra_p)
-        t_right, t_lower = to_tile(self.right_px + extra_p, self.low_py  + extra_p)
-        return (t_left, t_upper, t_right, t_lower)
-
-    @classmethod
-    def getMaxOverlapAttr(cls, attrs, fail_count_method=None):
-        if not attrs:
-            return None
-
-        res = attrs[0].clone()
-        res.fail_tiles = 0
-
-        for attr in attrs:
-            if res.level != attr.level:
-                raise ValueError('No match map level to compare')
-
-            res.left_px  = max(res.left_px,  attr.left_px)
-            res.up_py    = max(res.up_py,    attr.up_py)
-            res.right_px = min(res.right_px, attr.right_px)
-            res.low_py   = min(res.low_py,   attr.low_py)
-
-            #fail_tiles
-            if not fail_count_method:
-                continue
-            elif fail_count_method == "sum":
-                res.fail_tiles += attr.fail_tiles
-
-        return res
+    def toMapAttr(cls, area, fail_tiles=0):
+        return MapAttr(area.level, area.pos, area.size, fail_tiles)
 
 class WptBoard(tk.Toplevel):
     @property
