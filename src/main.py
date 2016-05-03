@@ -1472,7 +1472,11 @@ class MapController:
         else:
             return Image.blend(basemap, map, alpha)
 
+    def __runReqMap(self, dest_repo, agent, req_attr, req_type, cb):
+        dest_repo[agent] = agent.genMap(req_attr, req_type, cb)
+
     def __getMaps(self, req_attr, req_type, cb=None):
+        map_repo = OrderedDict()
         maps = []
         for desc in self.__map_descs:
             if not desc.enabled:
@@ -1489,11 +1493,16 @@ class MapController:
                 logging.error('map agent has Bad Configuration.')
                 continue
 
-            #create map
-            map, attr = agent.genMap(req_attr, req_type, cb)
-            maps.append((map, attr, desc.alpha))
+            #req map
+            self.__runReqMap(map_repo, agent, req_attr, req_type, cb)
 
+        #todo: wait all agent done
+
+        #collectin maps
+        for agent, (map, attr) in map_repo.items():
+            maps.append((map, attr, agent.alpha))
             #logging.debug('The map %s is transparent: %s' % (desc.map_id, "NA" if map is None else imageIsTransparent(map)))
+
         return maps
 
     def __checkAttrs(self, attrs, baseattr):
