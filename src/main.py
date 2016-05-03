@@ -1473,11 +1473,15 @@ class MapController:
             return Image.blend(basemap, map, alpha)
 
     def __runReqMap(self, dest_repo, agent, req_attr, req_type, cb):
-        dest_repo[agent] = agent.genMap(req_attr, req_type, cb)
+        res = agent.genMap(req_attr, req_type, cb)
+        with dest_repo.lock:
+            dest_repo[agent] = res
 
     def __getMaps(self, req_attr, req_type, cb=None):
         map_repo = OrderedDict()
-        maps = []
+        map_repo.lock = Lock()
+        map_workers = []
+
         for desc in self.__map_descs:
             if not desc.enabled:
                 #logging.debug("map " + desc.map_id + " is not enabled")
@@ -1493,12 +1497,18 @@ class MapController:
                 logging.error('map agent has Bad Configuration.')
                 continue
 
-            #req map
-            self.__runReqMap(map_repo, agent, req_attr, req_type, cb)
+            #create req map workers
+            job = lambda: self.__runReqMap(map_repo, agent, req_attr, req_type, cb)
+            worker = Thread(target=job)
+            map_workers.append(worker)
+            worker.start()
 
-        #todo: wait all agent done
+        #wait all workers done
+        for worker in map_workers:
+            worker.join()
 
         #collectin maps
+        maps = []
         for agent, (map, attr) in map_repo.items():
             maps.append((map, attr, agent.alpha))
             #logging.debug('The map %s is transparent: %s' % (desc.map_id, "NA" if map is None else imageIsTransparent(map)))
