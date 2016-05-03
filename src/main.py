@@ -11,6 +11,7 @@ import shutil
 import tempfile
 import time
 import logging
+import inspect
 import argparse
 import platform
 import re
@@ -1495,7 +1496,19 @@ class MapController:
             #logging.debug('The map %s is transparent: %s' % (desc.map_id, "NA" if map is None else imageIsTransparent(map)))
         return maps
 
+    def __checkAttrs(self, attrs, baseattr):
+        basearea = baseattr.toTileArea()
+        areas = [attr.toTileArea() for attr in attrs]
+
+        for i in range(len(areas)):
+            area = areas[i]
+            if area != basearea:
+                logging.critical("[NeedCropMap] map[%d]: %s" % (i, str(attrs[i])))
+                logging.critical("[NeedCropMap]      -> %s" % (str(baseattr)))
+
+
     def __genBaseMap(self, req_attr, req_type, cb=None):
+
         maps = self.__getMaps(req_attr, req_type, cb)
 
         #create attr
@@ -1504,19 +1517,20 @@ class MapController:
             baseattr = req_attr.clone() 
             baseattr.fail_tiles = 0
         else:
-            baseattr = maps[0][1].clone()    #clone any
+            attrs = [attr for map, attr, alpha in maps]
+            area = TileArea.intersetOverlap(attrs)
+            fail_tiles = sum([attr.fail_tiles for attr in attrs])
+            baseattr = MapAttr.toMapAttr(area, fail_tiles)
 
-            fail_tiles = 0;
-            for map, attr, alpha in maps:
-                fail_tiles += attr.fail_tiles
-            baseattr.fail_tiles = fail_tiles
+            self.__checkAttrs(attrs, baseattr)
 
         #create basemap
         basemap = Image.new("RGBA", baseattr.size, "white")
         for map, attr, alpha in reversed(maps):
             if map is None:
                 continue
-            basemap = self.combineMap(basemap, map, alpha)
+            cropmap = self.__genCropMap(map, attr, baseattr)
+            basemap = self.combineMap(basemap, cropmap, alpha)
 
         return basemap, baseattr
 
@@ -1665,13 +1679,17 @@ class MapController:
                 del _draw
 
 
-    def __genCropMap(self, map, src_attr, dst_attr):
-        left   = dst_attr.x - src_attr.x
-        top    = dst_attr.y - src_attr.y
-        right  = left + dst_attr.width
-        bottom = top + dst_attr.height
-        img2 = map.crop((left, top, right, bottom))
-        return img2
+    def __genCropMap(self, map, src_area, dst_area):
+        left   = dst_area.x - src_area.x
+        top    = dst_area.y - src_area.y
+        right  = left + dst_area.width
+        bottom = top + dst_area.height
+
+        bbox = (left, top, right, bottom)
+        if bbox == (0, 0) + map.size:
+            return map
+        else:
+            return map.crop(bbox)
 
     @classmethod
     def __getCoordByPixel(cls, px, py, level, coord_sys):
@@ -1805,6 +1823,12 @@ class TileArea:
         w, h = self.size
         return "TileArea{level=%d, pos=(%d, %d), size=(%d, %d)}" % (self.level, x, y, w, h)
 
+    def __eq__(self, rhs):
+        return self.level == rhs.level and self.pos == rhs.pos and self.size == rhs.size
+
+    def __ne__(self, rhs):
+        return not self.__eq__(rhs)
+
     # return overlayed area or None
     def overlay(self, rhs):
         if self.level != rhs.level:
@@ -1879,12 +1903,12 @@ class TileArea:
         if not areas:
             return None
 
-        ret = None
-        for area in areas:
-            ret = area if ret is None else ret.overlay(area)
-            if ret is None:
-                break
-        return ret
+        inter_area = areas[0]
+        for area in areas[1:]:
+            inter_area = inter_area.overlay(area)
+            if inter_area is None:
+                return None
+        return inter_area
 
 class MapAttr(TileArea):
     @property
@@ -1914,6 +1938,9 @@ class MapAttr(TileArea):
 
     def clone(self):
         return MapAttr(self.level, self.pos, self.size, self.fail_tiles)
+
+    def toTileArea(self):
+        return TileArea(self.level, self.pos, self.size)
 
     def zoomToLevel(self, level):
         area = super().zoomToLevel(level)
