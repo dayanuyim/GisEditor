@@ -1463,25 +1463,8 @@ class MapController:
         logging.debug("end to tune alpha...")
         return result
 
-    #alpha between 0.0~1.0
-    @classmethod
-    def combineMap(cls, basemap, map, alpha):
-        if imageIsTransparent(map):
-            map = cls.tunealpha(map, alpha)
-            return Image.alpha_composite(basemap, map)
-        else:
-            return Image.blend(basemap, map, alpha)
-
-    def __runReqMap(self, dest_repo, agent, req_attr, req_type, cb):
-        res = agent.genMap(req_attr, req_type, cb)
-        with dest_repo.lock:
-            dest_repo[agent] = res
-
-    def __getMaps(self, req_attr, req_type, cb=None):
-        map_repo = OrderedDict()
-        map_repo.lock = Lock()
-        map_workers = []
-
+    def __getMapAgents(self):
+        agents = []
         for desc in self.__map_descs:
             if not desc.enabled:
                 #logging.debug("map " + desc.map_id + " is not enabled")
@@ -1497,23 +1480,47 @@ class MapController:
                 logging.error('map agent has Bad Configuration.')
                 continue
 
+            agents.append(agent)
+
+        return agents
+
+    def __runReqMap(self, dest_repo, agent, req_attr, req_type, cb):
+        res = agent.genMap(req_attr, req_type, cb)
+        with dest_repo.lock:
+            dest_repo[agent] = res
+
+    def __getMaps(self, req_attr, req_type, cb=None):
+        agents = self.__getMapAgents()
+
+        if not agents:
+            return None
+        elif len(agents) == 1:
+            agent = agents[0]
+            map, attr = agent.genMap(req_attr, req_type, cb)
+            return [(map, attr, agent.alpha)]
+        else:
+            map_repo = OrderedDict()
+            map_repo.lock = Lock()
+            map_workers = []
+
             #create req map workers
-            job = lambda: self.__runReqMap(map_repo, agent, req_attr, req_type, cb)
-            worker = Thread(target=job)
-            map_workers.append(worker)
-            worker.start()
+            for agent in agents:
+                job = lambda: self.__runReqMap(map_repo, agent, req_attr, req_type, cb)
+                worker = Thread(target=job)
+                worker.start()
+                map_workers.append(worker)
 
-        #wait all workers done
-        for worker in map_workers:
-            worker.join()
+            #wait all workers done
+            for worker in map_workers:
+                worker.join()
 
-        #collectin maps
-        maps = []
-        for agent, (map, attr) in map_repo.items():
-            maps.append((map, attr, agent.alpha))
-            #logging.debug('The map %s is transparent: %s' % (desc.map_id, "NA" if map is None else imageIsTransparent(map)))
+            #collectin maps
+            maps = []
+            for agent, (map, attr) in map_repo.items():
+                maps.append((map, attr, agent.alpha))
+                #logging.debug('The map %s is transparent: %s' % (desc.map_id, "NA" if map is None else imageIsTransparent(map)))
 
-        return maps
+            return maps
 
     def __checkAttrs(self, attrs, baseattr):
         basearea = baseattr.toTileArea()
@@ -1525,6 +1532,14 @@ class MapController:
                 logging.critical("[NeedCropMap] map[%d]: %s" % (i, str(attrs[i])))
                 logging.critical("[NeedCropMap]      -> %s" % (str(baseattr)))
 
+    #alpha between 0.0~1.0
+    @classmethod
+    def combineMap(cls, basemap, map, alpha):
+        if imageIsTransparent(map):
+            map = cls.tunealpha(map, alpha)
+            return Image.alpha_composite(basemap, map)
+        else:
+            return Image.blend(basemap, map, alpha)
 
     def __genBaseMap(self, req_attr, req_type, cb=None):
 
@@ -1545,11 +1560,12 @@ class MapController:
 
         #create basemap
         basemap = Image.new("RGBA", baseattr.size, "white")
-        for map, attr, alpha in reversed(maps):
-            if map is None:
-                continue
-            cropmap = self.__genCropMap(map, attr, baseattr)
-            basemap = self.combineMap(basemap, cropmap, alpha)
+        if maps:
+            for map, attr, alpha in reversed(maps):
+                if map is None:
+                    continue
+                cropmap = self.__genCropMap(map, attr, baseattr)
+                basemap = self.combineMap(basemap, cropmap, alpha)
 
         return basemap, baseattr
 
