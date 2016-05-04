@@ -808,7 +808,7 @@ class MapBoard(tk.Frame):
         self.__focused_wpt = None
 
     def __setMapProgress(self, rate, is_immediate=False):
-        logging.critical("set map progress %f", rate)
+        logging.debug("set map progress %f", rate)
         #set status
         if rate >= 1:
             self.__setStatus('', 0, is_immediate)
@@ -1484,10 +1484,10 @@ class MapController:
 
         return agents
 
-    def __runReqMap(self, dest_repo, agent, req_attr, req_type, cb):
+    def __runReqMap(self, repo, repo_lock, agent, req_attr, req_type, cb):
         res = agent.genMap(req_attr, req_type, cb)
-        with dest_repo.lock:
-            dest_repo[agent] = res
+        with repo_lock:
+            repo[agent] = res
 
     def __getMaps(self, req_attr, req_type, cb=None):
         agents = self.__getMapAgents()
@@ -1499,13 +1499,13 @@ class MapController:
             map, attr = agent.genMap(req_attr, req_type, cb)
             return [(map, attr, agent.alpha)]
         else:
-            map_repo = OrderedDict()
-            map_repo.lock = Lock()
+            map_repo = {}
+            map_repo_lock = Lock()
             map_workers = []
 
             #create req map workers
             for agent in agents:
-                job = lambda: self.__runReqMap(map_repo, agent, req_attr, req_type, cb)
+                job = lambda: self.__runReqMap(map_repo, map_repo_lock, agent, req_attr, req_type, cb)
                 worker = Thread(target=job)
                 worker.start()
                 map_workers.append(worker)
@@ -1516,9 +1516,12 @@ class MapController:
 
             #collectin maps
             maps = []
-            for agent, (map, attr) in map_repo.items():
+            idx = 0
+            for agent in agents:
+                map, attr = map_repo[agent]
                 maps.append((map, attr, agent.alpha))
-                #logging.debug('The map %s is transparent: %s' % (desc.map_id, "NA" if map is None else imageIsTransparent(map)))
+                logging.debug('get map[%d] %-20s, size: %s, attr: %s' % (idx, agent.map_id, str(map.size), str(attr)))
+                idx += 1
 
             return maps
 
@@ -1529,8 +1532,8 @@ class MapController:
         for i in range(len(areas)):
             area = areas[i]
             if area != basearea:
-                logging.critical("[NeedCropMap] map[%d]: %s" % (i, str(attrs[i])))
-                logging.critical("[NeedCropMap]      -> %s" % (str(baseattr)))
+                logging.warning("[NeedCropMap] map[%d]: %s" % (i, str(attrs[i])))
+                logging.warning("[NeedCropMap]      -> %s" % (str(baseattr)))
 
     #alpha between 0.0~1.0
     @classmethod
