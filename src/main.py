@@ -1042,6 +1042,9 @@ class MapBoard(tk.Frame):
                 logging.debug("has update")
 
     def resetMap(self, geo=None, w=None, h=None, force=None):
+        logging.debug("RESET MAP [BEGIN].")
+        _begin = datetime.now()
+
         if w is None: w = self.disp_canvas.winfo_width()
         if h is None: h = self.disp_canvas.winfo_height()
 
@@ -1066,6 +1069,12 @@ class MapBoard(tk.Frame):
 
         #set map
         self.__setMap(self.__map)
+
+        #debug
+        _end = datetime.now();
+        _elapse = _end - _begin
+        _elapse = _elapse.seconds + _elapse.microseconds/1000000
+        logging.debug("RESET MAP [END], elapse: %.6fs. %s" % (_elapse, "*" * int(_elapse/0.2)))
 
     def restore(self):
         self.__setMap(self.__map)
@@ -1437,10 +1446,9 @@ class MapController:
 
         #optimize
         min_a, max_a = img.getextrema()[3];
-        if alpha == 255 or max_a == 0:
+        if alpha == 256 or max_a == 0:
             return img
         if alpha == 0 or min_a == 255:
-            img = img.copy()
             img.putalpha(alpha)
             return img
 
@@ -1485,7 +1493,9 @@ class MapController:
         return agents
 
     def __runReqMap(self, repo, repo_lock, agent, req_attr, req_type, cb):
+        logging.debug('generating map: %s', (agent.map_id,))
         res = agent.genMap(req_attr, req_type, cb)
+        logging.debug('generated map: %s', (agent.map_id,))
         with repo_lock:
             repo[agent] = res
 
@@ -1520,7 +1530,7 @@ class MapController:
             for agent in agents:
                 map, attr = map_repo[agent]
                 maps.append((map, attr, agent.alpha))
-                logging.debug('get map[%d] %-20s, size: %s, attr: %s' % (idx, agent.map_id, str(map.size), str(attr)))
+                logging.debug('get map[%d] %-20s, size: %s, attr: %s' % (idx, agent.map_id, "None" if map is None else str(map.size), str(attr)))
                 idx += 1
 
             return maps
@@ -1539,10 +1549,13 @@ class MapController:
     @classmethod
     def combineMap(cls, basemap, map, alpha):
         if imageIsTransparent(map):
-            map = cls.tunealpha(map, alpha)
+            if alpha != 1.0:
+                map = cls.tunealpha(map, alpha)
             return Image.alpha_composite(basemap, map)
         else:
-            return Image.blend(basemap, map, alpha)
+            if alpha != 1.0:
+                return Image.blend(basemap, map, alpha)
+            return map
 
     def __genBaseMap(self, req_attr, req_type, cb=None):
 
