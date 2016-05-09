@@ -115,6 +115,11 @@ MBTiles 下載 (可選)
 
 手動安裝 (Linux)  <a name="linux_install"></a>  
 ============
+0. 安裝字型
+    預設使用ubuntu OS內建ukai
+    
+    Arch Linux:
+    # pacman -S ttf-arphic-ukai
 
 1. 下載並安裝 python3
 
@@ -124,6 +129,7 @@ MBTiles 下載 (可選)
    *注意* 若系統同時有 python2, python3，請注意安裝的是 python3相關library
 
 2. 下載 python 套件
+
 
 
     sudo pip3 install pillow
