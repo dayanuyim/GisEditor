@@ -2673,7 +2673,7 @@ def initArguments():
     return parser.parse_args()
 
 if __name__ == '__main__':
-    __version = '0.2'
+    __version = '0.21'
     args = initArguments()
 
     #init logging
