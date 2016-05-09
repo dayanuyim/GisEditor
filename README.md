@@ -119,7 +119,10 @@ MBTiles 下載 (可選)
     預設使用ubuntu OS內建ukai
     
     Arch Linux:
-    # pacman -S ttf-arphic-ukai
+    ```# pacman -S ttf-arphic-ukai```
+
+    CentOS:
+    ```# yum install cjkuni-ukai-fonts```
 
 1. 下載並安裝 python3
 
