@@ -10,8 +10,8 @@ from threading import Timer
 from PIL import Image, ImageTk, ImageDraw, ImageColor
 
 #my modules
-import conf
-from coord import TileSystem, CoordinateSystem
+import src.conf as conf
+from src.coord import TileSystem, CoordinateSystem
 
 class DrawGuard:
     def __init__(self, img):

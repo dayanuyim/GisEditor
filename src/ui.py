@@ -6,7 +6,7 @@ import platform
 import logging
 from PIL import ImageTk
 from tkinter import ttk, messagebox
-from tile import MapDescriptor
+#from utile import MapDescriptor
 
 class Dialog(tk.Toplevel):
     FOCUSOUT_NOOP = 0

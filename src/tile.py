@@ -22,10 +22,10 @@ from math import tan, sin, cos, radians, degrees
 from collections import OrderedDict
 from io import BytesIO
 
-import coord
-import conf
-import util
-from util import mkdirSafely, saveXml
+import src.coord as coord
+import src.conf as conf
+import src.util as util
+from src.util import mkdirSafely, saveXml
 
 to_pixel = coord.TileSystem.getPixcelXYByTileXY
 to_tile = coord.TileSystem.getTileXYByPixcelXY

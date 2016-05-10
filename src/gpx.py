@@ -4,13 +4,13 @@
 
 import os
 import logging
-import util
+import src.util as util
 from xml.etree import ElementTree as ET
 from datetime import datetime
 from PIL import Image
 import xml.dom.minidom
-from coord import TileSystem
-from util import GeoPoint
+from src.coord import TileSystem
+from src.util import GeoPoint
 
 class GpsDocument:
     @property

@@ -7,12 +7,12 @@ import platform
 from os import path
 from PIL import ImageFont, Image
 from datetime import timedelta
-from coord import CoordinateSystem
+from src.coord import CoordinateSystem
 from configparser import ConfigParser
 from collections import OrderedDict
 
 #default raw data
-import raw
+import src.raw as raw
 
 #constance util
 def _tosymkey(sym):
