@@ -8,8 +8,8 @@ import Pmw as pmw
 from PIL import Image, ImageTk
 from math import ceil
 #my
-import conf
-import util
+import src.conf as conf
+import src.util as util
 
 # symbol icon ======================================
 def __getSymIcons(icon_dir):

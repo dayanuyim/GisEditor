@@ -159,19 +159,20 @@ MBTiles 下載 (可選)
      *  [經建三版 (3500 MB)](https://drive.google.com/file/d/0B7ryOauZNjlbT2EwbzBlSEpwT1U/view?usp=sharing)
      *  [經建三版(北部山區局部) (550 MB)](https://drive.google.com/file/d/0B7ryOauZNjlbWGpJTl84S1Y2OXM/view?usp=sharing)
 
-6. 建立執行檔
+6. 執行
 
-        mkdir ~/bin
-        chmod +x $GISEDITOR_HOME/src/main.py
-        ln -s $GISEDITOR_HOME/src/main.py ~/bin/giseditor
+    ```
+    $ cd $GISEDITOR_HOME
+    $ python3 main.py   
+    ```
+    或是雙擊main.py
 
-    *注意* ~/bin 必須在包含在 $PATH 之內
-
-    *測試*
-     *  下指令 giseditor，應可開啟地圖
-     *  下指令 giseditor `$GISEDITOR_HOME/data/test.gpx`，應可開啟地圖與航跡
-     *  下指令 giseditor `$GISEDITOR_HOME/data/test.gdb`，應可開啟地圖與航跡
-         *  若無法開啟請確認 `$GISEDITOR_HOME/conf/giseditor.conf 的 gpsbabel_exe` 之設定是否正確
+    *快速載入航跡與地圖*
+    ```
+    $ python3 main.py $GISEDITOR_HOME/data/test.gpx
+    $ python3 main.py $GISEDITOR_HOME/data/test.gdb
+    ```
+    *  若無法開啟*.gdb請確認 `$GISEDITOR_HOME/conf/giseditor.conf 的 gpsbabel_exe` 之設定是否正確
 
 7. 建立桌面環境與檔案關聯
 

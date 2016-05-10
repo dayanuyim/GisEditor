@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-# -*- coding: utf8 -*-
+#!/usr/bin/python3
 
 import os
 import subprocess
@@ -24,17 +23,16 @@ from threading import Lock, Thread
 from collections import OrderedDict
 
 #my modules
-import conf
-import util
-import sym
-import coord
-from ui import Dialog, MapSelectDialog, MapSelectFrame
-from gpx import GpsDocument, WayPoint
-from pic import PicDocument
-from util import GeoPoint, getPrefCornerPos, DrawGuard, imageIsTransparent
-from util import AreaSelector, AreaSizeTooLarge, GeoInfo  #should move to ui.py
-from tile import TileAgent, MapDescriptor
-from sym import askSym, toSymbol
+import src.conf as conf
+import src.sym as sym
+import src.coord as coord
+from src.ui import Dialog, MapSelectDialog, MapSelectFrame
+from src.gpx import GpsDocument, WayPoint
+from src.pic import PicDocument
+from src.util import GeoPoint, getPrefCornerPos, DrawGuard, imageIsTransparent
+from src.util import AreaSelector, AreaSizeTooLarge, GeoInfo  #should move to ui.py
+from src.tile import TileAgent, MapDescriptor
+from src.sym import askSym, toSymbol
 
 to_pixel = coord.TileSystem.getPixcelXYByTileXY
 to_tile = coord.TileSystem.getTileXYByPixcelXY
