@@ -55,16 +55,15 @@ MBTiles 下載 (可選)
 手動安裝 (Windows) <a name="win_install"></a>
 ==================
 
-1. 下載並安裝 [python3][] (安裝過程請勾選安裝 pip)
+1. 下載並安裝 [python3][] (安裝過程請勾選安裝 pip、並允許設定環境變數)
 
     _注意_ 若系統同時有 python2, python3，請注意安裝的是 python3相關library
 
 [python3]: https://www.python.org/downloads/windows/ 
 
 2. 下載 python 套件，在命令提示字元視窗下指令：
-
-        pip install pillow
-        pip install pmw
+    紀錄在requirement.txt，以下列指令執行
+    ```pip install -r requirement.txt```
 
 3. 下載並安裝 [gpsbabel][]
 
@@ -88,15 +87,8 @@ MBTiles 下載 (可選)
      *  [經建三版 (3500 MB)](https://drive.google.com/file/d/0B7ryOauZNjlbT2EwbzBlSEpwT1U/view?usp=sharing)
      *  [經建三版(北部山區局部) (550 MB)](https://drive.google.com/file/d/0B7ryOauZNjlbWGpJTl84S1Y2OXM/view?usp=sharing)
 
-6. 建立執行檔
-
-     *  複製 `$GISEDITOR_HOME/install/win/giseditor.exe` 及 `$GISEDITOR_HOME/install/win/giseditor.exe.config` 兩個檔案至
-    `$GISEDITOR_HOME` 之下
-
-     *  修改 giseditor.exe.config，設定 PythonDirPath 至 python3 資夾料，如：`C:\Program Files (x86)\Python35-32`
-
-    `測試`
-     *  雙擊 `giseditor.exe`，應可開啟。
+6. 執行
+     *  雙擊 `main.py`，應可開啟。
      *  開啟 `giseditor.exe`，`右鍵->Add Files...`，選擇 `$GISEDITOR_HOME/sample.gpx`，應可開啟地圖與航跡。
      *  開啟 `giseditor.exe`，`右鍵->Add Files...`，選擇 `$GISEDITOR_HOME/sample.gdb`，應可開啟地圖與航跡。
          *  若無法開啟請確認 `$GISEDITOR_HOME/conf/giseditor.conf 的 gpsbabel_exe` 之設定是否正確
@@ -115,7 +107,7 @@ MBTiles 下載 (可選)
 
 手動安裝 (Linux)  <a name="linux_install"></a>  
 ============
-0. 安裝字型
+1. 安裝字型
     預設使用ubuntu OS內建ukai
     
     Arch Linux:
@@ -124,25 +116,18 @@ MBTiles 下載 (可選)
     CentOS:
     ```# yum install cjkuni-ukai-fonts```
 
-1. 下載並安裝 python3
+2. 環境
+    python3, gpsbabel(for *.gpb), freetype, image
 
-
-    sudo apt-get install python5-dev python3-pip python3-tk python3-imaging-tk libjpeg libjpeg-dev libfreetype6 libfreetype6-dev zlib1g-dev libpng12-dev libopenjpeg-dev tk-dev tcl-dev
+    ```sudo apt-get install python5-dev python3-pip python3-tk python3-imaging-tk libjpeg libjpeg-dev libfreetype6 libfreetype6-dev zlib1g-dev libpng12-dev libopenjpeg-dev tk-dev tcl-dev gpsbabel```
 
    *注意* 若系統同時有 python2, python3，請注意安裝的是 python3相關library
 
-2. 下載 python 套件
+3. 下載 python 套件
+    紀錄在requirement.txt，以下列指令執行
+    ```sudo pip3 install -r requirement.txt```
 
-
-
-    sudo pip3 install pillow
-    sudo pip3 install pmw
-
-3. 下載並安裝 gpsbabel
-
-
-    sudo apt-get install gpsbabel
-
+    
 4. 下載程式。
 
     可透過 [git][git_repo]，或是直接[下載][git_arch]。
