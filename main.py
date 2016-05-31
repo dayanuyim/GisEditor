@@ -164,6 +164,10 @@ def parsePathes(pathes):
 
 #The Main board to display the map
 class MapBoard(tk.Frame):
+    MODE_NORMAL = 0
+    MODE_DRAW_TRK = 1
+    MODE_SAVE_IMG = 2
+
     @property
     def is_alter(self): return self.__alter_time is not None
 
@@ -224,6 +228,8 @@ class MapBoard(tk.Frame):
     def __init__(self, master):
         super().__init__(master)
 
+        self.__mode = self.MODE_NORMAL
+
         self.__map_descs = self.__getUserMapDescriptors()
         self.__map_ctrl = MapController(self)
         self.__map_ctrl.configMap(self.__map_descs)
@@ -266,11 +272,17 @@ class MapBoard(tk.Frame):
         status_frame = self.initStatusBar()
         status_frame.pack(side='bottom', expand=0, fill='x', anchor='nw')
 
+        #global events
+        self.master.bind("<Escape>", lambda e: self.__setNormalMode())
+        self.master.bind(str(self.MODE_SAVE_IMG), lambda e: self.onImageSave())
+        self.master.bind(str(self.MODE_DRAW_TRK), lambda e: self.onTrackDraw())
+
         #display area
         self.__init_w= 800  #deprecated
         self.__init_h = 600  #deprecated
         self.disp_canvas = tk.Canvas(self, bg='#808080')
         self.disp_canvas.pack(expand=1, fill='both', anchor='n')
+
         if platform.system() == "Linux":
             self.disp_canvas.bind('<Button-4>', lambda e: self.onMouseWheel(e, 1))  #roll up
             self.disp_canvas.bind('<Button-5>', lambda e: self.onMouseWheel(e, -1)) #roll down
@@ -321,6 +333,7 @@ class MapBoard(tk.Frame):
         self.__rclick_menu.add_separator()
         self.__rclick_menu.add_command(label='Save to image...', underline=0, command=self.onImageSave)
         self.__rclick_menu.add_command(label='Save to gpx...', underline=0, command=self.onGpxSave)
+        self.__rclick_menu.add_command(label='Draw Track...', underline=0, command=self.onTrackDraw)
 
         #wpt menu
         self.__wpt_rclick_menu = tk.Menu(self.disp_canvas, tearoff=0)
@@ -401,14 +414,42 @@ class MapBoard(tk.Frame):
 
         return frame
 
-    #{{{ operations
-    def isSavingImage(self):
-        return self.__canvas_sel_area is not None
+    # mode =================================================
+    def __setNormalMode(self):
+        self.__hideMapSelector() #hide map selector, if any
 
+        if self.isSaveImgMode():
+            self.__canvas_sel_area.exit()
+            self.__canvas_sel_area = None
+
+        self.__setMode(0)
+
+    def __setMode(self, mode):
+        self.__mode = mode;
+
+        if mode == self.MODE_NORMAL:
+            logging.critical("set to 'normal' mode")
+            self.master['cursor'] = ''
+        elif mode == self.MODE_SAVE_IMG:
+            logging.critical("set to 'save img' mode")
+            self.master['cursor'] = 'hand2'
+        elif mode == self.MODE_DRAW_TRK:
+            logging.critical("set to 'draw trk' mode")
+            #self.master['cursor'] = 'pencil'
+            self.master['cursor'] = 'dotbox'
+        else:
+            logging.critical("set to unknown mode '" + mdoe + "'")
+
+    def isSaveImgMode(self):
+        #return self.__canvas_sel_area is not None
+        return self.__mode == self.MODE_SAVE_IMG
+
+
+    #{{{ operations
     #release sources to exit
     def exit(self):
         self.__is_closed = True
-        if self.isSavingImage():
+        if self.isSaveImgMode():
             self.__canvas_sel_area.exit()
         self.__map_ctrl.close()
 
@@ -436,7 +477,6 @@ class MapBoard(tk.Frame):
 
             self.__map_sel_board.setEnableHandler(self.__onMapEnableChanged)
             self.__map_sel_board.setAlphaHandler(self.__onMapAlphaChanged)
-            self.master.bind("<Escape>", lambda e: self.__hideMapSelector()) #ESC to hide
             
         #to show
         if not self.__map_sel_board.visible:
@@ -465,13 +505,13 @@ class MapBoard(tk.Frame):
             self.__writeUserMapsConf() #save config
 
     def OnMapSelected(self):
-        if self.isSavingImage():
+        if self.isSaveImgMode():
             return
 
         self.__triggerMapSelector()
 
     def onSetLevel(self, *args):
-        if self.isSavingImage():
+        if self.isSaveImgMode():
             return
 
         try:
@@ -588,7 +628,7 @@ class MapBoard(tk.Frame):
         return None
         
     def onMouseWheel(self, event, delta):
-        if self.isSavingImage():
+        if self.isSaveImgMode():
             return
 
         if datetime.now() < (self.__mouse_wheel_ts + timedelta(milliseconds=500)):
@@ -623,7 +663,7 @@ class MapBoard(tk.Frame):
         geo = self.getGeoPointAt(e.x, e.y)
         self.setMapInfo(geo)
 
-        if self.isSavingImage():
+        if self.isSaveImgMode():
             return
 
         #wpt context, if any
@@ -815,9 +855,14 @@ class MapBoard(tk.Frame):
             txt = "Map Loading...%.1f%%" % (prog,)
             self.__setStatus(txt, prog, is_immediate)
 
+    def onTrackDraw(self):
+        self.__setMode(self.MODE_DRAW_TRK)
+
     def onImageSave(self):
-        if self.isSavingImage():
+        if self.isSaveImgMode():
             return
+
+        self.__setMode(self.MODE_SAVE_IMG)
 
         enabled_maps = [desc for desc in self.__map_descs if desc.enabled]
         if not enabled_maps:
@@ -881,6 +926,7 @@ class MapBoard(tk.Frame):
             messagebox.showwarning(str(ex), 'Please zoom out or resize the window to enlarge the map')
         finally:
             self.__canvas_sel_area = None
+            self.__setMode(self.MODE_NORMAL)
 
     def onGpxSave(self):
         def to_ask(init_dir):
@@ -911,7 +957,7 @@ class MapBoard(tk.Frame):
         self.resetMap(force=alter)
 
     def onClickMotion(self, event):
-        if self.isSavingImage():
+        if self.isSaveImgMode():
             return
 
         if self.__left_click_pos:
@@ -931,7 +977,7 @@ class MapBoard(tk.Frame):
         return GeoPoint(px=px, py=py, level=self.__map_ctrl.level)
 
     def onMotion(self, event):
-        if self.isSavingImage():
+        if self.isSaveImgMode():
             return
         geo = self.getGeoPointAt(event.x, event.y)
 
@@ -996,7 +1042,7 @@ class MapBoard(tk.Frame):
                 self.setMapInfo()
                 self.resetMap()
             # raise AS, if any
-            if self.isSavingImage():
+            if self.isSaveImgMode():
                 self.disp_canvas.tag_raise('AS')
 
     def __runMapUpdater(self):
