@@ -3,6 +3,60 @@
 import math
 from math import tan, sin, cos, radians, degrees, floor
 
+EARTH_RADIUS = 6378137
+MIN_LATITUDE = -85.05112878
+MAX_LATITUDE = 85.05112878
+MIN_LONGITUDE = -180
+MAX_LONGITUDE = 180
+
+
+def crop(val, min_val, max_val):
+    """force a value btw min_val and max_val"""
+    return min(max(val, min_val), max_val)
+
+
+class Position:
+    def __init__(self, coord=None, pixel=None, level=None):
+        if coord:
+            self.latitude = coord[0]
+            self.longitude = coord[1]
+            self.valid_latitude = crop(self.latitude, MIN_LATITUDE, MAX_LATITUDE)
+            self.valid_longitude = crop(self.longitude, MIN_LATITUDE, MAX_LATITUDE)
+            if level:
+                self.ground_resolution = math.cos(self.latitude * math.pi / 180) * 2 * math.pi * EARTH_RADIUS / self.map_size
+        if level:
+            self.map_size = 256 << level
+        if pixel:
+            self.pixel_x = pixel[0]
+            self.pixel_y = pixel[1]
+
+    def map_scale(self, screen_dpi):
+        return self.ground_resolution * screen_dpi / 0.0254
+
+    def __getattribute__(self, item):
+        if item == 'pixel':
+            if not self.pixel_x:
+                x = (self.valid_longitude + 180) / 360
+                sin_latitude = math.sin(self.valid_latitude * math.pi / 180)
+                y = 0.5 - math.log((1 + sin_latitude) / (1 - sin_latitude)) / (4 * math.pi)
+                pixel_x = int(crop(x * self.map_size + 0.5, 0, self.map_size - 1))
+                pixel_y = int(crop(y * self.map_size + 0.5, 0, self.map_size - 1))
+                self.pixel_x = pixel_x
+                self.pixel_y = pixel_y
+            return self.pixel_x, self.pixel_y
+        elif item == 'coord':
+            if not self.latitude:
+                if not getattr(self, 'level', None):
+                    raise AttributeError('Lack of level attribute')
+                x = crop(self.pixel_x, 0, self.map_size - 1) / self.map_size - 0.5
+                y = 0.5 - crop(self.pixel_y, 0, self.map_size - 1) / self.map_size
+                self.latitude = 90 - 360 * math.atan(math.exp(-y * 2 * math.pi)) / math.pi
+                self.longitude = x * 360
+        return self.latitude, self.longitude
+
+
+
+
 class TileSystem:
     EARTH_RADIUS = 6378137
     MIN_LATITUDE = -85.05112878
