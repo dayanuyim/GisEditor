@@ -27,7 +27,7 @@ import src.conf as conf
 import src.sym as sym
 import src.coord as coord
 from src.ui import Dialog, MapSelectDialog, MapSelectFrame
-from src.gpx import GpsDocument, WayPoint
+from src.gpx import GpsDocument, WayPoint, Track, TrackPoint
 from src.pic import PicDocument
 from src.util import GeoPoint, getPrefCornerPos, DrawGuard, imageIsTransparent
 from src.util import AreaSelector, AreaSizeTooLarge, GeoInfo  #should move to ui.py
@@ -252,6 +252,7 @@ class MapBoard(tk.Frame):
         self.__pref_dir = None
         self.__pref_geo = None
         self.__some_geo = GeoPoint(lon=121.334754, lat=24.987969)
+        self.__drawing_trk = None
         self.__left_click_pos = None
         self.__right_click_pos = None
         self.__mouse_wheel_ts = datetime.min
@@ -330,10 +331,10 @@ class MapBoard(tk.Frame):
         split_trk_menu.add_command(label='By time gap', command=lambda:self.onSplitTrk(self.trkTimeGap))
         split_trk_menu.add_command(label='By distance', command=lambda:self.onSplitTrk(self.trkDistGap))
         self.__rclick_menu.add_cascade(label='Split tracks...', menu=split_trk_menu)
+        self.__rclick_menu.add_command(label='Draw tracks...', underline=0, command=self.onTrackDraw)
         self.__rclick_menu.add_separator()
         self.__rclick_menu.add_command(label='Save to image...', underline=0, command=self.onImageSave)
         self.__rclick_menu.add_command(label='Save to gpx...', underline=0, command=self.onGpxSave)
-        self.__rclick_menu.add_command(label='Draw Track...', underline=0, command=self.onTrackDraw)
 
         #wpt menu
         self.__wpt_rclick_menu = tk.Menu(self.disp_canvas, tearoff=0)
@@ -435,8 +436,8 @@ class MapBoard(tk.Frame):
             self.master['cursor'] = 'hand2'
         elif mode == self.MODE_DRAW_TRK:
             logging.critical("set to 'draw trk' mode")
-            #self.master['cursor'] = 'pencil'
-            self.master['cursor'] = 'dotbox'
+            self.master['cursor'] = 'pencil'
+            #self.master['cursor'] = 'dotbox'
         else:
             logging.critical("set to unknown mode '" + mdoe + "'")
 
@@ -663,24 +664,70 @@ class MapBoard(tk.Frame):
         geo = self.getGeoPointAt(e.x, e.y)
         self.setMapInfo(geo)
 
-        if self.isSaveImgMode():
+        if self.__mode == self.MODE_SAVE_IMG:
             return
-
-        #wpt context, if any
-        wpt = self.__map_ctrl.getWptAround(geo)
-        if wpt:
+        elif self.__mode == self.MODE_DRAW_TRK:
             if flag == 'left':
-                self.onEditWpt(mode='single', wpt=wpt)
+                self.__drawing_trk = self.__map_ctrl.genTrk()
+                self.__drawing_trk.add(TrackPoint(geo.lat, geo.lon))
+                #todo: draw by canvas tool, not redraw map
+                self.resetMap(force='trk')
             elif flag == 'right':
-                self.__wpt_rclick_menu.post(e.x_root, e.y_root)  #right menu for wpt
-        #general right menu
-        elif flag == 'right':
-            self.__rclick_menu.post(e.x_root, e.y_root)  #right menu
-        #unpost, if any
+                #todo: eraser
+                pass
         else:
-            self.__right_click_pos = None
-            self.__rclick_menu.unpost()
-            self.__wpt_rclick_menu.unpost()
+            #wpt context, if any
+            wpt = self.__map_ctrl.getWptAround(geo)
+            if wpt:
+                if flag == 'left':
+                    self.onEditWpt(mode='single', wpt=wpt)
+                elif flag == 'right':
+                    self.__wpt_rclick_menu.post(e.x_root, e.y_root)  #right menu for wpt
+            #general right menu
+            elif flag == 'right':
+                self.__rclick_menu.post(e.x_root, e.y_root)  #right menu
+            #unpost, if any
+            else:
+                self.__right_click_pos = None
+                self.__rclick_menu.unpost()
+                self.__wpt_rclick_menu.unpost()
+
+    def onClickMotion(self, e):
+        #saving image
+        if self.__mode == self.MODE_SAVE_IMG:
+            return
+        #drawing track
+        elif self.__mode == self.MODE_DRAW_TRK:
+            if not self.__drawing_trk:
+                return
+            geo = self.getGeoPointAt(e.x, e.y)
+            self.__drawing_trk.add(TrackPoint(geo.lat, geo.lon))
+            #todo: draw by canvas tool, not redraw map
+            self.resetMap(force='trk')
+        #normal
+        else:
+            if not self.__left_click_pos:
+                return
+            (last_x, last_y) = self.__left_click_pos
+            self.__map_ctrl.shiftGeoPixel(last_x - e.x, last_y - e.y)
+            self.setMapInfo()
+            self.resetMap()
+
+            self.__left_click_pos = (e.x, e.y)
+
+    def onClickUp(self, event, flag):
+        #saving image
+        if self.__mode == self.MODE_SAVE_IMG:
+            return
+        #drawing track
+        elif self.__mode == self.MODE_DRAW_TRK:
+            if flag == 'left':
+                #todo: remove all drawing line, and redraw map
+                self.__drawing_trk = None
+        #normal
+        else:
+            if flag == 'left':
+                self.__left_click_pos = None
 
     #to handle preferred dir : no exist, success, or exception
     def withPreferredDir(self, action_cb):
@@ -956,21 +1003,6 @@ class MapBoard(tk.Frame):
         self.__alter_time = datetime.now()
         self.resetMap(force=alter)
 
-    def onClickMotion(self, event):
-        if self.isSaveImgMode():
-            return
-
-        if self.__left_click_pos:
-            label = event.widget
-
-            #print("change from ", self.__left_click_pos, " to " , (event.x, event.y))
-            (last_x, last_y) = self.__left_click_pos
-            self.__map_ctrl.shiftGeoPixel(last_x - event.x, last_y - event.y)
-            self.setMapInfo()
-            self.resetMap()
-
-            self.__left_click_pos = (event.x, event.y)
-
     def getGeoPointAt(self, px, py):
         px += self.__map_ctrl.px
         py += self.__map_ctrl.py
@@ -1025,10 +1057,6 @@ class MapBoard(tk.Frame):
         self.__map_ctrl.deleteWpt(wpt)
         self.setAlter('wpt')
         return True
-
-    def onClickUp(self, event, flag):
-        if flag == 'left':
-            self.__left_click_pos = None
 
     def onResize(self, e):
         disp = self.disp_canvas
@@ -1407,6 +1435,11 @@ class MapController:
 
     def addGpxLayer(self, gpx):
         self.__gpx_layers.append(gpx)
+
+    def genTrk(self):
+        trk = Track()
+        self.__pseudo_gpx.addTrk(trk)
+        return trk
 
     def addWpt(self, wpt):
         self.__pseudo_gpx.addWpt(wpt)

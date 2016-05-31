@@ -138,7 +138,8 @@ class GpsDocument:
                 for elem in elems:
                     self.loadTrkSeg(elem, trk)
 
-            self.__trks.append(trk)
+            self.addTrk(trk)
+            
 
     def loadTrkSeg(self, trkseg_elem, trk):
         trkpt_elems = trkseg_elem.findall("./gpx:trkpt", self.ns)
@@ -154,15 +155,16 @@ class GpsDocument:
             elem = trkpt_elem.find("./gpx:time", self.ns)
             pt.time = None if elem is None else datetime.strptime(elem.text, "%Y-%m-%dT%H:%M:%SZ")
 
-            self.addTrkPt(trk, pt)
+            trk.add(pt)
 
     def addWpt(self, wpt):
         self.__wpts.append(wpt)
         self.__updateBounds(wpt) #maintain bounds (gpx file may not have metadata)
 
-    def addTrkPt(self, trk, pt):
-        trk.add(pt)
-        self.__updateBounds(pt) #maintain bounds (gpx file may not have metadata)
+    def addTrk(self, trk):
+        self.__trks.append(trk)
+        for pt in trk:
+            self.__updateBounds(pt) #maintain bounds (gpx file may not have metadata)
 
     def __updateBounds(self, pt):
         if self.__maxlat is None or pt.lat >= self.__maxlat:
