@@ -350,7 +350,7 @@ class MapBoard(tk.Frame):
         self.__info_mapname = tk.Label(frame, font=bfont, anchor='nw', bg='lightgray')
         self.__info_mapname.pack(side='left', expand=0, anchor='nw')
 
-        self.__map_btn = tk.Button(frame, text="▼", relief='groove', border=2, command=self.OnMapSelected)
+        self.__map_btn = tk.Button(frame, text="▼", relief='groove', border=2, command=self.__triggerMapSelector)
         self.__map_btn.pack(side='left', expand=0, anchor='nw')
 
         #level
@@ -456,11 +456,6 @@ class MapBoard(tk.Frame):
         self.__hideMapSelector() #hide map selector, if any
         self.__changeMode(self.MODE_NORMAL)
 
-    def isSaveImgMode(self):
-        #return self.__canvas_sel_area is not None
-        return self.__mode == self.MODE_SAVE_IMG
-
-
     #{{{ operations
     #release sources to exit
     def exit(self):
@@ -518,13 +513,6 @@ class MapBoard(tk.Frame):
 
             self.setMapInfo()          #re-show map info
             self.__writeUserMapsConf() #save config
-
-    def OnMapSelected(self):
-        #todo: remove this limit
-        if self.isSaveImgMode():
-            return
-
-        self.__triggerMapSelector()
 
     def onSetLevel(self, *args):
         if self.__mode == self.MODE_SAVE_IMG:
