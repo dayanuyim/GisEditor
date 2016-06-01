@@ -18,7 +18,21 @@ def crop(val, min_val, max_val):
 class Position:
     """A position as coordinate, pixel, tile_position
     """
-    def __init__(self, coord=None, coord_in_degree=None, pixel=None, level=None, tile=None):
+
+    # parameters for TWD 97 <-> Latitude, Longitude
+    a = 6378137.0
+    b = 6356752.3142451
+    lon0 = radians(121)
+    k0 = 0.9999
+    dx = 250000
+    dy = 0
+    e = 0.006694379990166088 #e = 1 - b**2 / a**2
+    e2 = 4.072415612689127e-30 #e2 = e / b**2 / a**2
+
+    __slots__ = ('latitude', 'longitude', 'valid_latitude', 'valid_longitude', 'ground_resolution', 'map_size',
+                 'pixel_x', 'pixel_y', 'tile_x', 'tile_y', 'twd97_x', 'twd97_y', 'twd67_x', 'twd67_y')
+
+    def __init__(self, coord=None, coord_in_degree=None, pixel=None, level=None, tile=None, twd97=None, twd67=None):
         """
         :param coord (float, float):
             latitude, longitude in decimal ex: (120, 23)
@@ -45,8 +59,12 @@ class Position:
         self.map_size = 256 << level if level else None
         self.pixel_x = pixel[0] if pixel else None
         self.pixel_y = pixel[1] if pixel else None
-        self.tile_x = None
-        self.tile_y = None
+        self.tile_x = tile[0] if tile else None
+        self.tile_y = tile[1] if tile else None
+        self.twd97_x = twd97[0] if twd97 else None
+        self.twd97_y = twd97[1] if twd97 else None
+        self.twd67_x = twd67[0] if twd67 else None
+        self.twd67_y = twd67[1] if twd67 else None
 
     def map_scale(self, screen_dpi):
         return self.ground_resolution * screen_dpi / 0.0254
@@ -79,15 +97,15 @@ class Position:
                     self.gen_pixel_from_coord()
                 if self.tile_x:
                     self.gen_pixel_from_tile()
-            return self.pixel_x, self.pixel_y if self.pixel_x else None
+            return self.pixel_x, self.pixel_y
         elif item == 'coord':
             if not self.latitude:
                 self.gen_latitude_longitude()
-            return self.latitude, self.longitude if self.latitude else None
+            return self.latitude, self.longitude
         elif item == 'tile':
             if not self.tile_x:
                 self.gen_tile()
-            return self.tile_x, self.tile_y if self.tile_x else None
+            return self.tile_x, self.tile_y
         elif item == 'coord_in_degree':
             if not self.latitude:
                 self.gen_latitude_longitude()
@@ -99,7 +117,26 @@ class Position:
             lon_m = int((self.longitude - lon_d) * 60)
             lon_s = ((self.longitude - lon_d) * 60 - lon_m) * 60
             return (lat_d, lat_m, lat_s), (lon_d, lon_m, lon_s)
+        elif item == 'twd97':
+            if not self.longitude:
+                self.gen_latitude_longitude()
+            V = Position.a / (1 - Position.e * sin(self.latitude)**2)**0.5
+            T = tan(self.latitude)**2
+            C = Position.e2 * cos(self.latitude)** 2
+            A = cos(self.latitude) * (self.longitude - Position.lon0)
+            e_2 = Position.e**2
+            e_3 = Position.e**3
+            M = Position.a *((1.0 - Position.e / 4.0 - 3.0 * e_2 / 64.0 - 5.0 * e_3 / 256.0) *
+                             self.latitude - (3.0 * Position.e / 8.0 + 3.0 * e_2 / 32.0 + 45.0 * e_3 /
+                                              1024.0) * sin(2.0 * self.latitude) +
+                             (15.0 * e_2 / 256.0 + 45.0 * e_3 / 1024.0) * sin(4.0 * self.latitude) -
+                             (35.0 * e_3 / 3072.0) * sin(6.0 * self.latitude))
 
+            x = Position.dx + Position.k0 * V * (A + (1 - T + C) * A**3 / 6 + (5 - 18 * T + T**2 + 72 * C - 58 *
+                                                                               Position.e2) * A**5 / 120)
+            y = Position.dy + Position.k0 * (M + V * tan(Position.latitude) * (A**2 / 2 + (5 - T + 9 * C + 4 * C**2) *
+                                           A**4 / 24 + (61 - 58 * T + T**2 + 600 * C - 330 * Position.e2) * A**6 / 720))
+            return x, y
 
 
 class TileSystem:
