@@ -124,7 +124,7 @@ class GpsDocument:
             return
 
         for trk_elem in trk_elems:
-            trk = Track()
+            trk_idx = self.genTrk()
 
             elem = trk_elem.find("./gpx:name", self.ns)
             trk.name = elem.text if elem is not None else "(No Title)"
@@ -136,12 +136,9 @@ class GpsDocument:
             elems = trk_elem.findall("./gpx:trkseg", self.ns)
             if elems is not None:
                 for elem in elems:
-                    self.loadTrkSeg(elem, trk)
+                    self.loadTrkSeg(elem, trk_idx)
 
-            self.addTrk(trk)
-            
-
-    def loadTrkSeg(self, trkseg_elem, trk):
+    def loadTrkSeg(self, trkseg_elem, trk_idx):
         trkpt_elems = trkseg_elem.findall("./gpx:trkpt", self.ns)
         if trkpt_elems is None:
             return
@@ -155,16 +152,21 @@ class GpsDocument:
             elem = trkpt_elem.find("./gpx:time", self.ns)
             pt.time = None if elem is None else datetime.strptime(elem.text, "%Y-%m-%dT%H:%M:%SZ")
 
-            trk.add(pt)
+            self.addTrkpt(trk_idx, pt)
+
+    #should not allow users to create Track() by themself, because we want to force users to user addTrkpt()
+    def genTrk(self):
+        trk = Track()
+        self.__trks.append(trk)
+        return self.__trks.index(trk)
+        
+    def addTrkpt(self, trk_idx, pt):
+        self.__trks[trk_idx].add(pt)
+        self.__updateBounds(pt) #maintain bounds (gpx file may not have metadata)
 
     def addWpt(self, wpt):
         self.__wpts.append(wpt)
         self.__updateBounds(wpt) #maintain bounds (gpx file may not have metadata)
-
-    def addTrk(self, trk):
-        self.__trks.append(trk)
-        for pt in trk:
-            self.__updateBounds(pt) #maintain bounds (gpx file may not have metadata)
 
     def __updateBounds(self, pt):
         if self.__maxlat is None or pt.lat >= self.__maxlat:

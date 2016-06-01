@@ -252,7 +252,7 @@ class MapBoard(tk.Frame):
         self.__pref_dir = None
         self.__pref_geo = None
         self.__some_geo = GeoPoint(lon=121.334754, lat=24.987969)
-        self.__drawing_trk = None
+        self.__drawing_trk_idx = None
         self.__left_click_pos = None
         self.__right_click_pos = None
         self.__mouse_wheel_ts = datetime.min
@@ -668,8 +668,8 @@ class MapBoard(tk.Frame):
             return
         elif self.__mode == self.MODE_DRAW_TRK:
             if flag == 'left':
-                self.__drawing_trk = self.__map_ctrl.genTrk()
-                self.__drawing_trk.add(TrackPoint(geo.lat, geo.lon))
+                self.__drawing_trk_idx = self.__map_ctrl.genTrk()
+                self.__map_ctrl.addTrkpt(self.__drawing_trk_idx, TrackPoint(geo.lat, geo.lon))
                 #todo: draw by canvas tool, not redraw map
                 self.resetMap(force='trk')
             elif flag == 'right':
@@ -698,10 +698,10 @@ class MapBoard(tk.Frame):
             return
         #drawing track
         elif self.__mode == self.MODE_DRAW_TRK:
-            if not self.__drawing_trk:
+            if not self.__drawing_trk_idx:
                 return
             geo = self.getGeoPointAt(e.x, e.y)
-            self.__drawing_trk.add(TrackPoint(geo.lat, geo.lon))
+            self.__map_ctrl.addTrkpt(self.__drawing_trk_idx, TrackPoint(geo.lat, geo.lon))
             #todo: draw by canvas tool, not redraw map
             self.resetMap(force='trk')
         #normal
@@ -723,7 +723,7 @@ class MapBoard(tk.Frame):
         elif self.__mode == self.MODE_DRAW_TRK:
             if flag == 'left':
                 #todo: remove all drawing line, and redraw map
-                self.__drawing_trk = None
+                self.__drawing_trk_idx = None
         #normal
         else:
             if flag == 'left':
@@ -1437,9 +1437,10 @@ class MapController:
         self.__gpx_layers.append(gpx)
 
     def genTrk(self):
-        trk = Track()
-        self.__pseudo_gpx.addTrk(trk)
-        return trk
+        return self.__pseudo_gpx.genTrk()
+
+    def addTrkpt(self, trk_idx, pt):
+        self.__pseudo_gpx.addTrkpt(trk_idx, pt)
 
     def addWpt(self, wpt):
         self.__pseudo_gpx.addWpt(wpt)
