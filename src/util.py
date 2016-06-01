@@ -400,11 +400,15 @@ class AreaSelector:
         return self.__state
 
     def exit(self):
+        if self.__done.get():
+            return
         #rec the last pos
         self.__last_pos = self.__getpos()
         #delete item
         self.__canvas.delete('AS')  #delete objects of 'AreaSelector'
+        self.__canvas['cursor'] = ''
         self.__done.set(True)
+
     #}} interface
 
 

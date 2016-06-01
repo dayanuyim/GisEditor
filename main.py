@@ -240,7 +240,6 @@ class MapBoard(tk.Frame):
         self.__is_closed = False
         self.__bg_color=self['bg']
         self.__focused_wpt = None
-        self.__focused_geo = None
         self.__map = None         #buffer disp image for restore map
         self.__map_attr = None
         self.__map_req_time = datetime.min
@@ -274,9 +273,9 @@ class MapBoard(tk.Frame):
         status_frame.pack(side='bottom', expand=0, fill='x', anchor='nw')
 
         #global events
-        self.master.bind("<Escape>", lambda e: self.__setNormalMode())
-        self.master.bind(str(self.MODE_SAVE_IMG), lambda e: self.onImageSave())
-        self.master.bind(str(self.MODE_DRAW_TRK), lambda e: self.onTrackDraw())
+        self.master.bind("<Escape>", lambda e: self.__resetMode())
+        self.master.bind(str(self.MODE_SAVE_IMG), lambda e: self.__changeMode(self.MODE_SAVE_IMG))
+        self.master.bind(str(self.MODE_DRAW_TRK), lambda e: self.__changeMode(self.MODE_DRAW_TRK))
 
         #display area
         self.__init_w= 800  #deprecated
@@ -331,9 +330,9 @@ class MapBoard(tk.Frame):
         split_trk_menu.add_command(label='By time gap', command=lambda:self.onSplitTrk(self.trkTimeGap))
         split_trk_menu.add_command(label='By distance', command=lambda:self.onSplitTrk(self.trkDistGap))
         self.__rclick_menu.add_cascade(label='Split tracks...', menu=split_trk_menu)
-        self.__rclick_menu.add_command(label='Draw tracks...', underline=0, command=self.onTrackDraw)
+        self.__rclick_menu.add_command(label='Draw tracks...', underline=0, command=lambda:self.__changeMode(self.MODE_DRAW_TRK))
         self.__rclick_menu.add_separator()
-        self.__rclick_menu.add_command(label='Save to image...', underline=0, command=self.onImageSave)
+        self.__rclick_menu.add_command(label='Save to image...', underline=0, command=lambda:self.__changeMode(self.MODE_SAVE_IMG))
         self.__rclick_menu.add_command(label='Save to gpx...', underline=0, command=self.onGpxSave)
 
         #wpt menu
@@ -415,31 +414,47 @@ class MapBoard(tk.Frame):
 
         return frame
 
-    # mode =================================================
-    def __setNormalMode(self):
-        self.__hideMapSelector() #hide map selector, if any
+    # mode framework  =================================================
+    def __leaveMode(self, mode):
+        if mode == self.MODE_NORMAL:
+            pass
 
-        if self.isSaveImgMode():
+        elif mode == self.MODE_SAVE_IMG:
             self.__canvas_sel_area.exit()
             self.__canvas_sel_area = None
+            logging.critical('set cursor to arrow')
 
-        self.__setMode(0)
+        elif mode == self.MODE_DRAW_TRK:
+            self.resetMap(force='trk')
+            self.__drawing_trk_idx = None
+            self.master['cursor'] = ''
 
-    def __setMode(self, mode):
+    def __enterMode(self, mode):
         self.__mode = mode;
 
         if mode == self.MODE_NORMAL:
-            logging.critical("set to 'normal' mode")
-            self.master['cursor'] = 'arrow'
+            pass
+
         elif mode == self.MODE_SAVE_IMG:
-            logging.critical("set to 'save img' mode")
-            self.master['cursor'] = 'hand2'
+            if self.__enterSaveImgMode():
+                logging.critical("auto change back to NORMAL mode")
+                self.__changeMode(self.MODE_NORMAL)
+
         elif mode == self.MODE_DRAW_TRK:
-            logging.critical("set to 'draw trk' mode")
             self.master['cursor'] = 'pencil'
-            #self.master['cursor'] = 'dotbox'
+
         else:
             logging.critical("set to unknown mode '" + mdoe + "'")
+
+    def __changeMode(self, mode):
+        if self.__mode != mode:
+            logging.critical("change from mode %d to mode %d" % (self.__mode, mode))
+            self.__leaveMode(self.__mode)
+            self.__enterMode(mode)
+
+    def __resetMode(self):
+        self.__hideMapSelector() #hide map selector, if any
+        self.__changeMode(self.MODE_NORMAL)
 
     def isSaveImgMode(self):
         #return self.__canvas_sel_area is not None
@@ -450,8 +465,7 @@ class MapBoard(tk.Frame):
     #release sources to exit
     def exit(self):
         self.__is_closed = True
-        if self.isSaveImgMode():
-            self.__canvas_sel_area.exit()
+        self.__leaveMode(self.__mode)
         self.__map_ctrl.close()
 
     #}}} operations
@@ -506,13 +520,14 @@ class MapBoard(tk.Frame):
             self.__writeUserMapsConf() #save config
 
     def OnMapSelected(self):
+        #todo: remove this limit
         if self.isSaveImgMode():
             return
 
         self.__triggerMapSelector()
 
     def onSetLevel(self, *args):
-        if self.isSaveImgMode():
+        if self.__mode == self.MODE_SAVE_IMG:
             return
 
         try:
@@ -628,8 +643,9 @@ class MapBoard(tk.Frame):
 
         return None
         
+    #todo: check the deff between the method and onSetLevel()
     def onMouseWheel(self, event, delta):
-        if self.isSaveImgMode():
+        if self.__mode == self.MODE_SAVE_IMG:
             return
 
         if datetime.now() < (self.__mouse_wheel_ts + timedelta(milliseconds=500)):
@@ -909,18 +925,16 @@ class MapBoard(tk.Frame):
             self.__setStatus(txt, prog, is_immediate)
 
     def onTrackDraw(self):
-        self.__setMode(self.MODE_DRAW_TRK)
+        self.__enterMode(self.MODE_DRAW_TRK)
 
-    def onImageSave(self):
-        if self.isSaveImgMode():
-            return
-
-        self.__setMode(self.MODE_SAVE_IMG)
+    #return True: expected return
+    #return False: interrupted by other mode
+    def __enterSaveImgMode(self):
 
         enabled_maps = [desc for desc in self.__map_descs if desc.enabled]
         if not enabled_maps:
             messagebox.showwarning("Save Image Error", "No maps to save")
-            return
+            return True
 
         #get preferred coord system
         coord_sys = [desc.coord_sys for desc in self.__map_descs if desc.enabled and desc.coord_sys in ("TWD67", "TWD97")]
@@ -933,8 +947,13 @@ class MapBoard(tk.Frame):
             #select area
             geo_info = GeoInfo(self.__map_ctrl.geo, self.__map_ctrl.level, coord_sys)
             self.__canvas_sel_area = AreaSelector(self.disp_canvas, geo_info)
-            if self.__canvas_sel_area.wait(self) != 'OK':
-                return
+
+            #wait the returned state
+            state = self.__canvas_sel_area.wait(self)
+            if not state:
+                return False
+            if state != 'OK':
+                return True
 
             #get fpath
             def to_ask(init_dir):
@@ -944,7 +963,7 @@ class MapBoard(tk.Frame):
                     initialdir=init_dir)
             fpath = self.withPreferredDir(to_ask)
             if not fpath:
-                return False
+                return True
 
             #output
             out_level = conf.SELECT_AREA_LEVEL
@@ -977,9 +996,9 @@ class MapBoard(tk.Frame):
 
         except AreaSizeTooLarge as ex:
             messagebox.showwarning(str(ex), 'Please zoom out or resize the window to enlarge the map')
-        finally:
-            self.__canvas_sel_area = None
-            self.__setMode(self.MODE_NORMAL)
+        except Exception as ex:
+            messagebox.showwarning("Save Image Error", str(ex))
+        return True
 
     def onGpxSave(self):
         def to_ask(init_dir):
@@ -1015,19 +1034,17 @@ class MapBoard(tk.Frame):
         return GeoPoint(px=px, py=py, level=self.__map_ctrl.level)
 
     def onMotion(self, event):
-        if self.isSaveImgMode():
-            return
-        geo = self.getGeoPointAt(event.x, event.y)
+        if self.__mode == self.MODE_NORMAL:
+            geo = self.getGeoPointAt(event.x, event.y)
 
-        #draw point
-        curr_wpt = self.__map_ctrl.getWptAround(geo)
-        prev_wpt = self.__focused_wpt
-        if curr_wpt != prev_wpt:
-            self.highlightWpt(curr_wpt, prev_wpt)
+            #draw point
+            curr_wpt = self.__map_ctrl.getWptAround(geo)
+            prev_wpt = self.__focused_wpt
+            if curr_wpt != prev_wpt:
+                self.highlightWpt(curr_wpt, prev_wpt)
 
-        #rec
-        self.__focused_geo = geo
-        self.__focused_wpt = curr_wpt
+            #rec
+            self.__focused_wpt = curr_wpt
 
     def highlightWpt(self, wpt, un_wpt=None):
         if wpt == un_wpt:
@@ -1076,8 +1093,8 @@ class MapBoard(tk.Frame):
                 self.setMapInfo()
                 self.resetMap()
             # raise AS, if any
-            if self.isSaveImgMode():
-                self.disp_canvas.tag_raise('AS')
+            #if self.isSaveImgMode():
+            #    self.disp_canvas.tag_raise('AS')
 
     def __runMapUpdater(self):
         progress_rate = 0
@@ -1161,6 +1178,9 @@ class MapBoard(tk.Frame):
         pimg = ImageTk.PhotoImage(img)
         self.disp_canvas.image = pimg #keep a ref
         
+        canvas_map = self.disp_canvas.create_image((0,0), image=pimg, anchor='nw')
+        self.disp_canvas.tag_lower(canvas_map)    #ensure the map is the lowest to avoid hiding other canvas objects
+        '''
         #it seems the view is more smoothly if DISABLED...update...NORMAL
         #any better idea?
         self.disp_canvas['state'] = 'disabled'
@@ -1170,6 +1190,7 @@ class MapBoard(tk.Frame):
             self.disp_canvas.tag_lower(tmp)
             self.disp_canvas.delete(tmp)
         self.disp_canvas['state'] = 'normal'
+        '''
 
 class MapAgent:
     #properties from map_desc
