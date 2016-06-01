@@ -16,11 +16,30 @@ def crop(val, min_val, max_val):
 
 
 class Position:
-    def __init__(self, coord=None, pixel=None, level=None):
+    """A position as coordinate, pixel, tile_position
+    """
+    def __init__(self, coord=None, coord_in_degree=None, pixel=None, level=None, tile=None):
+        """
+        :param coord (float, float):
+            latitude, longitude in decimal ex: (120, 23)
+        :param coord_in_degree ((int, int, float), (int,int, float)):
+            latitude, longitude in degree ex: ((120, 58, 25.975),(23, 58, 32.34))
+        :param pixel (int, int):
+            position in pixel not tile
+        :param tile (int, int):
+            position in pixel already tile
+        :param level int:
+            a zoom in lavel
+        """
         self.latitude = coord[0] if coord else None
         self.longitude = coord[1] if coord else None
-        self.valid_latitude = crop(self.latitude, MIN_LATITUDE, MAX_LATITUDE) if coord else None
-        self.valid_longitude = crop(self.longitude, MIN_LATITUDE, MAX_LATITUDE) if coord else None
+        if coord_in_degree:
+            lat_d, lat_m, lat_s = coord_in_degree[0]
+            lon_d, lon_m, lon_s = coord_in_degree[1]
+            self.latitude = lat_d + lat_m/60 + lat_s/3600
+            self.longitude = lon_d + lon_m/60 + lon_s/3600
+        self.valid_latitude = crop(self.latitude, MIN_LATITUDE, MAX_LATITUDE) if self.latitude else None
+        self.valid_longitude = crop(self.longitude, MIN_LATITUDE, MAX_LATITUDE) if self.longitude else None
         self.ground_resolution = math.cos(self.latitude * math.pi / 180) * 2 * math.pi * EARTH_RADIUS / self.map_size \
             if coord and level else None
         self.map_size = 256 << level if level else None
@@ -32,30 +51,55 @@ class Position:
     def map_scale(self, screen_dpi):
         return self.ground_resolution * screen_dpi / 0.0254
 
+    def gen_latitude_longitude(self):
+        if not getattr(self, 'level', None):
+            raise AttributeError('Lack of level attribute')
+        x = crop(self.pixel_x, 0, self.map_size - 1) / self.map_size - 0.5
+        y = 0.5 - crop(self.pixel_y, 0, self.map_size - 1) / self.map_size
+        self.latitude = 90 - 360 * math.atan(math.exp(-y * 2 * math.pi)) / math.pi
+        self.longitude = x * 360
+
+    def gen_pixel_from_tile(self):
+        self.pixel_x, self.pixel_y = tuple(map(lambda v: int(v) << 8, self.tile))
+
+    def gen_pixel_from_coord(self):
+        x = (self.valid_longitude + 180) / 360
+        sin_latitude = math.sin(self.valid_latitude * math.pi / 180)
+        y = 0.5 - math.log((1 + sin_latitude) / (1 - sin_latitude)) / (4 * math.pi)
+        self.pixel_x = int(crop(x * self.map_size + 0.5, 0, self.map_size - 1))
+        self.pixel_y = int(crop(y * self.map_size + 0.5, 0, self.map_size - 1))
+
+    def gen_tile(self):
+        self.tile_x, self.tile_y = tuple(map(lambda v: int(v) >> 8 if v else None, self.pixel))
+
     def __getattribute__(self, item):
         if item == 'pixel':
-            if not self.pixel_x and self.valid_longitudev:
-                x = (self.valid_longitude + 180) / 360
-                sin_latitude = math.sin(self.valid_latitude * math.pi / 180)
-                y = 0.5 - math.log((1 + sin_latitude) / (1 - sin_latitude)) / (4 * math.pi)
-                self.pixel_x = int(crop(x * self.map_size + 0.5, 0, self.map_size - 1))
-                self.pixel_y = int(crop(y * self.map_size + 0.5, 0, self.map_size - 1))
-            if not self.pixel_x and self.tile_x:
-                self.pixel_x, self.pixel_y = tuple(map(lambda v: int(v) << 8, self.tile))
-            return self.pixel_x, self.pixel_y
+            if not self.pixel_x:
+                if self.valid_longitude:
+                    self.gen_pixel_from_coord()
+                if self.tile_x:
+                    self.gen_pixel_from_tile()
+            return self.pixel_x, self.pixel_y if self.pixel_x else None
         elif item == 'coord':
             if not self.latitude:
-                if not getattr(self, 'level', None):
-                    raise AttributeError('Lack of level attribute')
-                x = crop(self.pixel_x, 0, self.map_size - 1) / self.map_size - 0.5
-                y = 0.5 - crop(self.pixel_y, 0, self.map_size - 1) / self.map_size
-                self.latitude = 90 - 360 * math.atan(math.exp(-y * 2 * math.pi)) / math.pi
-                self.longitude = x * 360
-            return self.latitude, self.longitude
+                self.gen_latitude_longitude()
+            return self.latitude, self.longitude if self.latitude else None
         elif item == 'tile':
             if not self.tile_x:
-                self.tile_x, self.tile_y = tuple(map(lambda v: int(v) >> 8, self.pixel))
-            return self.tile_x, self.tile_y
+                self.gen_tile()
+            return self.tile_x, self.tile_y if self.tile_x else None
+        elif item == 'coord_in_degree':
+            if not self.latitude:
+                self.gen_latitude_longitude()
+            lat_d = int(self.latitude)
+            lat_m = int((self.latitude - lat_d) * 60)
+            lat_s = ((self.latitude - lat_d) * 60 - lat_m) * 60
+
+            lon_d = int(self.longitude)
+            lon_m = int((self.longitude - lon_d) * 60)
+            lon_s = ((self.longitude - lon_d) * 60 - lon_m) * 60
+            return (lat_d, lat_m, lat_s), (lon_d, lon_m, lon_s)
+
 
 
 class TileSystem:
