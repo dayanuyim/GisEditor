@@ -430,7 +430,7 @@ class MapBoard(tk.Frame):
 
         if mode == self.MODE_NORMAL:
             logging.critical("set to 'normal' mode")
-            self.master['cursor'] = ''
+            self.master['cursor'] = 'arrow'
         elif mode == self.MODE_SAVE_IMG:
             logging.critical("set to 'save img' mode")
             self.master['cursor'] = 'hand2'
@@ -668,10 +668,13 @@ class MapBoard(tk.Frame):
             return
         elif self.__mode == self.MODE_DRAW_TRK:
             if flag == 'left':
+                #create trk and add pt
                 self.__drawing_trk_idx = self.__map_ctrl.genTrk()
                 self.__map_ctrl.addTrkpt(self.__drawing_trk_idx, TrackPoint(geo.lat, geo.lon))
-                #todo: draw by canvas tool, not redraw map
-                self.resetMap(force='trk')
+                #show
+                n = int(conf.TRK_WIDTH/2)
+                coords = (e.x-n, e.y-n, e.x +n, e.y + n)
+                self.disp_canvas.create_oval(coords, width=0, fill='darkmagenta', tag='DRAW_TRK')
             elif flag == 'right':
                 #todo: eraser
                 pass
@@ -693,17 +696,19 @@ class MapBoard(tk.Frame):
                 self.__wpt_rclick_menu.unpost()
 
     def onClickMotion(self, e):
+        curr_pos = (e.x, e.y)
+
         #saving image
         if self.__mode == self.MODE_SAVE_IMG:
             return
         #drawing track
         elif self.__mode == self.MODE_DRAW_TRK:
-            if not self.__drawing_trk_idx:
+            if self.__drawing_trk_idx is None:
                 return
             geo = self.getGeoPointAt(e.x, e.y)
             self.__map_ctrl.addTrkpt(self.__drawing_trk_idx, TrackPoint(geo.lat, geo.lon))
-            #todo: draw by canvas tool, not redraw map
-            self.resetMap(force='trk')
+            coords = self.__left_click_pos + curr_pos
+            self.disp_canvas.create_line(coords, fill='darkmagenta', width=conf.TRK_WIDTH, tag='DRAW_TRK')
         #normal
         else:
             if not self.__left_click_pos:
@@ -713,7 +718,7 @@ class MapBoard(tk.Frame):
             self.setMapInfo()
             self.resetMap()
 
-            self.__left_click_pos = (e.x, e.y)
+        self.__left_click_pos = curr_pos
 
     def onClickUp(self, event, flag):
         #saving image
@@ -722,7 +727,8 @@ class MapBoard(tk.Frame):
         #drawing track
         elif self.__mode == self.MODE_DRAW_TRK:
             if flag == 'left':
-                #todo: remove all drawing line, and redraw map
+                self.disp_canvas.delete('DRAW_TRK')
+                self.resetMap(force='trk')
                 self.__drawing_trk_idx = None
         #normal
         else:
@@ -1042,7 +1048,7 @@ class MapBoard(tk.Frame):
         if pts is None or len(pts) == 0:
             return
         map = self.__map.copy()
-        self.__map_ctrl.drawTrkPoint(map, self.__map_attr, pts, 'orange', 'black', width=8)
+        self.__map_ctrl.drawTrkPoint(map, self.__map_attr, pts, 'orange', 'black', width=conf.TRK_WIDTH+5)
         self.__setMap(map)
 
     def onWptDeleted(self, wpt=None, prompt=True):
@@ -1693,7 +1699,7 @@ class MapController:
                     if self.isTrackInImage(trk, map_attr):
                         self.drawTrkPoint(map, map_attr, trk, trk.color, draw=draw)
 
-    def drawTrkPoint(self, map, map_attr, pts, color, bg_color=None, draw=None, width=3):
+    def drawTrkPoint(self, map, map_attr, pts, color, bg_color=None, draw=None, width=conf.TRK_WIDTH):
         if pts is None or len(pts) == 0:
             return
 
