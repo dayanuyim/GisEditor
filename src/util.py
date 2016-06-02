@@ -25,6 +25,32 @@ class DrawGuard:
         if self.__draw is not None:
             del self.__draw
 
+#be quiet to wait to show
+def quietenTopLevel(toplevel):
+    toplevel.withdraw()  #hidden
+    toplevel._visible = tk.BooleanVar(value=False)
+
+#for show
+def showToplevel(toplevel):
+    toplevel.update()  #update window size
+
+    toplevel.deiconify() #show
+    toplevel._visible.set(True)
+
+    #toplevel.attributes("-topmost", 1) #topmost
+    toplevel.lift()
+    toplevel.focus_set()  #prevent key-press sent back to parent
+    toplevel.grab_set()   #disalbe interact of parent
+    toplevel.master.wait_variable(toplevel._visible)
+
+#for hide or close
+def hideToplevel(toplevel):
+    toplevel.master.focus_set()
+    toplevel.grab_release()
+
+    toplevel.withdraw()
+    toplevel._visible.set(False)
+
 def imageIsTransparent(img):
     if img is None:
         raise ValueError("img is None for transparent detect")
