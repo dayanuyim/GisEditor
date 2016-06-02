@@ -26,6 +26,7 @@ from collections import OrderedDict
 import src.conf as conf
 import src.sym as sym
 import src.coord as coord
+import src.util as util
 from src.ui import Dialog, MapSelectDialog, MapSelectFrame
 from src.gpx import GpsDocument, WayPoint, Track, TrackPoint
 from src.pic import PicDocument
@@ -493,6 +494,12 @@ class MapBoard(tk.Frame):
     def addWpt(self, wpt):
         if wpt is not None:
             self.__map_ctrl.addWpt(wpt)
+            self.setAlter('wpt')
+
+    def deleteTrk(self, trk):
+        if trk is not None:
+            self.__map_ctrl.deleteTrk(trk)
+            self.setAlter('trk')
 
     def setLevel(self, level, focus_pt=None, allow_period_ms=500):
         #check mode
@@ -855,7 +862,6 @@ class MapBoard(tk.Frame):
 
         wpt = genWpt(self.__right_click_pos)
         self.addWpt(wpt)
-        self.setAlter('wpt')
 
     def onNumberWpt(self, name=None, time=None):
         wpt_list = self.__map_ctrl.getAllWpts()
@@ -903,10 +909,12 @@ class MapBoard(tk.Frame):
 
         if mode == 'single':
             trk_board = TrkSingleBoard(self, trk_list, trk)
+            trk_board.on_trk_delete_handler = self.deleteTrk
+            trk_board.show()
         else:
             trk_board = TrkListBoard(self, trk_list, trk)
-        #trk_board.addAlteredHandler(self.setAlter)
-        #trk_board.show()
+            #trk_board.addAlteredHandler(self.setAlter)
+            #trk_board.show()
 
 
     @staticmethod
@@ -1505,6 +1513,11 @@ class MapController:
         def_name = "TRK-" + str(len(self.__pseudo_gpx.tracks) + 1)
         def_color = "darkmagenta"
         return self.__pseudo_gpx.genTrk(def_name, def_color)
+
+    def deleteTrk(self, trk):
+        for gpx in self.__gpx_layers:
+            if trk in gpx.tracks:
+                gpx.tracks.remove(trk)
 
     def addTrkpt(self, trk_idx, pt):
         self.__pseudo_gpx.addTrkpt(trk_idx, pt)
@@ -2541,11 +2554,18 @@ class TrkSingleBoard(tk.Toplevel):
     @property
     def is_changed(self): return self._is_changed
 
-    def __init__(self, master, trk_list, trk=None):
+    def __init__(self, master, trk_list, init_trk=None):
         super().__init__(master)
 
-        if trk is not None and trk not in trk_list:
+        #check init
+        if not trk_list:
+            raise ValueError('trk_list is empty')
+
+        if init_trk is not None and init_trk not in trk_list:
             raise ValueError('trk is not in trk_list')
+
+        if init_trk is None:
+            init_trk = trk_list[0]
 
         self._curr_trk = None
         self._trk_list = trk_list
@@ -2554,10 +2574,13 @@ class TrkSingleBoard(tk.Toplevel):
         self._var_focus = tk.BooleanVar()
         self._var_focus.trace('w', self.onFocus)
 
+        #handlers
+        self.on_trk_delete_handler = None
+
         #board
         self.geometry('+0+0')
-        self.bind('<Escape>', self.onClosed)
-        self.protocol('WM_DELETE_WINDOW', lambda: self.onClosed(None))
+        self.bind('<Escape>', lambda e: self.close())
+        self.protocol('WM_DELETE_WINDOW', self.close)
 
         #change buttons
         self.__left_btn = tk.Button(self, text="<<", command=lambda:self.onSelected(-1), disabledforeground='gray')
@@ -2565,11 +2588,9 @@ class TrkSingleBoard(tk.Toplevel):
         self.__right_btn = tk.Button(self, text=">>", command=lambda:self.onSelected(1), disabledforeground='gray')
         self.__right_btn.pack(side='right', anchor='e', expand=0, fill='y')
 
-        #info
-        self.info_frame = self.getInfoFrame()
-        self.info_frame.pack(side='top', anchor='nw', expand=0, fill='x')
-
-        tk.Checkbutton(self, text='Focus Track point', anchor='e', variable=self._var_focus).pack(side='bottom', expand=0, fill='x')
+        #focus
+        tk.Checkbutton(self, text='Focus Track point', anchor='e', variable=self._var_focus)\
+            .pack(side='bottom', expand=0, fill='x')
 
         #pt list
         self.pt_list = tk.Listbox(self)
@@ -2577,29 +2598,32 @@ class TrkSingleBoard(tk.Toplevel):
         pt_scroll.config(command=self.pt_list.yview)
         pt_scroll.pack(side='right', fill='y')
         self.pt_list.config(selectmode='extended', yscrollcommand=pt_scroll.set, width=50, height=30)
-        self.pt_list.pack(side='left', anchor='nw', expand=1, fill='both')
+        self.pt_list.pack(side='bottom', anchor='nw', expand=1, fill='both')
         self.pt_list.bind('<ButtonRelease-1>', self.onPtSelected)
         self.pt_list.bind('<KeyRelease-Up>', self.onPtSelected)
         self.pt_list.bind('<KeyRelease-Down>', self.onPtSelected)
         self.pt_list.bind('<Delete>', self.onPtDeleted)
 
+        #delete
+        tk.Button(self, text='X', command=self.onTrkDelete)\
+                .pack(side='right', anchor='ne', expand=0)
+
+        #info
+        self.info_frame = self.getInfoFrame()
+        self.info_frame.pack(side='left', anchor='nw', expand=0, fill='x')
+
+        self.transient(self.master)  #remove max/min buttons
+        util.quietenTopLevel(self)
+
         #set trk
-        if trk is not None:
-            self.setCurrTrk(trk)
-        elif len(trk_list) > 0:
-            self.setCurrTrk(trk_list[0])
+        self.setCurrTrk(init_trk)
 
-        #set focus
-        self.transient(self.master)
-        self.focus_set()
-        if platform.system() == 'Linux':
-            self.withdraw() #ensure update silently
-            self.update()   #ensure viewable before grab, 
-            self.deiconify() #show
-        self.grab_set()
+    def show(self):
+        util.showToplevel(self)
 
-    #def show(self):
-        #self.wait_window(self)
+    def close(self):
+        util.hideToplevel(self)
+        self.destroy()
 
     def getInfoFrame(self):
         font = 'Arialuni 12'
@@ -2642,14 +2666,30 @@ class TrkSingleBoard(tk.Toplevel):
         #for handler in self._altered_handlers:
         #    handler()
 
-    def onClosed(self, e=None):
-        self.master.focus_set()
-        self.destroy()
-
     def onSelected(self, inc):
         idx = self._trk_list.index(self._curr_trk) + inc
-        if idx >= 0 and idx < len(self._trk_list):
+        if 0 <= idx < len(self._trk_list):
             self.setCurrTrk(self._trk_list[idx])
+
+    def onTrkDelete(self):
+        if not messagebox.askyesno('Delete Track', "Delete the track?"):
+            return
+
+        #del
+        trk = self._curr_trk
+        idx = self._trk_list.index(trk)
+        del self._trk_list[idx]
+
+        #show the next trk
+        if not self._trk_list:
+            self.onClosed()
+        else:
+            idx = min(idx, len(self._trk_list) -1) #crop
+            self.setCurrTrk(self._trk_list[idx])
+
+        #calllback
+        if self.on_trk_delete_handler is not None:
+            self.on_trk_delete_handler(trk)
 
     def onNameChanged(self, *args):
         #print('change to', self._var_name.get())
