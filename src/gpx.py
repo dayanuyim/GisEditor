@@ -62,9 +62,9 @@ class GpsDocument:
                 logging.warning("Warning: the root element's namespace is not 'gpx'")
 
         #load data
-        self.loadMetadata(xml_root)
-        self.loadWpt(xml_root)
-        self.loadTrk(xml_root)
+        self.__loadMetadata(xml_root)
+        self.__loadWpt(xml_root)
+        self.__loadTrk(xml_root)
 
         '''
         #debug outptu
@@ -77,7 +77,7 @@ class GpsDocument:
                 print("  ", pt.time.strftime("%c"), pt.lon, pt.lat, pt.ele)
         '''
 
-    def loadMetadata(self, xml_root):
+    def __loadMetadata(self, xml_root):
         #bounds = xml_root.find("./gpx:metadata/gpx:bounds", self.ns)  #gpx1.1
         #bounds = xml_root.findall("./gpx:bounds", self.ns)  #gpx1.0 
         bounds = xml_root.find(".//gpx:bounds", self.ns)  #for gpx1.0/gpx1.1
@@ -86,7 +86,7 @@ class GpsDocument:
         self.__minlat = float(bounds.attrib['minlat']) if bounds is not None else None
         self.__minlon = float(bounds.attrib['minlon']) if bounds is not None else None
 
-    def loadWpt(self, xml_root):
+    def __loadWpt(self, xml_root):
         wpt_elems = xml_root.findall("./gpx:wpt", self.ns)
         if wpt_elems is None:
             return
@@ -118,27 +118,27 @@ class GpsDocument:
 
             self.addWpt(wpt)
 
-    def loadTrk(self, xml_root):
+    def __loadTrk(self, xml_root):
         trk_elems = xml_root.findall("./gpx:trk", self.ns)
         if trk_elems is None:
             return
 
         for trk_elem in trk_elems:
-            trk_idx = self.genTrk()
-
             elem = trk_elem.find("./gpx:name", self.ns)
-            trk.name = elem.text if elem is not None else "(No Title)"
+            name = elem.text if elem is not None else "(No Title)"
 
             elem = trk_elem.find("./gpx:extensions/gpxx:TrackExtension/gpxx:DisplayColor", self.ns)
-            trk.color = elem.text if elem is not None else "DarkMagenta"
+            color = elem.text if elem is not None else "DarkMagenta"
+
+            trk_idx = self.genTrk(name, color)
 
             #may have multi trkseg
             elems = trk_elem.findall("./gpx:trkseg", self.ns)
             if elems is not None:
                 for elem in elems:
-                    self.loadTrkSeg(elem, trk_idx)
+                    self.__loadTrkSeg(elem, trk_idx)
 
-    def loadTrkSeg(self, trkseg_elem, trk_idx):
+    def __loadTrkSeg(self, trkseg_elem, trk_idx):
         trkpt_elems = trkseg_elem.findall("./gpx:trkpt", self.ns)
         if trkpt_elems is None:
             return
@@ -155,10 +155,15 @@ class GpsDocument:
             self.addTrkpt(trk_idx, pt)
 
     #should not allow users to create Track() by themself, because we want to force users to user addTrkpt()
-    def genTrk(self):
+    def genTrk(self, name, color):
         trk = Track()
+        trk.name = name
+        trk.color = color
         self.__trks.append(trk)
         return self.__trks.index(trk)
+
+    def delTrk(self, idx):
+        del self.__trks[idx]
         
     def addTrkpt(self, trk_idx, pt):
         self.__trks[trk_idx].add(pt)

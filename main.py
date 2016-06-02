@@ -266,7 +266,7 @@ class MapBoard(tk.Frame):
         #info
         self.__info_frame = self.initMapInfo()
         self.__info_frame.pack(side='top', expand=0, fill='x', anchor='nw')
-        self.setMapInfo()
+        self.__setMapInfo()
 
         #status
         status_frame = self.initStatusBar()
@@ -291,7 +291,7 @@ class MapBoard(tk.Frame):
         self.disp_canvas.bind('<Motion>', self.onMotion)
         self.disp_canvas.bind("<Button-1>", lambda e: self.onClickDown(e, 'left'))
         self.disp_canvas.bind("<Button-3>", lambda e: self.onClickDown(e, 'right'))
-        self.disp_canvas.bind("<Button1-Motion>", self.onClickMotion)
+        self.disp_canvas.bind("<Button1-Motion>", lambda e: self.onClickMotion(e, 'left'))
         self.disp_canvas.bind("<Button1-ButtonRelease>", lambda e: self.onClickUp(e, 'left'))
         self.disp_canvas.bind("<Button3-ButtonRelease>", lambda e: self.onClickUp(e, 'right'))
         self.disp_canvas.bind("<Configure>", self.onResize)
@@ -417,7 +417,8 @@ class MapBoard(tk.Frame):
     # mode framework  =================================================
     def __leaveMode(self, mode):
         if mode == self.MODE_NORMAL:
-            pass
+            self.__rclick_menu.unpost()
+            self.__wpt_rclick_menu.unpost()
 
         elif mode == self.MODE_SAVE_IMG:
             if self.__canvas_sel_area is not None:
@@ -456,12 +457,42 @@ class MapBoard(tk.Frame):
         self.__hideMapSelector() #hide map selector, if any
         self.__changeMode(self.MODE_NORMAL)
 
-    #{{{ operations
+    # operations ====================================================================
     #release sources to exit
     def exit(self):
         self.__is_closed = True
         self.__leaveMode(self.__mode)
         self.__map_ctrl.close()
+
+    def addFiles(self, file_pathes):
+        gps_path, pic_path = parsePathes(file_pathes)  
+        for path in gps_path:
+            self.addGpx(getGpsDocument(path))
+        for path in pic_path:
+            self.addWpt(getPicDocument(path))
+
+        #also update preferred dir if needed
+        def getPrefDir(pathes):
+            return None if not len(pathes) else os.path.dirname(pathes[0])
+        if not self.__pref_dir:
+            self.__pref_dir = getPrefDir(gps_path)
+        if not self.__pref_dir:
+            self.__pref_dir = getPrefDir(pic_path)
+
+    def addGpx(self, gpx):
+        if gpx is not None:
+            self.__map_ctrl.addGpxLayer(gpx)
+
+    def genWpt(self, pos):
+        px, py = pos
+        geo = self.getGeoPointAt(px, py)
+        wpt = WayPoint(geo.lat, geo.lon)
+        wpt.time = datetime.now()
+        return wpt
+
+    def addWpt(self, wpt):
+        if wpt is not None:
+            self.__map_ctrl.addWpt(wpt)
 
     def setLevel(self, level, focus_pt=None, allow_period_ms=500):
         #check mode
@@ -494,16 +525,66 @@ class MapBoard(tk.Frame):
             self.__map_ctrl.level = level
             self.__map_ctrl.shiftGeoPixel(-x, -y) #shift to make click point at the same position
 
-            self.setMapInfo()
+            self.__setMapInfo()
             self.resetMap()
         except Exception as ex:
             logging.error("sest level '%s' error: %s" % (str(level), str(ex)))
             messagebox.showwarning('set level error', str(ex))
-
-    #}}} operations
-
     
-    #{{{ Events
+    def __getMapNameText(self):
+        mapname_txt = ""
+        map_enabled_count = 0
+
+        for desc in self.__map_descs:
+            if desc.enabled:
+                map_enabled_count += 1
+                if not mapname_txt:
+                    mapname_txt = desc.map_title
+
+        if map_enabled_count > 1:
+            mapname_txt += "...(%d)" % (map_enabled_count,)
+
+        return mapname_txt
+
+    def __setMapInfo(self, geo=None):
+        self.__info_mapname['text'] = self.__getMapNameText()
+
+        self.__info_level.variable.set(self.__map_ctrl.level)
+
+        if geo is not None:
+            self.__info_97latlon.variable.set("%f, %f" % (geo.lat, geo.lon))
+            self.__info_97tm2.variable.set("%.3f, %.3f" % (geo.twd97_x/1000, geo.twd97_y/1000))
+            self.__info_67tm2.variable.set("%.3f, %.3f" % (geo.twd67_x/1000, geo.twd67_y/1000))
+
+
+    def __setStatus(self, txt = None, prog=None, is_immediate=False):
+        txt_has_change = False
+        if txt is not None and self.__status_label['text'] != txt:
+            self.__status_label['text'] = txt
+            txt_has_change = True
+
+        prog = int(prog)
+        prog_has_change = False
+        if prog is not None and self.__status_prog['value'] != prog:
+            self.__status_prog['value'] = prog
+            prog_has_change = True
+
+        if (txt_has_change or prog_has_change) and is_immediate:
+            self.update()
+
+    def __getPrefGeoPt(self):
+        #prefer track point
+        for trk in self.__map_ctrl.getAllTrks():
+            for pt in trk:
+                return pt
+
+        #wpt
+        for wpt in self.__map_ctrl.getAllWpts():
+            return wpt
+
+        return None
+
+    # events ==================================================================================
     def __onMapEnableChanged(self, desc, old_val):
         logging.debug("desc %s's enable change from %s to %s" % (desc.map_id, old_val, desc.enabled))
         #re-config
@@ -548,7 +629,7 @@ class MapBoard(tk.Frame):
             self.__map_sel_board.visible = False
             self.__map_btn['text'] = "▼"
 
-            self.setMapInfo()          #re-show map info
+            self.__setMapInfo()          #re-show map info
             self.__writeUserMapsConf() #save config
 
     def __onMouseWheel(self, e, delta):
@@ -596,154 +677,141 @@ class MapBoard(tk.Frame):
 
         #focus geo on map
         self.__map_ctrl.addMark(geo)
-        self.setMapInfo(geo)
+        self.__setMapInfo(geo)
         self.resetMap(geo, force='wpt')
 
-    def __getMapNameText(self):
-        mapname_txt = ""
-        map_enabled_count = 0
+    #drag-n-drop events ===============================
 
-        for desc in self.__map_descs:
-            if desc.enabled:
-                map_enabled_count += 1
-                if not mapname_txt:
-                    mapname_txt = desc.map_title
-
-        if map_enabled_count > 1:
-            mapname_txt += "...(%d)" % (map_enabled_count,)
-
-        return mapname_txt
-
-    def setMapInfo(self, geo=None):
-        self.__info_mapname['text'] = self.__getMapNameText()
-
-        self.__info_level.variable.set(self.__map_ctrl.level)
-
-        if geo is not None:
-            self.__info_97latlon.variable.set("%f, %f" % (geo.lat, geo.lon))
-            self.__info_97tm2.variable.set("%.3f, %.3f" % (geo.twd97_x/1000, geo.twd97_y/1000))
-            self.__info_67tm2.variable.set("%.3f, %.3f" % (geo.twd67_x/1000, geo.twd67_y/1000))
-
-
-    def __setStatus(self, txt = None, prog=None, is_immediate=False):
-        txt_has_change = False
-        if txt is not None and self.__status_label['text'] != txt:
-            self.__status_label['text'] = txt
-            txt_has_change = True
-
-        prog = int(prog)
-        prog_has_change = False
-        if prog is not None and self.__status_prog['value'] != prog:
-            self.__status_prog['value'] = prog
-            prog_has_change = True
-
-        if (txt_has_change or prog_has_change) and is_immediate:
-            self.update()
-
-    def addGpx(self, gpx):
-        if gpx is not None:
-            self.__map_ctrl.addGpxLayer(gpx)
-
-    def addWpt(self, wpt):
-        if wpt is not None:
-            self.__map_ctrl.addWpt(wpt)
-
-    def __getPrefGeoPt(self):
-        #prefer track point
-        for trk in self.__map_ctrl.getAllTrks():
-            for pt in trk:
-                return pt
-
-        #wpt
-        for wpt in self.__map_ctrl.getAllWpts():
-            return wpt
-
-        return None
-
-    def onClickDown(self, e, flag):
-        #to grap key events
-        e.widget.focus_set()
-
-        #rec
-        if flag == 'left':
-            self.__left_click_pos = (e.x, e.y)
-        elif flag == 'right':
-            self.__right_click_pos = (e.x, e.y)
-
-        #geo info
-        geo = self.getGeoPointAt(e.x, e.y)
-        self.setMapInfo(geo)
-
+    #@geo is just an extra candy to prevent duplicated calculation
+    def __onDragBegin(self, pos, geo=None):
+        #save img
         if self.__mode == self.MODE_SAVE_IMG:
-            return
+            #not need, AreaSelector handle by itself
+            pass
+        #draw trk
         elif self.__mode == self.MODE_DRAW_TRK:
-            if flag == 'left':
-                #create trk and add pt
-                self.__drawing_trk_idx = self.__map_ctrl.genTrk()
-                self.__map_ctrl.addTrkpt(self.__drawing_trk_idx, TrackPoint(geo.lat, geo.lon))
-                #show
-                n = int(conf.TRK_WIDTH/2)
-                coords = (e.x-n, e.y-n, e.x +n, e.y + n)
-                self.disp_canvas.create_oval(coords, width=0, fill='darkmagenta', tag='DRAW_TRK')
-            elif flag == 'right':
-                #todo: eraser
-                pass
+            x, y = pos
+            if geo is None:
+                geo = self.getGeoPointAt(x, y)
+            trkpt = TrackPoint(geo.lat, geo.lon)
+            #create trk and add pt
+            self.__drawing_trk_idx = self.__map_ctrl.genTrk()
+            self.__map_ctrl.addTrkpt(self.__drawing_trk_idx, trkpt)
+            #show
+            n = int(conf.TRK_WIDTH/2)
+            coords = (x-n, y-n, x+n, y+n)
+            self.disp_canvas.create_oval(coords, width=0, fill='darkmagenta', tag='DRAW_TRK')
+        #normal
         else:
-            #wpt context, if any
-            wpt = self.__map_ctrl.getWptAround(geo)
-            if wpt:
-                if flag == 'left':
-                    self.onEditWpt(mode='single', wpt=wpt)
-                elif flag == 'right':
-                    self.__wpt_rclick_menu.post(e.x_root, e.y_root)  #right menu for wpt
-            #general right menu
-            elif flag == 'right':
-                self.__rclick_menu.post(e.x_root, e.y_root)  #right menu
-            #unpost, if any
-            else:
-                self.__right_click_pos = None
-                self.__rclick_menu.unpost()
-                self.__wpt_rclick_menu.unpost()
+            self.master['cursor'] = 'hand1'
 
-    def onClickMotion(self, e):
-        curr_pos = (e.x, e.y)
-
+    def __onDragMotion(self, last_pos, pos):
         #saving image
         if self.__mode == self.MODE_SAVE_IMG:
+            #not need, AreaSelector handle by itself
             return
         #drawing track
         elif self.__mode == self.MODE_DRAW_TRK:
             if self.__drawing_trk_idx is None:
+                logging.warning("[Logic Error] No track is created to keep trkpt")
                 return
-            geo = self.getGeoPointAt(e.x, e.y)
-            self.__map_ctrl.addTrkpt(self.__drawing_trk_idx, TrackPoint(geo.lat, geo.lon))
-            coords = self.__left_click_pos + curr_pos
+            if not last_pos:
+                logging.warning("[Logic Error] No last pos")
+                return
+            #add pt
+            x, y = pos
+            geo = self.getGeoPointAt(x, y)
+            trkpt = TrackPoint(geo.lat, geo.lon)
+            self.__map_ctrl.addTrkpt(self.__drawing_trk_idx, trkpt)
+            #show
+            coords = last_pos + pos
             self.disp_canvas.create_line(coords, fill='darkmagenta', width=conf.TRK_WIDTH, tag='DRAW_TRK')
         #normal
         else:
-            if not self.__left_click_pos:
+            if not last_pos:
+                logging.warning("[Logic Error] No last pos")
                 return
-            (last_x, last_y) = self.__left_click_pos
-            self.__map_ctrl.shiftGeoPixel(last_x - e.x, last_y - e.y)
-            self.setMapInfo()
+            last_x, last_y = last_pos
+            x, y = pos
+            self.__map_ctrl.shiftGeoPixel(last_x - x, last_y - y)
+            self.__setMapInfo()
             self.resetMap()
 
-        self.__left_click_pos = curr_pos
-
-    def onClickUp(self, event, flag):
+    def __onDragEnd(self):
         #saving image
         if self.__mode == self.MODE_SAVE_IMG:
+            #not need, AreaSelector handle by itself
             return
         #drawing track
         elif self.__mode == self.MODE_DRAW_TRK:
-            if flag == 'left':
-                self.disp_canvas.delete('DRAW_TRK')
-                self.resetMap(force='trk')
-                self.__drawing_trk_idx = None
+            self.disp_canvas.delete('DRAW_TRK')
+            self.resetMap(force='trk')
+            self.__drawing_trk_idx = None
         #normal
         else:
-            if flag == 'left':
-                self.__left_click_pos = None
+            self.master['cursor'] = ''
+
+    # click-related events ======================================
+    def onClickDown(self, e, flag):
+        #to grap key events
+        e.widget.focus_set()
+
+        #bookkeeper
+        pos = (e.x, e.y)
+        if flag == 'left':
+            self.__left_click_pos = pos
+        elif flag == 'right':
+            self.__right_click_pos = pos
+
+        #geo info
+        geo = self.getGeoPointAt(e.x, e.y)
+        self.__setMapInfo(geo)
+
+        #check special click event
+        if self.__mode == self.MODE_NORMAL:
+            #wpt context, if any
+            wpt = self.__map_ctrl.getWptAround(geo)
+
+            if flag == 'right':
+                if wpt is not None:
+                    self.__wpt_rclick_menu.post(e.x_root, e.y_root)  #right menu for wpt
+                    return
+                else:
+                    self.__rclick_menu.post(e.x_root, e.y_root)  #right menu
+                    return
+            else:
+                if wpt is not None:
+                    self.onEditWpt(mode='single', wpt=wpt)
+                    return
+                else:
+                    #clear right menu
+                    #self.__right_click_pos = None
+                    self.__rclick_menu.unpost()
+                    self.__wpt_rclick_menu.unpost()
+
+        #drag begin
+        if flag == 'left':
+            self.__onDragBegin(pos, geo)
+
+    def onClickMotion(self, e, flag):
+        curr_pos = (e.x, e.y)
+
+        if flag == 'left':
+            self.__onDragMotion(self.__left_click_pos, curr_pos)
+            self.__left_click_pos = curr_pos
+        else:
+            self.__right_click_pos = curr_pos
+
+
+    def onClickUp(self, event, flag):
+        #unset click pos
+        if flag == 'left':
+            self.__left_click_pos = None
+            #drag end
+            self.__onDragEnd()
+        elif flag == 'right':
+            self.__right_click_pos = None
+
 
     #to handle preferred dir : no exist, success, or exception
     def withPreferredDir(self, action_cb):
@@ -759,22 +827,7 @@ class MapBoard(tk.Frame):
             self.__pref_dir = None  #no init dir if exception
             raise ex
 
-    def addFiles(self, file_pathes):
-        gps_path, pic_path = parsePathes(file_pathes)  
-        for path in gps_path:
-            self.addGpx(getGpsDocument(path))
-        for path in pic_path:
-            self.addWpt(getPicDocument(path))
-
-        #also update preferred dir if needed
-        def getPrefDir(pathes):
-            return None if not len(pathes) else os.path.dirname(pathes[0])
-        if not self.__pref_dir:
-            self.__pref_dir = getPrefDir(gps_path)
-        if not self.__pref_dir:
-            self.__pref_dir = getPrefDir(pic_path)
-
-    #{{ Right click actions
+    #{{ Right click actions ==========================================
     def onAddFiles(self):
         def to_ask(init_dir):
             return filedialog.askopenfilenames(initialdir=init_dir)
@@ -788,7 +841,7 @@ class MapBoard(tk.Frame):
             #show, may go to preffered geo
             if not self.__pref_geo:
                 self.__pref_geo = self.__getPrefGeoPt()
-                self.setMapInfo(self.__pref_geo)
+                self.__setMapInfo(self.__pref_geo)
                 self.resetMap(self.__pref_geo)
             else:
                 self.setAlter('all')
@@ -800,13 +853,7 @@ class MapBoard(tk.Frame):
             showmsg('Create Wpt Error: Cannot not get right click position')
             return
 
-        #create wpt
-        px, py = self.__right_click_pos
-        geo = self.getGeoPointAt(px, py)
-        wpt = WayPoint(geo.lat, geo.lon)
-        wpt.time = datetime.now()
-
-        #add wpt
+        wpt = genWpt(self.__right_click_pos)
         self.addWpt(wpt)
         self.setAlter('wpt')
 
@@ -918,9 +965,6 @@ class MapBoard(tk.Frame):
             txt = "Map Loading...%.1f%%" % (prog,)
             self.__setStatus(txt, prog, is_immediate)
 
-    def onTrackDraw(self):
-        self.__enterMode(self.MODE_DRAW_TRK)
-
     #return True: expected return
     #return False: interrupted by other mode
     def __enterSaveImgMode(self):
@@ -1015,7 +1059,7 @@ class MapBoard(tk.Frame):
 
         return True
 
-    #}} Right click actions
+    #}} Right click actions ============================================
 
     def setAlter(self, alter):
         logging.debug(alter + " is altered")
@@ -1081,10 +1125,10 @@ class MapBoard(tk.Frame):
             if not hasattr(disp, 'image'):  #init
                 self.__pref_geo = self.__getPrefGeoPt()
                 geo = self.__pref_geo if self.__pref_geo is not None else self.__some_geo
-                self.setMapInfo(geo)
+                self.__setMapInfo(geo)
                 self.resetMap(geo)
             elif e.width != disp.image.width() or e.height != disp.image.height():
-                self.setMapInfo()
+                self.__setMapInfo()
                 self.resetMap()
             # raise AS, if any
             #if self.isSaveImgMode():
@@ -1458,7 +1502,9 @@ class MapController:
         self.__gpx_layers.append(gpx)
 
     def genTrk(self):
-        return self.__pseudo_gpx.genTrk()
+        def_name = "TRK-" + str(len(self.__pseudo_gpx.tracks) + 1)
+        def_color = "darkmagenta"
+        return self.__pseudo_gpx.genTrk(def_name, def_color)
 
     def addTrkpt(self, trk_idx, pt):
         self.__pseudo_gpx.addTrkpt(trk_idx, pt)
