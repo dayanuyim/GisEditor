@@ -254,7 +254,7 @@ class MapBoard(tk.Frame):
         self.__drawing_trk_idx = None
         self.__left_click_pos = None
         self.__right_click_pos = None
-        self.__mouse_wheel_ts = datetime.min
+        self.__set_level_ts = datetime.min
         self.__version = ''
 
         Thread(target=self.__runMapUpdater).start()
@@ -284,10 +284,10 @@ class MapBoard(tk.Frame):
         self.disp_canvas.pack(expand=1, fill='both', anchor='n')
 
         if platform.system() == "Linux":
-            self.disp_canvas.bind('<Button-4>', lambda e: self.onMouseWheel(e, 1))  #roll up
-            self.disp_canvas.bind('<Button-5>', lambda e: self.onMouseWheel(e, -1)) #roll down
+            self.disp_canvas.bind('<Button-4>', lambda e: self.__onMouseWheel(e, 1))  #roll up
+            self.disp_canvas.bind('<Button-5>', lambda e: self.__onMouseWheel(e, -1)) #roll down
         else:
-            self.disp_canvas.bind('<MouseWheel>', lambda e: self.onMouseWheel(e, e.delta))
+            self.disp_canvas.bind('<MouseWheel>', lambda e: self.__onMouseWheel(e, e.delta))
         self.disp_canvas.bind('<Motion>', self.onMotion)
         self.disp_canvas.bind("<Button-1>", lambda e: self.onClickDown(e, 'left'))
         self.disp_canvas.bind("<Button-3>", lambda e: self.onClickDown(e, 'right'))
@@ -330,9 +330,9 @@ class MapBoard(tk.Frame):
         split_trk_menu.add_command(label='By time gap', command=lambda:self.onSplitTrk(self.trkTimeGap))
         split_trk_menu.add_command(label='By distance', command=lambda:self.onSplitTrk(self.trkDistGap))
         self.__rclick_menu.add_cascade(label='Split tracks...', menu=split_trk_menu)
-        self.__rclick_menu.add_command(label='Draw tracks...', underline=0, command=lambda:self.__changeMode(self.MODE_DRAW_TRK))
+        self.__rclick_menu.add_command(label='Draw tracks...', underline=0, command=lambda:self.__changeMode(self.MODE_DRAW_TRK), accelerator=str(self.MODE_DRAW_TRK))
         self.__rclick_menu.add_separator()
-        self.__rclick_menu.add_command(label='Save to image...', underline=0, command=lambda:self.__changeMode(self.MODE_SAVE_IMG))
+        self.__rclick_menu.add_command(label='Save to image...', underline=0, command=lambda:self.__changeMode(self.MODE_SAVE_IMG), accelerator=str(self.MODE_SAVE_IMG))
         self.__rclick_menu.add_command(label='Save to gpx...', underline=0, command=self.onGpxSave)
 
         #wpt menu
@@ -355,7 +355,7 @@ class MapBoard(tk.Frame):
 
         #level
         self.__info_level = self.__genInfoWidgetNum(frame, font, 'Level', 2,
-                conf.MIN_SUPP_LEVEL, conf.MAX_SUPP_LEVEL, self.onSetLevel)
+                conf.MIN_SUPP_LEVEL, conf.MAX_SUPP_LEVEL, self.__onSetLevel)
 
         #pos
         self.__info_67tm2 = self.__genInfoWidget(frame, font, 'TM2/67', 16, self.onSetPos)
@@ -420,9 +420,9 @@ class MapBoard(tk.Frame):
             pass
 
         elif mode == self.MODE_SAVE_IMG:
-            self.__canvas_sel_area.exit()
-            self.__canvas_sel_area = None
-            logging.critical('set cursor to arrow')
+            if self.__canvas_sel_area is not None:
+                self.__canvas_sel_area.exit()
+                self.__canvas_sel_area = None
 
         elif mode == self.MODE_DRAW_TRK:
             self.resetMap(force='trk')
@@ -462,6 +462,43 @@ class MapBoard(tk.Frame):
         self.__is_closed = True
         self.__leaveMode(self.__mode)
         self.__map_ctrl.close()
+
+    def setLevel(self, level, focus_pt=None, allow_period_ms=500):
+        #check mode
+        if self.__mode == self.MODE_SAVE_IMG:
+            return
+
+        #check if level valid
+        if self.__map_ctrl.level == level:
+            return
+
+        if level < conf.MIN_SUPP_LEVEL or level > conf.MAX_SUPP_LEVEL:
+            messagebox.showwarning('Level Over Limit', 'The level should between %d ~ %d' % (conf.MIN_SUPP_LEVEL, conf.MAX_SUPP_LEVEL))
+            return
+
+        #check frequecy
+        now = datetime.now()
+        if now < (self.__set_level_ts + timedelta(milliseconds=allow_period_ms)):
+            return
+
+        try:
+            self.__set_level_ts = now
+
+            if focus_pt is not None:
+                x, y = focus_pt
+            else:
+                x = int(self.disp_canvas.winfo_width()/2)
+                y = int(self.disp_canvas.winfo_height()/2)
+
+            self.__map_ctrl.shiftGeoPixel(x, y) #make click point as focused geo
+            self.__map_ctrl.level = level
+            self.__map_ctrl.shiftGeoPixel(-x, -y) #shift to make click point at the same position
+
+            self.setMapInfo()
+            self.resetMap()
+        except Exception as ex:
+            logging.error("sest level '%s' error: %s" % (str(level), str(ex)))
+            messagebox.showwarning('set level error', str(ex))
 
     #}}} operations
 
@@ -514,21 +551,13 @@ class MapBoard(tk.Frame):
             self.setMapInfo()          #re-show map info
             self.__writeUserMapsConf() #save config
 
-    def onSetLevel(self, *args):
-        if self.__mode == self.MODE_SAVE_IMG:
-            return
+    def __onMouseWheel(self, e, delta):
+        level = self.__map_ctrl.level + (1 if delta > 0 else -1)
+        self.setLevel(level, (e.x, e.y))
 
-        try:
-            level = self.__info_level.variable.get()
-            if self.__map_ctrl.level != level:  #changed by user
-                self.__map_ctrl.level = level
-                self.setMapInfo()
-                self.resetMap()
-        except Exception as ex:
-            errmsg = "set level error: %s" % (str(ex),)
-            logging.error(errmsg)
-            messagebox.showwarning('', errmsg)
-            return
+    def __onSetLevel(self, *args):
+        level = self.__info_level.variable.get()
+        self.setLevel(level)
 
     def onSetPos(self, e):
         #if val_txt is digit, regarding as int with unit 'meter'
@@ -630,29 +659,6 @@ class MapBoard(tk.Frame):
             return wpt
 
         return None
-        
-    #todo: check the deff between the method and onSetLevel()
-    def onMouseWheel(self, event, delta):
-        if self.__mode == self.MODE_SAVE_IMG:
-            return
-
-        if datetime.now() < (self.__mouse_wheel_ts + timedelta(milliseconds=500)):
-            return
-
-        self.__mouse_wheel_ts = datetime.now()
-
-        ctrl = self.__map_ctrl
-        level = ctrl.level + (1 if delta > 0 else -1)
-
-        if conf.MIN_SUPP_LEVEL <= level and level <= conf.MAX_SUPP_LEVEL:
-            ctrl.shiftGeoPixel(event.x, event.y) #make click point as focused geo
-            ctrl.level = level
-            ctrl.shiftGeoPixel(-event.x, -event.y) #shift to make click point at the same position
-
-            self.setMapInfo()
-            self.resetMap()
-        else:
-            messagebox.showwarning('Level Over Limit', 'The level should between %d ~ %d' % (conf.MIN_SUPP_LEVEL, conf.MAX_SUPP_LEVEL))
 
     def onClickDown(self, e, flag):
         #to grap key events
