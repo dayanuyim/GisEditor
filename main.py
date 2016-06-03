@@ -820,14 +820,11 @@ class MapBoard(tk.Frame):
             self.__right_click_pos = curr_pos
 
 
-    def onClickUp(self, event, flag):
-        #unset click pos
+    def onClickUp(self, e, flag):
+        # !not unset click pos, it may be used by later method, ex: onAddWpt()
+
         if flag == 'left':
-            self.__left_click_pos = None
-            #drag end
             self.__onDragEnd()
-        elif flag == 'right':
-            self.__right_click_pos = None
 
 
     #to handle preferred dir : no exist, success, or exception
@@ -867,10 +864,10 @@ class MapBoard(tk.Frame):
 
     def onAddWpt(self):
         if not self.__right_click_pos:
-            showmsg('Create Wpt Error: Cannot not get right click position')
+            showmsg('Create Wpt Error: Cannot get right click position')
             return
 
-        wpt = genWpt(self.__right_click_pos)
+        wpt = self.genWpt(self.__right_click_pos)
         self.addWpt(wpt)
 
     def onNumberWpt(self, name=None, time=None):
