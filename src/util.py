@@ -25,6 +25,15 @@ class DrawGuard:
         if self.__draw is not None:
             del self.__draw
 
+# Bind widget's event and menu's accelerator
+# Notice: 'accelerator string' may not a perfect guess, need more heuristic improvement
+def bindMenuAccelerator(widget, event, menu, label, fn):
+    #a guss to accelerator string
+    acce = event.strip('<>').replace('Control', 'Ctrl').replace('-', '+')
+
+    widget.bind(event, lambda e: fn())
+    menu.add_command(label=label, command=fn, accelerator=acce)
+
 #be quiet to wait to show
 def quietenTopLevel(toplevel):
     toplevel.withdraw()  #hidden

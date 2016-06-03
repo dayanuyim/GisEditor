@@ -30,7 +30,7 @@ import src.util as util
 from src.ui import Dialog, MapSelectDialog, MapSelectFrame
 from src.gpx import GpsDocument, WayPoint, Track, TrackPoint
 from src.pic import PicDocument
-from src.util import GeoPoint, getPrefCornerPos, DrawGuard, imageIsTransparent
+from src.util import GeoPoint, getPrefCornerPos, DrawGuard, imageIsTransparent, bindMenuAccelerator
 from src.util import AreaSelector, AreaSizeTooLarge, GeoInfo  #should move to ui.py
 from src.tile import TileAgent, MapDescriptor
 from src.sym import askSym, toSymbol
@@ -275,8 +275,6 @@ class MapBoard(tk.Frame):
 
         #global events
         self.master.bind("<Escape>", lambda e: self.__resetMode())
-        self.master.bind(str(self.MODE_SAVE_IMG), lambda e: self.__changeMode(self.MODE_SAVE_IMG))
-        self.master.bind(str(self.MODE_DRAW_TRK), lambda e: self.__changeMode(self.MODE_DRAW_TRK))
 
         #display area
         self.__init_w= 800  #deprecated
@@ -308,7 +306,7 @@ class MapBoard(tk.Frame):
         edit_wpt_menu.add_command(label='Edit in list', underline=5, command=lambda:self.onEditWpt(mode='list'))
         self.__rclick_menu.add_cascade(label='Edit waypoints...', menu=edit_wpt_menu)
         '''
-        self.__rclick_menu.add_command(label='Edit waypoints', underline=0, command=lambda:self.onEditWpt(mode='single'))
+        bindMenuAccelerator(self.master, '<Control-w>', self.__rclick_menu, 'Edit waypoints', lambda:self.onEditWpt(mode='single'))
         self.__rclick_menu.add_command(label='Show waypoints list', underline=0, command=lambda:self.onEditWpt(mode='list'))
 
         num_wpt_menu = tk.Menu(self.__rclick_menu, tearoff=0)
@@ -325,15 +323,15 @@ class MapBoard(tk.Frame):
         edit_trk_menu.add_command(label='Edit in list', underline=5, command=lambda:self.onEditTrk(mode='list'))
         self.__rclick_menu.add_cascade(label='Edit tracks...', menu=edit_trk_menu)
         '''
-        self.__rclick_menu.add_command(label='Edit tracks', underline=5, command=lambda:self.onEditTrk(mode='single'))
+        bindMenuAccelerator(self.master, '<Control-t>', self.__rclick_menu, 'Edit tracks', lambda:self.onEditTrk(mode='single'))
         split_trk_menu = tk.Menu(self.__rclick_menu, tearoff=0)
         split_trk_menu.add_command(label='By day', command=lambda:self.onSplitTrk(self.trkDiffDay))
         split_trk_menu.add_command(label='By time gap', command=lambda:self.onSplitTrk(self.trkTimeGap))
         split_trk_menu.add_command(label='By distance', command=lambda:self.onSplitTrk(self.trkDistGap))
         self.__rclick_menu.add_cascade(label='Split tracks...', menu=split_trk_menu)
-        self.__rclick_menu.add_command(label='Draw tracks...', underline=0, command=lambda:self.__changeMode(self.MODE_DRAW_TRK), accelerator=str(self.MODE_DRAW_TRK))
+        bindMenuAccelerator(self.master, str(self.MODE_DRAW_TRK), self.__rclick_menu, 'Draw tracks...', lambda:self.__changeMode(self.MODE_DRAW_TRK))
         self.__rclick_menu.add_separator()
-        self.__rclick_menu.add_command(label='Save to image...', underline=0, command=lambda:self.__changeMode(self.MODE_SAVE_IMG), accelerator=str(self.MODE_SAVE_IMG))
+        bindMenuAccelerator(self.master, str(self.MODE_SAVE_IMG), self.__rclick_menu, 'Save to image...', lambda:self.__changeMode(self.MODE_SAVE_IMG))
         self.__rclick_menu.add_command(label='Save to gpx...', underline=0, command=self.onGpxSave)
 
         #wpt menu
@@ -2898,5 +2896,4 @@ if __name__ == '__main__':
     except Exception as ex:
         logging.error("Startup failed: %s" % str(ex,))
         messagebox.showwarning('Startup failed', str(ex))
-        #raise ex  #@@!
 
