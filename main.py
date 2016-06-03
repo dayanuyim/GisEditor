@@ -2306,15 +2306,19 @@ class WptBoard(tk.Toplevel):
     def setCurrWpt(self, wpt):
         pass
 
+#todo: integrate with TrkSingleBoard
 class WptSingleBoard(WptBoard):
     def __init__(self, master, wpt_list, wpt=None):
         super().__init__(master, wpt_list, wpt)
 
-        #change buttons
-        self.__left_btn = tk.Button(self, text="<<", command=lambda:self.onWptSelected(-1), disabledforeground='gray')
+        #pick buttons
+        self.__left_btn = tk.Button(self, text="<<", command=lambda:self.onWptPick(-1), disabledforeground='gray')
         self.__left_btn.pack(side='left', anchor='w', expand=0, fill='y')
-        self.__right_btn = tk.Button(self, text=">>", command=lambda:self.onWptSelected(1), disabledforeground='gray')
+        self.__left_btn.bind('<Button1-ButtonRelease>', self.onPickButtonClick)
+
+        self.__right_btn = tk.Button(self, text=">>", command=lambda:self.onWptPick(1), disabledforeground='gray')
         self.__right_btn.pack(side='right', anchor='e', expand=0, fill='y')
+        self.__right_btn.bind('<Button1-ButtonRelease>', self.onPickButtonClick)
 
         #info
         self.info_frame = self.getInfoFrame()
@@ -2336,20 +2340,6 @@ class WptSingleBoard(WptBoard):
 
         #wait
         self.wait_window(self)
-
-    def onImageResize(self, e):
-        if hasattr(self.__img_label, 'image'):
-            img_w = self.__img_label.image.width()
-            img_h = self.__img_label.image.height()
-            #print('event: %d, %d; winfo: %d, %d; label: %d, %d; img: %d, %d' % (e.width, e.height, self.__img_label.winfo_width(), self.__img_label.winfo_height(), self.__img_label['width'], self.__img_label['height'], img_w, img_h))
-            if e.width < img_w or e.height < img_h or (e.width > img_w and e.height > img_h):
-                #print('need to zomm image')
-                self.setWptImg(self._curr_wpt)
-
-    def onWptSelected(self, inc):
-        idx = self._wpt_list.index(self._curr_wpt) + inc
-        if idx >= 0 and idx < len(self._wpt_list):
-            self.setCurrWpt(self._wpt_list[idx])
 
     def getInfoFrame(self):
         font = self._font
@@ -2392,6 +2382,25 @@ class WptSingleBoard(WptBoard):
 
         return frame
 
+    def onImageResize(self, e):
+        if hasattr(self.__img_label, 'image'):
+            img_w = self.__img_label.image.width()
+            img_h = self.__img_label.image.height()
+            #print('event: %d, %d; winfo: %d, %d; label: %d, %d; img: %d, %d' % (e.width, e.height, self.__img_label.winfo_width(), self.__img_label.winfo_height(), self.__img_label['width'], self.__img_label['height'], img_w, img_h))
+            if e.width < img_w or e.height < img_h or (e.width > img_w and e.height > img_h):
+                #print('need to zomm image')
+                self.setWptImg(self._curr_wpt)
+
+    def onPickButtonClick(self, e):
+        if e.widget['state'] == 'disabled' and len(self._wpt_list) > 1:
+            e.widget['state'] = 'normal'
+
+    def onWptPick(self, inc):
+        idx = self._wpt_list.index(self._curr_wpt) + inc
+        if idx >= len(self._wpt_list): #warp
+            idx = 0
+        self.setCurrWpt(self._wpt_list[idx])
+
     def onSymClick(self, e):
         wpt = self._curr_wpt
         sym = askSym(self, pos=(e.x_root, e.y_root), init_sym=wpt.sym)
@@ -2428,8 +2437,12 @@ class WptSingleBoard(WptBoard):
 
         self._curr_wpt = wpt
 
+        idx = self._wpt_list.index(wpt)
+        sz = len(self._wpt_list)
+        
         #title
-        self.title(wpt.name)
+        title_txt = "%s (%d/%d)" % (wpt.name, idx+1, sz)
+        self.title(title_txt)
 
         #set imgae
         self.setWptImg(wpt)
@@ -2442,11 +2455,8 @@ class WptSingleBoard(WptBoard):
         self._var_time.set(conf.getPtTimeText(wpt))
 
         #button state
-        if self._wpt_list is not None:
-            idx = self._wpt_list.index(wpt)
-            sz = len(self._wpt_list)
-            self.__left_btn.config(state=('disabled' if idx == 0 else 'normal'))
-            self.__right_btn.config(state=('disabled' if idx == sz-1 else 'normal'))
+        self.__left_btn['state'] = 'disabled' if idx == 0 else 'normal'
+        self.__right_btn['state'] = 'disabled' if idx == sz-1 else 'normal'
 
 class WptListBoard(WptBoard):
     def __init__(self, master, wpt_list, wpt=None):
@@ -2560,8 +2570,6 @@ class WptListBoard(WptBoard):
     def setCurrWpt(self, wpt):
         self._curr_wpt = wpt
 
-
-
 class TrkSingleBoard(tk.Toplevel):
     @property
     def is_changed(self): return self._is_changed
@@ -2594,11 +2602,14 @@ class TrkSingleBoard(tk.Toplevel):
         self.bind('<Escape>', lambda e: self.close())
         self.protocol('WM_DELETE_WINDOW', self.close)
 
-        #change buttons
-        self.__left_btn = tk.Button(self, text="<<", command=lambda:self.onSelected(-1), disabledforeground='gray')
+        #pick buttons
+        self.__left_btn = tk.Button(self, text="<<", command=lambda:self.onTrkPick(-1), disabledforeground='gray')
         self.__left_btn.pack(side='left', anchor='w', expand=0, fill='y')
-        self.__right_btn = tk.Button(self, text=">>", command=lambda:self.onSelected(1), disabledforeground='gray')
+        self.__left_btn.bind('<Button1-ButtonRelease>', self.onPickButtonClick)
+
+        self.__right_btn = tk.Button(self, text=">>", command=lambda:self.onTrkPick(1), disabledforeground='gray')
         self.__right_btn.pack(side='right', anchor='e', expand=0, fill='y')
+        self.__right_btn.bind('<Button1-ButtonRelease>', self.onPickButtonClick)
 
         #focus
         tk.Checkbutton(self, text='Focus Track point', anchor='e', variable=self._var_focus)\
@@ -2650,7 +2661,7 @@ class TrkSingleBoard(tk.Toplevel):
         self._var_name = tk.StringVar()
         self._var_name.trace('w', self.onNameChanged)
         name_entry = tk.Entry(frame, textvariable=self._var_name, font=font)
-        name_entry.bind('<Return>', lambda e: self.onSelected(1))
+        name_entry.bind('<Return>', lambda e: self.onTrkPick(1))
         name_entry.grid(row=0, column=1, sticky='w')
 
         #trk color
@@ -2680,10 +2691,15 @@ class TrkSingleBoard(tk.Toplevel):
         #for handler in self._altered_handlers:
         #    handler()
 
-    def onSelected(self, inc):
+    def onPickButtonClick(self, e):
+        if e.widget['state'] == 'disabled' and len(self._trk_list) > 1:
+            e.widget['state'] = 'normal'
+
+    def onTrkPick(self, inc):
         idx = self._trk_list.index(self._curr_trk) + inc
-        if 0 <= idx < len(self._trk_list):
-            self.setCurrTrk(self._trk_list[idx])
+        if idx > len(self._trk_list) -1: #wrap
+            idx = 0
+        self.setCurrTrk(self._trk_list[idx])
 
     def onTrkDelete(self):
         if not messagebox.askyesno('Delete Track', "Delete the track?"):
@@ -2782,8 +2798,8 @@ class TrkSingleBoard(tk.Toplevel):
         self._var_color.set(trk.color)
 
         #button state
-        self.__left_btn.config(state=('disabled' if idx == 0 else 'normal'))
-        self.__right_btn.config(state=('disabled' if idx == sz-1 else 'normal'))
+        self.__left_btn['state'] = 'disabled' if idx == 0 else 'normal'
+        self.__right_btn['state'] = 'disabled' if idx == sz-1 else 'normal'
 
         #pt
         self.pt_list.delete(0, 'end')
