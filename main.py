@@ -184,6 +184,14 @@ class MapBoard(tk.Frame):
         self.__version = v
         self.__ver_label['text'] = 'ver. ' + v
 
+    @property
+    def title(self):
+        return self.master.title()
+
+    @title.setter
+    def title(self, v):
+        self.master.title(v)
+
     @classmethod
     def __loadMapDescriptors(cls, dirpath):
         map_descs = []
@@ -423,13 +431,16 @@ class MapBoard(tk.Frame):
             if self.__canvas_sel_area is not None:
                 self.__canvas_sel_area.exit()
                 self.__canvas_sel_area = None
+                self.title = self.__orig_title
 
         elif mode == self.MODE_DRAW_TRK:
             self.resetMap(force='trk')
             self.__drawing_trk_idx = None
             self.master['cursor'] = ''
+            self.title = self.__orig_title
 
     def __enterMode(self, mode):
+        self.__orig_title = self.title
         self.__mode = mode;
 
         if mode == self.MODE_NORMAL:
@@ -441,6 +452,7 @@ class MapBoard(tk.Frame):
                 self.__changeMode(self.MODE_NORMAL)
 
         elif mode == self.MODE_DRAW_TRK:
+            self.title += " [Draw Track]"
             self.master['cursor'] = 'pencil'
 
         else:
@@ -708,7 +720,7 @@ class MapBoard(tk.Frame):
             self.disp_canvas.create_oval(coords, width=0, fill='darkmagenta', tag='DRAW_TRK')
         #normal
         else:
-            self.master['cursor'] = 'hand1'
+            self.master['cursor'] = 'hand2'
 
     def __onDragMotion(self, last_pos, pos):
         #saving image
@@ -974,6 +986,8 @@ class MapBoard(tk.Frame):
     #return True: expected return
     #return False: interrupted by other mode
     def __enterSaveImgMode(self):
+
+        self.title += " [Save Image]"
 
         enabled_maps = [desc for desc in self.__map_descs if desc.enabled]
         if not enabled_maps:
