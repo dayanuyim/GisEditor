@@ -104,6 +104,7 @@ __USER_CONF = os.path.join(__CONF_DIR, 'giseditor.user.conf')
 
 SYM_RULE_CONF = os.path.join(__CONF_DIR, 'sym_rule.conf')
 EXE_ICON = os.path.join(__DATA_DIR, 'giseditor.ico')
+DEL_ICON = os.path.join(__DATA_DIR, 'delete_icon.png')
 
 GPSBABEL_EXT_FMT = raw.gpsbabel_ext_fmt
 

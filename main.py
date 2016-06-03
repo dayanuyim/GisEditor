@@ -2603,7 +2603,9 @@ class TrkSingleBoard(tk.Toplevel):
         self.pt_list.bind('<Delete>', self.onPtDeleted)
 
         #delete
-        tk.Button(self, text='X', command=self.onTrkDelete)\
+        img = getAspectResize(Image.open(conf.DEL_ICON), (24, 24))
+        self.del_icon = ImageTk.PhotoImage(img)
+        tk.Button(self, image=self.del_icon, command=self.onTrkDelete)\
                 .pack(side='right', anchor='ne', expand=0)
 
         #info
