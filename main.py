@@ -785,30 +785,25 @@ class MapBoard(tk.Frame):
         geo = self.getGeoPointAt(e.x, e.y)
         self.__setMapInfo(geo)
 
-        #check special click event
-        if self.__mode == self.MODE_NORMAL:
-            #wpt context, if any
-            wpt = self.__map_ctrl.getWptAround(geo)
-
-            if flag == 'right':
+        if flag == 'right':
+            if self.__mode != self.MODE_SAVE_IMG:
+                wpt = self.__map_ctrl.getWptAround(geo)
                 if wpt is not None:
                     self.__wpt_rclick_menu.post(e.x_root, e.y_root)  #right menu for wpt
-                    return
                 else:
                     self.__rclick_menu.post(e.x_root, e.y_root)  #right menu
-                    return
-            else:
+
+        elif flag == 'left':
+            #clear right menu, if any
+            self.__rclick_menu.unpost()
+            self.__wpt_rclick_menu.unpost()
+            #if click on a wpt?
+            if self.__mode != self.MODE_SAVE_IMG:
+                wpt = self.__map_ctrl.getWptAround(geo)
                 if wpt is not None:
                     self.onEditWpt(mode='single', wpt=wpt)
                     return
-                else:
-                    #clear right menu
-                    #self.__right_click_pos = None
-                    self.__rclick_menu.unpost()
-                    self.__wpt_rclick_menu.unpost()
-
-        #drag begin
-        if flag == 'left':
+            #begin drag
             self.__onDragBegin(pos, geo)
 
     def onClickMotion(self, e, flag):
@@ -2633,7 +2628,7 @@ class TrkSingleBoard(tk.Toplevel):
         #delete
         img = getAspectResize(Image.open(conf.DEL_ICON), (24, 24))
         self.del_icon = ImageTk.PhotoImage(img)
-        tk.Button(self, image=self.del_icon, command=self.onTrkDelete)\
+        tk.Button(self, image=self.del_icon, command=self.onTrkDelete, relief="flat", overrelief="raised")\
                 .pack(side='right', anchor='ne', expand=0)
 
         #info

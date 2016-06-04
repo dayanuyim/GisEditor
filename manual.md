@@ -45,7 +45,7 @@
 
     於座標列任一座標系統，輸入座標並鍵入[Enter]，可移至該位置。
      * 輸入格式為二個數字，以逗點或空白隔開
-     * 二度分帶輸入若為整數，單位為公尺；若為浮點數，單位為公里
+     * 二度分帶輸入若為整數，單位為**公尺**；若為浮點數，單位為**公里**
      * 經緯度可輸入整數或小數，單位為度。
 
 2\. 航點編輯<a name=sec_wpt></a>
@@ -62,7 +62,7 @@
 
 3. 航點編輯視窗<a name="wpt_edit"></a>
 
-    點擊任一航點圖示或`右鍵->Edit waypoints->Edit 1-by-1`
+    點擊任一航點圖示或`右鍵->Edit waypoints`或熱鍵`Ctrl+w`
 
     ![航點編輯視窗][img_wptedit]
 
@@ -73,7 +73,7 @@
 
 4. 航點列表視窗
 
-    右鍵->Edit waypoints->Edit in list
+    右鍵->Show waypoints list
 
     ![航點列表視窗][img_wptlist]
 
@@ -120,24 +120,37 @@
 3\. 航跡編輯<a name="sec_trk"></a>
 ------------
 
-1. 航跡編輯視窗
+1. 航跡編輯視窗<a name="trk_edit_board"></a>
+
+    `右鍵->Edit Tracks`或熱鍵`Ctrl+t`
 
     ![航跡編輯視窗][img_trkboard]
-
+    
      *  Track: 航跡名稱
      *  Color：航跡顏色。
+     *  刪除鈕：刪除此航跡
      *  航跡點：選取一或多個航跡點可在地圖上顯示
      *  Focus Track Point：將所選取的航跡點置中於地圖
 
     *注意* 航跡顏色亦輸入任何 python 支援顏色，但不具可攜性
 
-2. 自動分割航跡
+2. 刪除航跡
+
+    請進入[航跡編輯視窗](#trk_edit_board)，點擊刪除鈕。
+
+3. 繪製航跡
+    
+    `右鍵->Draw Track...`或熱鍵`1`
+
+    ![繪製航跡][img_drawtrk]
+
+4. 自動分割航跡
 
      *  以每日作分割：`右鍵->Split tracks...->by day`
      *  以時間差距作分割：`右鍵->Split tracks...->by time gap`
      *  以距離差距作分割：`右鍵->Split tracks...->by distance`
 
-3. 輸出航跡檔
+5. 輸出航跡檔
 
     `右鍵->Save to gpx...`
 
