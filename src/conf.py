@@ -167,7 +167,10 @@ MAX_SUPP_LEVEL = __user_conf.getint('settings', 'max_supp_level', fallback=18)
 
 SPLIT_TIME_GAP = timedelta(hours=__user_conf.getfloat('settings', 'split_time_gap_hr', fallback=5.0))
 SPLIT_DIST_GAP = __user_conf.getfloat('settings', 'split_dist_gap_km', fallback=100.0)
+
 TRK_WIDTH = __user_conf.getint('settings', 'trk_width', fallback=3)
+TRK_SET_FOCUS = __user_conf.getboolean('settings', 'trk_set_focus', fallback=True)
+WPT_SET_FOCUS = __user_conf.getboolean('settings', 'wpt_set_focus', fallback=True)
 
 SELECT_AREA_X = __user_conf.getfloat('image', 'select_area_x', fallback=7.0)
 SELECT_AREA_Y = __user_conf.getfloat('image', 'select_area_y', fallback=5.0)
@@ -185,6 +188,8 @@ def writeUserConf():
     __user_conf["settings"]["split_time_gap"] = "%f" % (SPLIT_TIME_GAP.total_seconds()/3600,)
     __user_conf["settings"]["split_dist_gap"] = "%f" % (SPLIT_DIST_GAP,)
     __user_conf["settings"]["trk_width"]      = "%d" % (TRK_WIDTH,)
+    __user_conf["settings"]["trk_set_focus"]  = "%s" % ('True' if TRK_SET_FOCUS else 'False',)
+    __user_conf["settings"]["wpt_set_focus"]  = "%s" % ('True' if WPT_SET_FOCUS else 'False',)
 
     #image
     __user_conf["image"] = OrderedDict()

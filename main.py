@@ -361,8 +361,9 @@ class MapBoard(tk.Frame):
         self.__map_btn.pack(side='left', expand=0, anchor='nw')
 
         #level
-        self.__info_level = self.__genInfoWidgetNum(frame, font, 'Level', 2,
-                conf.MIN_SUPP_LEVEL, conf.MAX_SUPP_LEVEL, self.__onSetLevel)
+        self.__info_level = self.__genInfoWidgetNum(frame, font, 'Level', 2, conf.MIN_SUPP_LEVEL, conf.MAX_SUPP_LEVEL,
+                #state='disabled',
+                cb=self.__onSetLevel)
 
         #pos
         self.__info_67tm2 = self.__genInfoWidget(frame, font, 'TM2/67', 16, self.onSetPos)
@@ -387,7 +388,7 @@ class MapBoard(tk.Frame):
 
         return entry
 
-    def __genInfoWidgetNum(self, frame, font, title, width, min_, max_, cb=None):
+    def __genInfoWidgetNum(self, frame, font, title, width, min_, max_, state='normal', cb=None):
 
         bfont = font + ' bold'
 
@@ -395,7 +396,7 @@ class MapBoard(tk.Frame):
         label.pack(side='left', expand=0, anchor='nw')
 
         var = tk.IntVar()
-        widget = tk.Spinbox(frame, font=font, width=width, textvariable=var, from_=min_, to=max_)
+        widget = tk.Spinbox(frame, font=font, width=width, textvariable=var, state=state, from_=min_, to=max_)
         widget.pack(side='left', expand=0, anchor='nw')
         widget.variable = var
 
@@ -2205,7 +2206,7 @@ class WptBoard(tk.Toplevel):
         self.bind('<Delete>', lambda e: self.onDeleted(e, prompt=True))
 
         #focus
-        self._var_focus = tk.BooleanVar()
+        self._var_focus = tk.BooleanVar(value=conf.WPT_SET_FOCUS)
         self._var_focus.trace('w', self.onFocusChanged)
 
         #wpt name
@@ -2288,11 +2289,16 @@ class WptBoard(tk.Toplevel):
     
     def highlightWpt(self, wpt):
         #focus
-        if self._var_focus.get():
+        is_focus = self._var_focus.get()
+        if is_focus:
             self.master.resetMap(wpt)
 
         #highlight the current wpt
         self.master.highlightWpt(wpt)
+
+        #save user setting
+        conf.WPT_SET_FOCUS = is_focus
+        conf.writeUserConf()
 
     def unhighlightWpt(self, wpt):
         self.master.resetMap() if self.is_changed else self.master.restore()
@@ -2588,7 +2594,7 @@ class TrkSingleBoard(tk.Toplevel):
         self._trk_list = trk_list
         self._altered_handlers = []
         self._is_changed = False
-        self._var_focus = tk.BooleanVar()
+        self._var_focus = tk.BooleanVar(value=conf.TRK_SET_FOCUS)
         self._var_focus.trace('w', self.onFocus)
 
         #handlers
@@ -2755,6 +2761,10 @@ class TrkSingleBoard(tk.Toplevel):
             if idxes:
                 pts = [self._curr_trk[i] for i in idxes]
                 self.highlightTrk(pts)
+
+        #save user setting
+        conf.TRK_SET_FOCUS = is_focus
+        conf.writeUserConf()
 
     def onPtSelected(self, e):
         idxes = self.pt_list.curselection()
