@@ -307,7 +307,7 @@ class MapBoard(tk.Frame):
         self.__rclick_menu = tk.Menu(self.disp_canvas, tearoff=0)
         self.__rclick_menu.add_command(label='Add Files', underline=0, command=self.onAddFiles)
         self.__rclick_menu.add_separator()
-        self.__rclick_menu.add_command(label='Add wpt', command=self.onAddWpt)
+        self.__rclick_menu.add_command(label='Add wpt', command=self.onWptAdd)
         '''
         edit_wpt_menu = tk.Menu(self.__rclick_menu, tearoff=0)
         edit_wpt_menu.add_command(label='Edit 1-by-1', underline=5, command=lambda:self.onEditWpt(mode='single'))
@@ -505,12 +505,10 @@ class MapBoard(tk.Frame):
     def addWpt(self, wpt):
         if wpt is not None:
             self.__map_ctrl.addWpt(wpt)
-            self.setAlter('wpt')
 
     def deleteTrk(self, trk):
         if trk is not None:
             self.__map_ctrl.deleteTrk(trk)
-            self.setAlter('trk')
 
     def setLevel(self, level, focus_pt=None, allow_period_ms=500):
         #check mode
@@ -817,7 +815,7 @@ class MapBoard(tk.Frame):
 
 
     def onClickUp(self, e, flag):
-        # !not unset click pos, it may be used by later method, ex: onAddWpt()
+        # !not unset click pos, it may be used by later method, ex: onWptAdd()
 
         if flag == 'left':
             self.__onDragEnd()
@@ -858,13 +856,18 @@ class MapBoard(tk.Frame):
         except Exception as ex:
             showmsg('Add Files Error: %s' % (str(ex),))
 
-    def onAddWpt(self):
+    def onWptAdd(self):
         if not self.__right_click_pos:
             showmsg('Create Wpt Error: Cannot get right click position')
             return
 
         wpt = self.genWpt(self.__right_click_pos)
         self.addWpt(wpt)
+        self.setAlter('wpt')
+
+    def onTrkDelete(self, trk):
+        self.deleteTrk(trk)
+        self.setAlter('trk')
 
     def onNumberWpt(self, name=None, time=None):
         wpt_list = self.__map_ctrl.getAllWpts()
@@ -912,7 +915,7 @@ class MapBoard(tk.Frame):
 
         if mode == 'single':
             trk_board = TrkSingleBoard(self, trk_list, trk)
-            trk_board.on_trk_delete_handler = self.deleteTrk
+            trk_board.on_trk_delete_handler = self.onTrkDelete
             trk_board.show()
         else:
             trk_board = TrkListBoard(self, trk_list, trk)
@@ -2355,7 +2358,7 @@ class WptSingleBoard(WptBoard):
 
         #wpt name
         name_entry = tk.Entry(frame, textvariable=self._var_name, font=font)
-        name_entry.bind('<Return>', lambda e: self.onWptSelected(1))
+        name_entry.bind('<Return>', lambda e: self.onWptPick(1))
         name_entry.grid(row=row, column=2, sticky='w')
 
         row += 1
@@ -2710,7 +2713,7 @@ class TrkSingleBoard(tk.Toplevel):
 
         #show the next trk
         if not self._trk_list:
-            self.onClosed()
+            self.close()
         else:
             idx = min(idx, len(self._trk_list) -1) #crop
             self.setCurrTrk(self._trk_list[idx])
