@@ -653,8 +653,12 @@ class MapBoard(tk.Frame):
         self.setLevel(level, (e.x, e.y))
 
     def __onSetLevel(self, *args):
-        level = self.__info_level.variable.get()
-        self.setLevel(level)
+        try:
+            level = self.__info_level.variable.get()
+            self.setLevel(level)
+        except Exception as ex:
+            logging.warning("set level error: " + str(ex))
+            #do Not show message box to user, which may be a 'temperary' key-in error
 
     def onSetPos(self, e):
         #if val_txt is digit, regarding as int with unit 'meter'
