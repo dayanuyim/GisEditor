@@ -337,9 +337,17 @@ class MapBoard(tk.Frame):
         split_trk_menu.add_command(label='By time gap', command=lambda:self.onSplitTrk(self.trkTimeGap))
         split_trk_menu.add_command(label='By distance', command=lambda:self.onSplitTrk(self.trkDistGap))
         self.__rclick_menu.add_cascade(label='Split tracks...', menu=split_trk_menu)
-        bindMenuAccelerator(self.master, str(self.MODE_DRAW_TRK), self.__rclick_menu, 'Draw tracks...', lambda:self.__changeMode(self.MODE_DRAW_TRK))
+
+        bindMenuAccelerator(self.master, '<F' + str(self.MODE_DRAW_TRK) + '>',
+                self.__rclick_menu, 'Draw tracks...',
+                lambda:self.__changeMode(self.MODE_DRAW_TRK))
+
         self.__rclick_menu.add_separator()
-        bindMenuAccelerator(self.master, str(self.MODE_SAVE_IMG), self.__rclick_menu, 'Save to image...', lambda:self.__changeMode(self.MODE_SAVE_IMG))
+
+        bindMenuAccelerator(self.master, '<F' + str(self.MODE_SAVE_IMG) + '>',
+                self.__rclick_menu, 'Save to image...',
+                lambda:self.__changeMode(self.MODE_SAVE_IMG))
+
         self.__rclick_menu.add_command(label='Save to gpx...', underline=0, command=self.onGpxSave)
 
         #wpt menu
