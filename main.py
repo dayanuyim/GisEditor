@@ -331,7 +331,10 @@ class MapBoard(tk.Frame):
         edit_trk_menu.add_command(label='Edit in list', underline=5, command=lambda:self.onEditTrk(mode='list'))
         self.__rclick_menu.add_cascade(label='Edit tracks...', menu=edit_trk_menu)
         '''
-        bindMenuAccelerator(self.master, '<Control-t>', self.__rclick_menu, 'Edit tracks', lambda:self.onEditTrk(mode='single'))
+        bindMenuAccelerator(self.master, '<Control-t>',
+                self.__rclick_menu, 'Edit tracks',
+                lambda:self.onEditTrk(mode='single'))
+
         split_trk_menu = tk.Menu(self.__rclick_menu, tearoff=0)
         split_trk_menu.add_command(label='By day', command=lambda:self.onSplitTrk(self.trkDiffDay))
         split_trk_menu.add_command(label='By time gap', command=lambda:self.onSplitTrk(self.trkTimeGap))
@@ -348,7 +351,9 @@ class MapBoard(tk.Frame):
                 self.__rclick_menu, 'Save to image...',
                 lambda:self.__changeMode(self.MODE_SAVE_IMG))
 
-        self.__rclick_menu.add_command(label='Save to gpx...', underline=0, command=self.onGpxSave)
+        bindMenuAccelerator(self.master, '<Control-s>',
+                self.__rclick_menu, 'Save to gpx...',
+                command=self.onGpxSave)
 
         #wpt menu
         self.__wpt_rclick_menu = tk.Menu(self.disp_canvas, tearoff=0)
