@@ -25,14 +25,31 @@ class DrawGuard:
         if self.__draw is not None:
             del self.__draw
 
-# Bind widget's event and menu's accelerator
 # Notice: 'accelerator string' may not a perfect guess, need more heuristic improvement
-def bindMenuAccelerator(widget, event, menu, label, command):
-    #a guss to accelerator string
-    acce = event.strip('<>').replace('Control', 'Ctrl').replace('-', '+')
+def __guessAccelerator(event):
+    return event.strip('<>').replace('Control', 'Ctrl').replace('-', '+')
 
+# Bind widget's event and menu's accelerator
+def bindMenuCmdAccelerator(widget, event, menu, label, command):
     widget.bind(event, lambda e: command())
-    menu.add_command(label=label, command=command, accelerator=acce)
+    menu.add_command(label=label, command=command, accelerator=__guessAccelerator(event))
+
+def bindMenuCheckAccelerator(widget, event, menu, label, command):
+    #keep variable
+    var = tk.BooleanVar()
+    attrname = "accelerator_" + event
+    setattr(widget, attrname, var)
+
+    def event_cb(e):
+        var.set(not var.get()) #trigger
+        command(var.get())
+
+    def menu_cb():
+        command(var.get())
+
+    widget.bind(event, event_cb)
+    menu.add_checkbutton(label=label, command=menu_cb, accelerator=__guessAccelerator(event),
+            onvalue=True, offvalue=False, variable=var)
 
 #be quiet to wait to show
 def quietenTopLevel(toplevel):
