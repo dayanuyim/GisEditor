@@ -30,7 +30,7 @@ import src.util as util
 from src.ui import Dialog, MapSelectDialog, MapSelectFrame
 from src.gpx import GpsDocument, WayPoint, Track, TrackPoint
 from src.pic import PicDocument
-from src.util import GeoPoint, getPrefCornerPos, DrawGuard, imageIsTransparent, bindMenuAccelerator
+from src.util import GeoPoint, getPrefCornerPos, DrawGuard, imageIsTransparent, bindMenuCmdAccelerator, bindMenuCheckAccelerator
 from src.util import AreaSelector, AreaSizeTooLarge, GeoInfo  #should move to ui.py
 from src.tile import TileAgent, MapDescriptor
 from src.sym import askSym, toSymbol
@@ -260,7 +260,7 @@ class MapBoard(tk.Frame):
         self.__pref_dir = None
         self.__pref_geo = None
         self.__some_geo = GeoPoint(lon=121.334754, lat=24.987969)
-        self.__drawing_trk_idx = None
+        self.__draw_trk_id = None
         self.__left_click_pos = None
         self.__right_click_pos = None
         self.__set_level_ts = datetime.min
@@ -314,7 +314,7 @@ class MapBoard(tk.Frame):
         edit_wpt_menu.add_command(label='Edit in list', underline=5, command=lambda:self.onEditWpt(mode='list'))
         self.__rclick_menu.add_cascade(label='Edit waypoints...', menu=edit_wpt_menu)
         '''
-        bindMenuAccelerator(self.master, '<Control-w>', self.__rclick_menu, 'Edit waypoints', lambda:self.onEditWpt(mode='single'))
+        bindMenuCmdAccelerator(self.master, '<Control-w>', self.__rclick_menu, 'Edit waypoints', lambda:self.onEditWpt(mode='single'))
         self.__rclick_menu.add_command(label='Show waypoints list', underline=0, command=lambda:self.onEditWpt(mode='list'))
 
         num_wpt_menu = tk.Menu(self.__rclick_menu, tearoff=0)
@@ -331,7 +331,7 @@ class MapBoard(tk.Frame):
         edit_trk_menu.add_command(label='Edit in list', underline=5, command=lambda:self.onEditTrk(mode='list'))
         self.__rclick_menu.add_cascade(label='Edit tracks...', menu=edit_trk_menu)
         '''
-        bindMenuAccelerator(self.master, '<Control-t>',
+        bindMenuCmdAccelerator(self.master, '<Control-t>',
                 self.__rclick_menu, 'Edit tracks',
                 lambda:self.onEditTrk(mode='single'))
 
@@ -341,17 +341,17 @@ class MapBoard(tk.Frame):
         split_trk_menu.add_command(label='By distance', command=lambda:self.onSplitTrk(self.trkDistGap))
         self.__rclick_menu.add_cascade(label='Split tracks...', menu=split_trk_menu)
 
-        bindMenuAccelerator(self.master, '<F' + str(self.MODE_DRAW_TRK) + '>',
+        bindMenuCheckAccelerator(self.master, '<F' + str(self.MODE_DRAW_TRK) + '>',
                 self.__rclick_menu, 'Draw tracks...',
-                lambda:self.__changeMode(self.MODE_DRAW_TRK))
+                lambda checked:self.__changeMode(self.MODE_DRAW_TRK if checked else self.MODE_NORMAL))
 
         self.__rclick_menu.add_separator()
 
-        bindMenuAccelerator(self.master, '<F' + str(self.MODE_SAVE_IMG) + '>',
+        bindMenuCmdAccelerator(self.master, '<F' + str(self.MODE_SAVE_IMG) + '>',
                 self.__rclick_menu, 'Save to image...',
                 lambda:self.__changeMode(self.MODE_SAVE_IMG))
 
-        bindMenuAccelerator(self.master, '<Control-s>',
+        bindMenuCmdAccelerator(self.master, '<Control-s>',
                 self.__rclick_menu, 'Save to gpx...',
                 command=self.onGpxSave)
 
@@ -448,8 +448,9 @@ class MapBoard(tk.Frame):
                 self.title = self.__orig_title
 
         elif mode == self.MODE_DRAW_TRK:
+            self.__draw_trk_id = None
+            #ui
             self.resetMap(force='trk')
-            self.__drawing_trk_idx = None
             self.master['cursor'] = ''
             self.title = self.__orig_title
 
@@ -728,8 +729,8 @@ class MapBoard(tk.Frame):
                 geo = self.getGeoPointAt(x, y)
             trkpt = TrackPoint(geo.lat, geo.lon)
             #create trk and add pt
-            self.__drawing_trk_idx = self.__map_ctrl.genTrk()
-            self.__map_ctrl.addTrkpt(self.__drawing_trk_idx, trkpt)
+            self.__draw_trk_id = self.__map_ctrl.genTrk()
+            self.__map_ctrl.addTrkpt(self.__draw_trk_id, trkpt)
             #show
             n = int(conf.TRK_WIDTH/2)
             coords = (x-n, y-n, x+n, y+n)
@@ -745,7 +746,7 @@ class MapBoard(tk.Frame):
             return
         #drawing track
         elif self.__mode == self.MODE_DRAW_TRK:
-            if self.__drawing_trk_idx is None:
+            if self.__draw_trk_id is None:
                 logging.warning("[Logic Error] No track is created to keep trkpt")
                 return
             if not last_pos:
@@ -755,7 +756,7 @@ class MapBoard(tk.Frame):
             x, y = pos
             geo = self.getGeoPointAt(x, y)
             trkpt = TrackPoint(geo.lat, geo.lon)
-            self.__map_ctrl.addTrkpt(self.__drawing_trk_idx, trkpt)
+            self.__map_ctrl.addTrkpt(self.__draw_trk_id, trkpt)
             #show
             coords = last_pos + pos
             self.disp_canvas.create_line(coords, fill='darkmagenta', width=conf.TRK_WIDTH, tag='DRAW_TRK')
@@ -779,7 +780,7 @@ class MapBoard(tk.Frame):
         elif self.__mode == self.MODE_DRAW_TRK:
             self.disp_canvas.delete('DRAW_TRK')
             self.resetMap(force='trk')
-            self.__drawing_trk_idx = None
+            self.__draw_trk_id = None
         #normal
         else:
             self.master['cursor'] = ''
