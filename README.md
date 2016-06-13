@@ -21,8 +21,8 @@ Map Adapter to WMTS
 ------------------
 
  *  免安裝檔：
-     *  [version 0.21, 32bit版][giseditor-0.21-32]
-     *  [version 0.21, 64bit版][giseditor-0.21-64]
+     *  [version 0.22, 32bit版][giseditor-0.22-32]
+     *  [version 0.22, 64bit版][giseditor-0.22-64]
  *  自動安裝：暫無。
  *  手動安裝：請參考[手動安裝](#win_install)。
 
@@ -32,6 +32,8 @@ Map Adapter to WMTS
  [giseditor-0.2-64]: https://drive.google.com/file/d/0B7ryOauZNjlbTndFbW1oTEtxWWs/view?usp=sharing
  [giseditor-0.21-32]: https://drive.google.com/file/d/0B7ryOauZNjlbZV9OcjFPNUwzYUU/view?usp=sharing
  [giseditor-0.21-64]: https://drive.google.com/file/d/0B7ryOauZNjlbNFBheXEwWTE5U2s/view?usp=sharing
+ [giseditor-0.22-32]: https://drive.google.com/file/d/0B7ryOauZNjlbbVhoNTZWUW9uN2s/view?usp=sharing
+ [giseditor-0.22-64]: https://drive.google.com/file/d/0B7ryOauZNjlbU2ZBQVkzd2dLbUE/view?usp=sharing
 
 
 軟體安裝 (Linux)
