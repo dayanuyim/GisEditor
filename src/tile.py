@@ -384,18 +384,23 @@ class TileAgent:
             status = self.TILE_REQ_FAILED | (status & 0x0F)
             self.__mem_cache.set(id, status)
             return None
-        else:
-            #save to memory
+
+        #get tile_img, and save to memory
+        tile_img = None
+        try:
             tile_img = Image.open(BytesIO(tile_data))
             self.__mem_cache.set(id, self.TILE_VALID, tile_img)
+        except Exception as ex:
+            logging.error("[%s] Error to open tile data: %s" % (self.map_id, str(ex)))
+            return None
 
-            #save to disk
-            try:
-                self.__disk_cache.put(level, x, y, tile_data)
-            except Exception as ex:
-                logging.error("[%s] Error to save tile data: %s" % (self.map_id, str(ex)))
+        #save tile_data to disk
+        try:
+            self.__disk_cache.put(level, x, y, tile_data)
+        except Exception as ex:
+            logging.error("[%s] Error to save tile data: %s" % (self.map_id, str(ex)))
 
-            return tile_img
+        return tile_img
 
     #The therad to download
     def __runDownloadJob(self, id, req):
