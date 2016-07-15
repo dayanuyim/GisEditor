@@ -254,7 +254,6 @@ class MapBoard(tk.Frame):
         self.__map_req_time = datetime.min
         self.__map_has_update = False
         self.__prog_of_reset_map = None
-        self.__prog_of_image_save = None
         self.__map_req_lock = Lock()
         self.__alter_time = None
         self.__pref_dir = None
@@ -587,6 +586,7 @@ class MapBoard(tk.Frame):
             self.__info_67tm2.variable.set("%.3f, %.3f" % (geo.twd67_x/1000, geo.twd67_y/1000))
 
 
+    # @Careful: multi-threads to access self.__status_label will cause blocking (but unknown why)
     def __setStatus(self, txt = None, prog=None, is_immediate=False):
         txt_has_change = False
         if txt is not None and self.__status_label['text'] != txt:
@@ -1050,16 +1050,22 @@ class MapBoard(tk.Frame):
             #prepare map progress info
             img_area = TileArea(out_level, sel_geo.pixel(out_level), (dx, dy))
             img_ids = [d.map_id for d in enabled_maps]
-            self.__prog_of_image_save = MapProgressRec(img_area, img_ids)
+            progress = MapProgressRec(img_area, img_ids)
             self.__setMapProgress(0, is_immediate=True)
 
             def update_prog_cb(tile_info):
-                prog = self.__prog_of_image_save
-                if prog.update(tile_info):
-                    self.__setMapProgress(prog.rate, is_immediate=True)
+                try:
+                    if progress.update(tile_info):
+                        logging.debug('Start to save image...%f' % (progress.rate,))
+                        self.__setMapProgress(progress.rate, is_immediate=True)
+                except Exception as ex:
+                    logging.warning('Update saving progress error: ' + str(ex))
 
             #get and save
+            logging.info('Start to save image')
             map, attr = self.__map_ctrl.getMap(dx, dy, geo=sel_geo, level=out_level, req_type="sync", cb=update_prog_cb)
+
+            logging.info('Start to save image to file')
             map.save(fpath, format='png')
 
             #notify the saving is  done
@@ -1688,10 +1694,15 @@ class MapController:
 
         if not agents:
             return None
-        elif len(agents) == 1:
-            agent = agents[0]
-            map, attr = agent.genMap(req_attr, req_type, cb)
-            return [(map, attr, agent.alpha)]
+
+        maps = []
+        
+        # sync to get maps
+        if len(agents) == 1 or req_type == 'sync':
+            for agent in agents:
+                map, attr = agent.genMap(req_attr, req_type, cb)
+                maps.append((map, attr, agent.alpha))
+        # Async to get maps
         else:
             map_repo = {}
             map_repo_lock = Lock()
@@ -1709,7 +1720,6 @@ class MapController:
                 worker.join()
 
             #collectin maps
-            maps = []
             idx = 0
             for agent in agents:
                 map, attr = map_repo[agent]
@@ -1717,7 +1727,7 @@ class MapController:
                 logging.debug('get map[%d] %-20s, size: %s, attr: %s' % (idx, agent.map_id, "None" if map is None else str(map.size), str(attr)))
                 idx += 1
 
-            return maps
+        return maps
 
     def __checkAttrs(self, attrs, baseattr):
         basearea = baseattr.toTileArea()
