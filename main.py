@@ -253,7 +253,7 @@ class MapBoard(tk.Frame):
         self.__map_attr = None
         self.__map_req_time = datetime.min
         self.__map_has_update = False
-        self.__prog_of_reset_map = None
+        self.__map_prog = None
         self.__map_req_lock = Lock()
         self.__alter_time = None
         self.__pref_dir = None
@@ -1189,8 +1189,8 @@ class MapBoard(tk.Frame):
             update_ts = datetime.now() - conf.MAP_UPDATE_PERIOD
             with self.__map_req_lock:
                 if self.__map_req_time <= update_ts:
-                    if self.__prog_of_reset_map and progress_rate != self.__prog_of_reset_map.rate:
-                        progress_rate = self.__prog_of_reset_map.rate
+                    if self.__map_prog and progress_rate != self.__map_prog.rate:
+                        progress_rate = self.__map_prog.rate
                         should_update_status = True
 
                     if self.__map_has_update:
@@ -1210,7 +1210,7 @@ class MapBoard(tk.Frame):
         logging.debug("tile (%s, %d, %d, %d) is ready" % tile_info)
 
         with self.__map_req_lock:
-            if self.__prog_of_reset_map.update(tile_info): #need the lock due to access to data members
+            if self.__map_prog.update(tile_info): #need the lock due to access to data members
                 self.__map_has_update = True
                 logging.debug("has update")
 
@@ -1237,8 +1237,7 @@ class MapBoard(tk.Frame):
             self.__map_has_update = False #reset flag
             self.__map_req_time = now
             self.__map, self.__map_attr = self.__map_ctrl.getMap(w, h, force, cb=self.__notifyTileReady)  #buffer the image
-            self.__prog_of_reset_map = MapProgressRec(map_area, map_ids,
-                    needed_count = self.__map_attr.fail_tiles)
+            self.__map_prog = MapProgressRec(map_area, map_ids, needed_count=self.__map_attr.fail_tiles)
 
         #set map
         self.__setMap(self.__map)
@@ -1998,11 +1997,14 @@ class MapProgressRec:
     def rate(self):
         return 1 if not self.__total else self.__count / self.__total
 
-    def __init__(self, map_area, map_ids, init_count=0, needed_count=-1):
+    def __init__(self, map_area, map_ids, init_count=0, needed_count=None):
         self.__map_area = map_area
         self.__map_ids = map_ids
+
         self.__total = self.__getTotalTiles()
-        self.__count = max(0, self.__total - needed_count) if needed_count >= 0 else init_count
+        self.__count = init_count if needed_count is None else self.__total - needed_count
+        self.__count = min(max(0, self.__count), self.__total)  #crop
+
         self.__added_tiles = set()
 
     def __getTotalTiles(self):
