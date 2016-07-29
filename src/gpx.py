@@ -357,7 +357,7 @@ class Track:
         return self.__trkseg[idx]
 
     def __setitem__(self, idx, val):
-        self.__trkseg[idx] = value
+        self.__trkseg[idx] = val
 
     def __delitem__(self, idx):
         del self.__trkseg[idx]
