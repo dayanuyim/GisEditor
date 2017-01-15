@@ -734,7 +734,7 @@ class MapBoard(tk.Frame):
             #show
             n = int(conf.TRK_WIDTH/2)
             coords = (x-n, y-n, x+n, y+n)
-            self.disp_canvas.create_oval(coords, width=0, fill='darkmagenta', tag='DRAW_TRK')
+            self.disp_canvas.create_oval(coords, width=0, fill=conf.DEF_COLOR, tag='DRAW_TRK')
         #normal
         else:
             self.master['cursor'] = 'hand2'
@@ -759,7 +759,7 @@ class MapBoard(tk.Frame):
             self.__map_ctrl.addTrkpt(self.__draw_trk_id, trkpt)
             #show
             coords = last_pos + pos
-            self.disp_canvas.create_line(coords, fill='darkmagenta', width=conf.TRK_WIDTH, tag='DRAW_TRK')
+            self.disp_canvas.create_line(coords, fill=conf.DEF_COLOR, width=conf.TRK_WIDTH, tag='DRAW_TRK')
         #normal
         else:
             if not last_pos:
@@ -1542,8 +1542,7 @@ class MapController:
 
     def genTrk(self):
         def_name = "TRK-" + str(len(self.__pseudo_gpx.tracks) + 1)
-        def_color = "darkmagenta"
-        return self.__pseudo_gpx.genTrk(def_name, def_color)
+        return self.__pseudo_gpx.genTrk(def_name, conf.DEF_COLOR)
 
     def deleteTrk(self, trk):
         for gpx in self.__gpx_layers:
@@ -1814,7 +1813,7 @@ class MapController:
 
         #set to default color if invalid
         if not (color and color.lower() in ImageColor.colormap):
-            color = 'darkmagenta'
+            color = conf.DEF_COLOR
 
         if bg_color and bg_color.lower() not in ImageColor.colormap:
             bg_color = 'orange'

@@ -110,6 +110,8 @@ GPSBABEL_EXT_FMT = raw.gpsbabel_ext_fmt
 
 MAP_UPDATE_PERIOD = timedelta(seconds=1)
 
+DEF_COLOR = "DarkMagenta"
+
 # App conf ###########################################
 __app_conf = __readConf(__APP_CONF)
 
