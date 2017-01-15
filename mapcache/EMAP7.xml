@@ -7,4 +7,5 @@
     <tileUpdate>None</tileUpdate>
     <url>http://maps.nlsc.gov.tw/S_Maps/wmts/EMAP7/default/EPSG:3857/{$z}/{$y}/{$x}</url>
     <backgroundColor>#000000</backgroundColor>
+    <expireDays>14</expireDays>
 </customMapSource>
