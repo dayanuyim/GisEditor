@@ -105,11 +105,8 @@ def saveXml(xml_root, filepath, enc="UTF-8"):
         f.write(txt)
 
 def listdiff(list1, list2):
-    result = []
-    for e in list1:
-        if not e in list2:
-            result.append(e)
-    return result
+    list2 = set(list2)
+    return [e for e in list1 if e not in list2]
 
 def mkdirSafely(path, is_recursive=True):
     if not os.path.exists(path):
@@ -830,4 +827,3 @@ if __name__ == '__main__':
     img = Image.new('RGBA', (400,300), (255, 255, 255, 96))  #transparent
     with DrawGuard(img) as draw:
         print('...processing')
-

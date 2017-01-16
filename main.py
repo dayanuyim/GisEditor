@@ -32,6 +32,7 @@ from src.gpx import GpsDocument, WayPoint, Track, TrackPoint
 from src.pic import PicDocument
 from src.util import GeoPoint, getPrefCornerPos, DrawGuard, imageIsTransparent, bindMenuCmdAccelerator, bindMenuCheckAccelerator
 from src.util import AreaSelector, AreaSizeTooLarge, GeoInfo  #should move to ui.py
+from src.tool import *
 from src.tile import TileAgent, MapDescriptor
 from src.sym import askSym, toSymbol
 
@@ -1381,7 +1382,7 @@ class MapAgent:
         #check range
         if level == attr.level:
             t_left, t_upper, t_right, t_lower = attr.boundTiles(self.__extra_p)
-            return (t_left <= x and x <= t_right) and (t_upper <= y and y <= t_lower)
+            return (t_left <= x <= t_right) and (t_upper <= y <= t_lower)
         return False
 
     @classmethod
@@ -1534,7 +1535,7 @@ class MapController:
             if desc.enabled:
                 min_lon, min_lat = desc.lower_corner
                 max_lon, max_lat = desc.upper_corner
-                if (min_lat <= geo.lat and geo.lat <= max_lat) and (min_lon <= geo.lon and geo.lon <= max_lon):
+                if (min_lat <= geo.lat <= max_lat) and (min_lon <= geo.lon <= max_lon):
                     return True
         return False
 
@@ -1552,6 +1553,7 @@ class MapController:
         for gpx in self.__gpx_layers:
             if trk in gpx.tracks:
                 gpx.tracks.remove(trk)
+                break
 
     def addTrkpt(self, trk_idx, pt):
         self.__pseudo_gpx.addTrkpt(trk_idx, pt)
@@ -1568,6 +1570,7 @@ class MapController:
         for gpx in self.__gpx_layers:
             if wpt in gpx.way_points:
                 gpx.way_points.remove(wpt)
+                break
 
     def getAllWpts(self):
         wpts = []
@@ -2132,9 +2135,9 @@ class TileArea:
 
     @classmethod
     def lineOverlay(cls, x1, w1, x2, w2):
-        if x1 <= x2 and x2 < (x1 + w1):
+        if x1 <= x2 < (x1 + w1):
             x = x2
-        elif x2 <= x1 and x1 < (x2 + w2):
+        elif x2 <= x1 < (x2 + w2):
             x = x1
         else:
             return None
@@ -2656,10 +2659,10 @@ class TrkSingleBoard(tk.Toplevel):
         pt_scroll.pack(side='right', fill='y')
         self.pt_list.config(selectmode='extended', yscrollcommand=pt_scroll.set, width=50, height=30)
         self.pt_list.pack(side='bottom', anchor='nw', expand=1, fill='both')
-        self.pt_list.bind('<ButtonRelease-1>', self.onPtSelected)
-        self.pt_list.bind('<KeyRelease-Up>', self.onPtSelected)
-        self.pt_list.bind('<KeyRelease-Down>', self.onPtSelected)
-        self.pt_list.bind('<Delete>', self.onPtDeleted)
+        self.pt_list.bind('<ButtonRelease-1>', self.onTrkptSelected)
+        self.pt_list.bind('<KeyRelease-Up>', self.onTrkptSelected)
+        self.pt_list.bind('<KeyRelease-Down>', self.onTrkptSelected)
+        self.pt_list.bind('<Delete>', self.onTrkptDeleted)
 
         #delete
         img = getAspectResize(Image.open(conf.DEL_ICON), (24, 24))
@@ -2797,22 +2800,29 @@ class TrkSingleBoard(tk.Toplevel):
         conf.TRK_SET_FOCUS = is_focus
         conf.writeUserConf()
 
-    def onPtSelected(self, e):
+    def onTrkptSelected(self, e):
         idxes = self.pt_list.curselection()
         if idxes:
             pts = [e.widget.data[i] for i in idxes]  #index of pts -> pts
             self.highlightTrk(pts)
 
-    def onPtDeleted(self, e):
+    def onTrkptDeleted(self, e):
         idxes = self.pt_list.curselection()
-        if idxes:
-            #Todo: bulk of deleting is better?
-            for i in sorted(idxes, reverse=True):
-                self.pt_list.delete(i) #view
-                del self._curr_trk[i]  #data
-            self._is_changed = True
+        if not idxes:
+            return
 
-            self.onAltered('trk')
+        #deleting sequential indexes, doing it one-by-one will take time!!
+        idx_groups = subgroup(idxes, lambda x,y: abs(x-y) <= 1)
+        idx_groups.reverse()
+        for grp in idx_groups:
+            first = grp[0]
+            last = grp[-1]
+            logging.debug("delete trk points [%d,%d]" % (first, last))
+            self.pt_list.delete(first, last)        #view
+            del self._curr_trk[first : last + 1]    #data
+
+        self._is_changed = True
+        self.onAltered('trk')
 
     def highlightTrk(self, pts):
         if self._var_focus.get():
