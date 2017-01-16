@@ -262,6 +262,7 @@ class MapBoard(tk.Frame):
         self.__draw_trk_id = None
         self.__left_click_pos = None
         self.__right_click_pos = None
+        self.__menu_ck_vars = []
         self.__set_level_ts = datetime.min
         self.__version = ''
 
@@ -340,9 +341,10 @@ class MapBoard(tk.Frame):
         split_trk_menu.add_command(label='By distance', command=lambda:self.onSplitTrk(self.trkDistGap))
         self.__rclick_menu.add_cascade(label='Split tracks...', menu=split_trk_menu)
 
-        bindMenuCheckAccelerator(self.master, '<F' + str(self.MODE_DRAW_TRK) + '>',
+        ck_var = bindMenuCheckAccelerator(self.master, '<F' + str(self.MODE_DRAW_TRK) + '>',
                 self.__rclick_menu, 'Draw tracks...',
                 lambda checked:self.__changeMode(self.MODE_DRAW_TRK if checked else self.MODE_NORMAL))
+        self.__menu_ck_vars.append(ck_var)
 
         self.__rclick_menu.add_separator()
 
@@ -479,7 +481,9 @@ class MapBoard(tk.Frame):
             self.__enterMode(mode)
 
     def __resetMode(self):
-        self.__hideMapSelector() #hide map selector, if any
+        self.__hideMapSelector()         #hide map selector, if any
+        for var in self.__menu_ck_vars:  #rest all menu's checks
+            var.set(False)
         self.__changeMode(self.MODE_NORMAL)
 
     # operations ====================================================================

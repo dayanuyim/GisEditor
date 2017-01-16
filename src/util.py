@@ -34,9 +34,12 @@ def bindMenuCmdAccelerator(widget, event, menu, label, command):
     widget.bind(event, lambda e: command())
     menu.add_command(label=label, command=command, accelerator=__guessAccelerator(event))
 
+# @command: a function accept a boolean argument
+# @return: return the check variable
 def bindMenuCheckAccelerator(widget, event, menu, label, command):
-    #keep variable
     var = tk.BooleanVar()
+
+    #keep variable
     attrname = "accelerator_" + event
     setattr(widget, attrname, var)
 
@@ -50,6 +53,8 @@ def bindMenuCheckAccelerator(widget, event, menu, label, command):
     widget.bind(event, event_cb)
     menu.add_checkbutton(label=label, command=menu_cb, accelerator=__guessAccelerator(event),
             onvalue=True, offvalue=False, variable=var)
+
+    return var
 
 #be quiet to wait to show
 def quietenTopLevel(toplevel):
