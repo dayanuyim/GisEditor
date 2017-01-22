@@ -261,6 +261,7 @@ class MapBoard(tk.Frame):
         self.__pref_geo = None
         self.__some_geo = GeoPoint(lon=121.334754, lat=24.987969)
         self.__draw_trk_id = None
+        self.__orig_title = None
         self.__left_click_pos = None
         self.__right_click_pos = None
         self.__menu_ck_vars = []
@@ -447,13 +448,15 @@ class MapBoard(tk.Frame):
             if self.__canvas_sel_area is not None:
                 self.__canvas_sel_area.exit()
                 self.__canvas_sel_area = None
-                self.title = self.__orig_title
 
         elif mode == self.MODE_DRAW_TRK:
             self.__draw_trk_id = None
             #ui
             self.resetMap(force='trk')
             self.master['cursor'] = ''
+
+        #recover title
+        if self.__orig_title is not None:
             self.title = self.__orig_title
 
     def __enterMode(self, mode):
