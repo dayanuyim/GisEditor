@@ -6,6 +6,7 @@ import platform
 import logging
 from PIL import ImageTk
 from tkinter import ttk, messagebox
+from src.tool import *
 #from utile import MapDescriptor
 
 class Dialog(tk.Toplevel):
@@ -547,30 +548,79 @@ class SingleEditBoard(Dialog):
 class MapRow(tk.Frame):
     ALPHA_MIN = 1
     ALPHA_MAX = 100
+
     @property
     def map_desc(self):
         return self.__map_desc
 
-    def __init__(self, master, map_desc, alpha_handler=None, enable_handle=None):
+    @property
+    def click_down_handler(self): return self.__click_down_handler
+
+    @click_down_handler.setter
+    def click_down_handler(self, h): self.__click_down_handler = h
+
+    @property
+    def click_motion_handler(self): return self.__click_motion_handler
+
+    @click_motion_handler.setter
+    def click_motion_handler(self, h): self.__click_motion_handler = h
+
+    @property
+    def click_up_handler(self): return self.__click_up_handler
+
+    @click_up_handler.setter
+    def click_up_handler(self, h): self.__click_up_handler = h
+
+    @property
+    def alpha_handler(self): return self.__alpha_handler
+
+    @alpha_handler.setter
+    def alpha_handler(self, h): self.__alpha_handler = h
+
+    @property
+    def enable_handler(self): return self.__enable_handler
+
+    @enable_handler.setter
+    def enable_handler(self, h): self.__enable_handler = h
+
+    def __init__(self, master, map_desc):
         super().__init__(master)
 
         FONT = "Arialuni 12"
         BFONT = FONT + " bold"
+        DIS_COLOR = 'lightgray'
 
-        self.__alpha_handler = alpha_handler
-        self.__enable_handler = enable_handle
-
+        #inner data
         self.__map_desc = map_desc
 
-        cmd = lambda:enable_handle(self) if enable_handle is not None else None
-        self.__btn = tk.Button(self, command=self.__onEnableChanged)
-        self.__setBtnTxt()
-        self.__btn.pack(side='right', anchor='e', expand=0)
+        #event handlers
+        self.__click_up_handler = None
+        self.__click_down_handler = None
+        self.__click_motion_handler = None
+        self.__alpha_handler = None
+        self.__enable_handler = None
 
-        #variable
+        #alpha variable
         alpha = int(map_desc.alpha * 100)
         self.__alpha_var = tk.IntVar(value=alpha)
         self.__alpha_var.trace('w', self.__onAlphaChanged)
+
+        #en variable
+        self.__en_var = tk.BooleanVar(value=map_desc.enabled)
+        self.__en_var.trace('w', self.__onEnableChanged)
+
+        #enabled
+        ckbox = tk.Checkbutton(self, variable=self.__en_var)
+        ckbox.pack(side='left', anchor='w', expand=0)
+
+        #title
+        label = tk.Label(self, text=map_desc.map_title, font=BFONT, anchor='w')
+        #label = tk.Label(self, text=map_desc.map_title, font=BFONT, disabledforeground=DIS_COLOR, anchor='w')
+        label.pack(side='left', anchor='w', expand='1', fill='x')
+        label.bind('<Button-1>', self.__onClickDown)
+        label.bind('<Button1-Motion>', self.__onClickMotion)
+        label.bind('<Button1-ButtonRelease>', self.__onClickUp)
+
         #spin
         alpha_label = tk.Label(self, text="%")
         alpha_label.pack(side='right', anchor='e', expand=0)
@@ -581,21 +631,52 @@ class MapRow(tk.Frame):
                 #resolution=1, showvalue=0, variable=self.__alpha_var)
         #alpha_scale.pack(side='right', anchor='e', expand=0, fill='x')
 
-        label = tk.Label(self, text=map_desc.map_title, font=BFONT, anchor='w')
-        label.pack(side='left', anchor='w', expand='1', fill='x')
+        #collect widgets for later use
+        self.__widgets = [self, ckbox, label, alpha_spin, alpha_label]
+        self.__origin_bgs = [ w['bg'] for w in self.__widgets]
 
-    def __setBtnTxt(self):
-        self.__btn['text'] = '-' if self.__map_desc.enabled else '+'
+        #enabled/disabled
+        self.__updateState()
 
-    def __onEnableChanged(self):
+    def __onClickDown(self, e):
+        #logging.critical('down %d %d' % (e.x, e.y))
+        if self.__click_down_handler is not None:
+            self.__click_down_handler(self, (e.x, e.y))
+
+    def __onClickMotion(self, e):
+        #logging.critical('motion %d %d' % (e.x, e.y))
+        if self.__click_motion_handler is not None:
+            self.__click_motion_handler(self, (e.x, e.y))
+
+    def __onClickUp(self, e):
+        #logging.critical('up %d %d' % (e.x, e.y))
+        if self.__click_up_handler is not None:
+            self.__click_up_handler(self, (e.x, e.y))
+
+    def setBackground(self, color):
+        for w in self.__widgets:
+            w['bg'] = color
+
+    def resetBackground(self):
+        for i in range(len(self.__widgets)):
+            self.__widgets[i]['bg'] = self.__origin_bgs[i]
+
+    def __updateState(self):
+        for w in self.__widgets:
+            if isinstance(w, tk.Label) or isinstance(w, tk.Spinbox):
+                w['state'] = 'normal' if self.map_desc.enabled else 'disabled'
+
+    def __onEnableChanged(self, *args):
         old_val = self.__map_desc.enabled
         new_val = not old_val
+        try:
+            self.__map_desc.enabled = new_val
+            self.__updateState()
 
-        self.__map_desc.enabled = new_val
-        self.__setBtnTxt()
-
-        if self.__enable_handler is not None:
-            self.__enable_handler(self, old_val)
+            if self.__enable_handler is not None:
+                self.__enable_handler(self, old_val)
+        except Exception as ex:
+            logging.warning("set enabled value error: " + str(ex))
 
     def __onAlphaChanged(self, *args):
         old_val = self.__map_desc.alpha
@@ -603,7 +684,7 @@ class MapRow(tk.Frame):
         try:
             #get new value
             raw_val = self.__alpha_var.get()
-            if raw_val < self.ALPHA_MIN or raw_val > self.ALPHA_MAX: #only accept valid value
+            if not self.ALPHA_MIN <= raw_val <= self.ALPHA_MAX: #only accept valid value
                 return
             new_val = raw_val / 100.0
 
@@ -614,10 +695,167 @@ class MapRow(tk.Frame):
                 if self.__alpha_handler is not None:
                     self.__alpha_handler(self, old_val)
         except Exception as ex:
-            logging.warning("get alpha value error: " + str(ex))
+            logging.warning("set alpha value error: " + str(ex))
 
 
+class MapSelectFrame(pmw.ScrolledFrame):
+    @property
+    def map_descriptors(self):
+        return [ r.map_desc for r in self.__maprows]
 
+    @property
+    def __splitors(self):
+        return [ self.__widgets[i] for i in range(len(self.__widgets)) if i % 2 == 0]
+
+    @property
+    def __maprows(self):
+        return [ self.__widgets[i] for i in range(len(self.__widgets)) if i % 2 == 1]
+
+    @property
+    def alpha_changed_handler(self): return self.__alpha_changed_handler
+
+    @alpha_changed_handler.setter
+    def alpha_changed_handler(self, h): self.__alpha_changed_handler = h
+
+    @property
+    def enable_changed_handler(self): return self.__enable_changed_handler
+
+    @enable_changed_handler.setter
+    def enable_changed_handler(self, h): self.__enable_changed_handler = h
+
+    def __init__(self, master, map_descriptors):
+        super().__init__(master, usehullsize=1, hull_width=450, hull_height=600)
+
+        #event handlers (reservd)
+        self.__enable_changed_handler = None
+        self.__alpha_changed_handler = None
+
+        #bookkeeper
+        self.__dst_splitor = None
+
+        #create widgets
+        self.__widgets = [self._genSplitor()]
+        for desc in map_descriptors:
+            self.__widgets.append(self._genMapRow(desc))
+            self.__widgets.append(self._genSplitor())
+
+        #colors
+        self.__normal_bg = self.__widgets[0]['bg']
+        self.__candicate_bg = 'blue'
+        self.__src_bg = 'blue'
+        self.__dst_bg = 'red'
+
+        #pack
+        self.__pack()
+
+    #should call this after 'self' is placed
+    def fitwidth(self):
+        self.update()
+        max_w = max([w.winfo_width() for w in self.__maprows]) + 25  #25: scrollbar
+        self['hull_width'] = max_w
+
+    def _genSplitor(self):
+        return tk.Frame(self.interior(), height=4, border=1)
+
+    def _genMapRow(self, desc):
+        w = MapRow(self.interior(), desc)
+        w.alpha_handler = self.__onAlphaChanged
+        w.enable_handler = self.__onEnableChanged
+        w.click_up_handler = self.__onMapRowClickUp
+        w.click_down_handler = self.__onMapRowClickDown
+        w.click_motion_handler = self.__onMapRowClickMotion
+        return w
+
+    def __getwidget(self, pos):
+        x, y = pos
+        if y < 0:
+            return None
+        for w in self.__widgets:
+            y -= w.winfo_height()
+            if y < 0:
+                return w
+        return None
+
+    def __getpos(self, widget):
+        x, y = 0, 0
+        for w in self.__widgets:
+            if w == widget:
+                break;
+            #x += w.winfo_width()
+            y += w.winfo_height()
+        return x, y
+
+    def __pack(self):
+        for w in self.__widgets:
+            w.pack(side='top', anchor='nw', expand=1, fill='x')
+
+    def __unpack(self):
+        for w in self.__widgets:
+            w.pack_forget()
+
+    def __onEnableChanged(self, row, old_val):
+        if self.__enable_changed_handler is not None:
+            self.__enable_changed_handler(row.map_desc, old_val)
+
+    def __onAlphaChanged(self, row, old_val):
+        if self.__alpha_changed_handler is not None:
+            self.__alpha_changed_handler(row.map_desc, old_val)
+
+    def __onMapRowClickDown(self, row, pos):
+        #get candicate splitor
+        idx = self.__widgets.index(row)
+        self.__candicate_splitors = \
+            [ self.__widgets[i] for i in range(len(self.__widgets)) if i % 2 == 0 and abs(i-idx) > 1]
+        
+        #set color
+        row.setBackground(self.__src_bg)
+        for s in self.__candicate_splitors:
+            s['bg'] = self.__candicate_bg
+
+    def __onMapRowClickUp(self, row, pos):
+        # unset color
+        row.resetBackground()
+        for s in self.__splitors:
+            s['bg'] = self.__normal_bg
+
+        #get src/dst
+        if self.__dst_splitor is None:
+            return
+        src_idx = self.__widgets.index(row)
+        dst_idx = self.__widgets.index(self.__dst_splitor)
+        dst_idx += 1 if dst_idx < src_idx else -1
+        self.__dst_splitor = None
+
+        #rotate
+        if dst_idx < src_idx:
+            rotateRight(self.__widgets, dst_idx, src_idx, 2)
+        else:
+            rotateLeft(self.__widgets, src_idx, dst_idx, 2)
+
+        #rest ui
+        self.__unpack()
+        self.__pack()
+
+    
+    def __onMapRowClickMotion(self, row, pos):
+        #calc dst pos, 
+        x, y = pos
+        src_x, src_y = self.__getpos(row) 
+        dst_pos = src_x + x, src_y + y
+
+        # set dst widget
+        dst_w = self.__getwidget(dst_pos)
+
+        # unset old splitor
+        if self.__dst_splitor and self.__dst_splitor != dst_w:
+            self.__dst_splitor['bg'] = self.__candicate_bg
+            self.__dst_splitor = None
+        # set new splitor
+        if dst_w in self.__candicate_splitors and dst_w != self.__dst_splitor:
+            self.__dst_splitor = dst_w
+            self.__dst_splitor['bg'] = self.__dst_bg
+
+'''
 class MapSelectFrame(pmw.ScrolledFrame):
     @property
     def map_descriptors(self):
@@ -691,8 +929,9 @@ class MapSelectFrame(pmw.ScrolledFrame):
     def __onAlphaChanged(self, row, old_val):
         if self.__on_alpha_changed_handler is not None:
             self.__on_alpha_changed_handler(row.map_desc, old_val)
+'''
 
-
+#Deprecated
 class MapSelectDialog(Dialog):
 
     @property
@@ -706,10 +945,10 @@ class MapSelectDialog(Dialog):
         self.__map_sel_frame.pack(side='top', anchor='nw', expand=0)
 
     def setEnableHandler(self, h):
-        self.__map_sel_frame.setEnableHandler(h)
+        self.__map_sel_frame = enable_handler = h
 
     def setAlphaHandler(self, h):
-        self.__map_sel_frame.setAlphaHandler(h)
+        self.__map_sel_frame = alpha_handler = h
         
 
 def testMapSelector():

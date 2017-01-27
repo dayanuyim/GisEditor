@@ -27,7 +27,7 @@ import src.conf as conf
 import src.sym as sym
 import src.coord as coord
 import src.util as util
-from src.ui import Dialog, MapSelectDialog, MapSelectFrame
+from src.ui import MapSelectFrame
 from src.gpx import GpsDocument, WayPoint, Track, TrackPoint
 from src.pic import PicDocument
 from src.util import GeoPoint, getPrefCornerPos, DrawGuard, imageIsTransparent, bindMenuCmdAccelerator, bindMenuCheckAccelerator
@@ -244,7 +244,7 @@ class MapBoard(tk.Frame):
         self.__map_ctrl = MapController(self)
         self.__map_ctrl.configMap(self.__map_descs)
 
-        self.__map_sel_board = None
+        self.__map_menu = None
 
         #board
         self.__is_closed = False
@@ -626,7 +626,7 @@ class MapBoard(tk.Frame):
     def __onMapEnableChanged(self, desc, old_val):
         logging.debug("desc %s's enable change from %s to %s" % (desc.map_id, old_val, desc.enabled))
         #re-config
-        self.__map_descs = self.__map_sel_board.map_descriptors
+        self.__map_descs = self.__map_menu.map_descriptors
         self.__map_ctrl.configMap(self.__map_descs)
         self.resetMap()
 
@@ -636,39 +636,42 @@ class MapBoard(tk.Frame):
             self.resetMap(force='all')
 
     def __triggerMapSelector(self):
-        if self.__map_sel_board is None:
+        if self.__map_menu is None:
             #create
-            self.__map_sel_board = MapSelectFrame(self, self.__map_descs)
-            self.__map_sel_board.visible = False
+            self.__map_menu = MapSelectFrame(self, self.__map_descs)
+            self.__map_menu.visible = False
 
-            self.__map_sel_board.setEnableHandler(self.__onMapEnableChanged)
-            self.__map_sel_board.setAlphaHandler(self.__onMapAlphaChanged)
+            self.__map_menu.enable_changed_handler = self.__onMapEnableChanged
+            self.__map_menu.alpha_changed_handler = self.__onMapAlphaChanged
             
         #to show
-        if not self.__map_sel_board.visible:
+        if not self.__map_menu.visible:
             self.__showMapSelector()
         #to hidden
         else:
             self.__hideMapSelector()
 
     def __showMapSelector(self):
-        if self.__map_sel_board is not None:
+        if self.__map_menu is not None:
             ref_w = self.__info_frame
             x = ref_w.winfo_x()
             y = ref_w.winfo_y() + ref_w.winfo_height()
 
-            self.__map_sel_board.place(x=x, y=y)
-            self.__map_sel_board.visible = True
+            self.__map_menu.place(x=x, y=y)
+            self.__map_menu.visible = True
+            self.__map_menu.fitwidth()
             self.__map_btn['text'] = "▲"
 
     def __hideMapSelector(self):
-        if self.__map_sel_board is not None:
-            self.__map_sel_board.place_forget()
-            self.__map_sel_board.visible = False
+        if self.__map_menu is not None:
+            self.__map_menu.place_forget()
+            self.__map_menu.visible = False
             self.__map_btn['text'] = "▼"
+            self.__setMapInfo()          #re-gen map info
 
-            self.__setMapInfo()          #re-show map info
-            self.__writeUserMapsConf() #save config
+            # get new list & save
+            self.__map_descs = self.__map_menu.map_descriptors
+            self.__writeUserMapsConf()
 
     def __onMouseWheel(self, e, delta):
         level = self.__map_ctrl.level + (1 if delta > 0 else -1)
