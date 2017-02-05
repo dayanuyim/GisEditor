@@ -588,7 +588,7 @@ class MapRow(tk.Frame):
 
         FONT = "Arialuni 12"
         BFONT = FONT + " bold"
-        DIS_COLOR = 'lightgray'
+        DISABLED_FG = 'gray70'
 
         #inner data
         self.__map_desc = map_desc
@@ -614,8 +614,7 @@ class MapRow(tk.Frame):
         ckbox.pack(side='left', anchor='w', expand=0)
 
         #title
-        label = tk.Label(self, text=map_desc.map_title, font=BFONT, anchor='w')
-        #label = tk.Label(self, text=map_desc.map_title, font=BFONT, disabledforeground=DIS_COLOR, anchor='w')
+        label = tk.Label(self, text=map_desc.map_title, font=BFONT, disabledforeground=DISABLED_FG, anchor='w')
         label.pack(side='left', anchor='w', expand='1', fill='x')
         label.bind('<Button-1>', self.__onClickDown)
         label.bind('<Button1-Motion>', self.__onClickMotion)
