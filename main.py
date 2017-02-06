@@ -381,9 +381,9 @@ class MapBoard(tk.Frame):
                 cb=self.__onSetLevel)
 
         #pos
-        self.__info_67tm2 = self.__genInfoWidget(frame, font, 'TM2/67', 16, self.onSetPos)
-        self.__info_97tm2 = self.__genInfoWidget(frame, font, 'TM2/97', 16, self.onSetPos)
-        self.__info_97latlon = self.__genInfoWidget(frame, font, 'LatLon/97', 20, self.onSetPos)
+        self.__info_67tm2 = self.__genInfoWidget(frame, font, 'TM2/67', 16, self.onPosSet)
+        self.__info_97tm2 = self.__genInfoWidget(frame, font, 'TM2/97', 16, self.onPosSet)
+        self.__info_97latlon = self.__genInfoWidget(frame, font, 'LatLon/97', 20, self.onPosSet)
 
         return frame
 
@@ -679,7 +679,7 @@ class MapBoard(tk.Frame):
             logging.warning("set level error: " + str(ex))
             #do Not show message box to user, which may be a 'temperary' key-in error
 
-    def onSetPos(self, e):
+    def onPosSet(self, e):
         #if val_txt is digit, regarding as int with unit 'meter'
         #          otherwise, regarding as float with unit 'kilimeter'
         def toTM2(val_txt):
@@ -694,7 +694,7 @@ class MapBoard(tk.Frame):
         geo = None
         try:
             pos = e.widget.get()
-            x, y = filter(None, re.split(',| ', pos)) #split by ',' and ' ', removing empty string
+            x, y = filter(None, re.split('[^\d\.]', pos)) #split by not 'digit' or '.'. Removing empty string.
 
             #make geo according to the coordinate
             if e.widget == self.__info_67tm2:
