@@ -180,23 +180,22 @@
      *  系統會讀取 `$GISEDITOR_HOME/mapcache` 的 XML 檔，格式可參考 [MOBAC customMapSource][custom_map_source]。
 
 2. 開啟地圖列表
-     * 點選地圖名稱旁的`[v]按鈕`可展開地圖列表。
+     * 點選地圖名稱旁的`[▼]按鈕`可展開地圖列表。
 
 3. 收闔地圖列表
-     * 按`ESC鍵`或地圖名稱旁的`[^]按鈕`可收起地圖列表
+     * 按`ESC鍵`或地圖名稱旁的`[▲]按鈕`可收起地圖列表
 
-4. 啟用地圖
-     * 按 [+] 鈕可啟用地圖，預設會放置於圖層最下方。
+4. 啟用/不啟用地圖
+     * 勾選checkbox可啟用地圖，不勾選則不啟用地圖。
 
-5. 不啟用地圖
-     * 按 [-] 鈕可不啟用地圖。
-
-6. 調整不透明度
+5. 調整不透明度(α值)
      * 百分比可調整地圖的不透明度，100%為完全不透明，0%表示完全透明。
 
-7. 疊圖順序
+6. 疊圖順序
      * *疊圖順序*即為啟用中的地圖*由上而下*之順序。
-     * 目前尚無直接調整順序的方法，可先將所有地圖不啟用，再依序啟用欲選擇的地圖。
+     * 可按住地圖名稱，拖曳插入以調整順序。
+
+    ![拖曳疊圖順序][img_maplist_dnd]
 
 [custom_map_source]: http://mobac.sourceforge.net/wiki/index.php/Custom_XML_Map_Sources#customMapSource
 [img_main]: https://github.com/dayanuyim/GisEditor/raw/dev/doc/pic/02_main.png
@@ -207,3 +206,4 @@
 [img_trkboard]: https://github.com/dayanuyim/GisEditor/raw/dev/doc/pic/07_trk_board.png
 [img_saveimage]: https://github.com/dayanuyim/GisEditor/raw/dev/doc/pic/08_save_image.png
 [img_maplist]: https://github.com/dayanuyim/GisEditor/raw/dev/doc/pic/09_maplist.png
+[img_maplist_dnd]: https://github.com/dayanuyim/GisEditor/raw/dev/doc/pic/10_maplist_dnd.png
