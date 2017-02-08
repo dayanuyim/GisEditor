@@ -1,7 +1,7 @@
 Map Adapter to WMTS
 ===================
 
-緣起
+目的
 ----
 
 本軟體目的是在 Desktop (Windows/Linux) 上實作如 Anroid 上的 [OruxMaps][] 之地圖瀏覽軟體，可支援 WMTS用以瀏覽[經建三版地圖等其它台灣地圖][Sinica-WMTS]；並支援圖層功能，如[中研院線上百年地圖][Sinica-100y]。計有以下目標：
@@ -21,8 +21,7 @@ Map Adapter to WMTS
 ------------------
 
  *  免安裝檔：
-     *  [version 0.22, 32bit版][giseditor-0.22-32]
-     *  [version 0.22, 64bit版][giseditor-0.22-64]
+     *  [version 0.23][giseditor-0.23]
  *  自動安裝：暫無。
  *  手動安裝：請參考[手動安裝](#win_install)。
 
@@ -34,6 +33,7 @@ Map Adapter to WMTS
  [giseditor-0.21-64]: https://drive.google.com/file/d/0B7ryOauZNjlbNFBheXEwWTE5U2s/view?usp=sharing
  [giseditor-0.22-32]: https://drive.google.com/file/d/0B7ryOauZNjlbbVhoNTZWUW9uN2s/view?usp=sharing
  [giseditor-0.22-64]: https://drive.google.com/file/d/0B7ryOauZNjlbU2ZBQVkzd2dLbUE/view?usp=sharing
+ [giseditor-0.23]: https://drive.google.com/file/d/0B7ryOauZNjlbTm1qbjZ1VWhFSVk/view?usp=sharing
 
 
 軟體安裝 (Linux)
@@ -51,6 +51,16 @@ MBTiles 下載 (可選)
 --------
 
 請見[操作手冊](https://github.com/dayanuyim/GisEditor/blob/dev/manual.md)
+
+更新歷史
+--------
+  - 0.23 版
+      - 加入[台灣通用電子地圖][emap]支援
+      - 新的地圖列表介面
+      - MapSource 相容性修正
+      - 疊圖情況下圖檔輸出錯誤修正
+
+[emap]: http://emap.nlsc.gov.tw
 
 -------------------------------------------------------
 
