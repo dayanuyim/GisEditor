@@ -33,7 +33,7 @@ Map Adapter to WMTS
  [giseditor-0.21-64]: https://drive.google.com/file/d/0B7ryOauZNjlbNFBheXEwWTE5U2s/view?usp=sharing
  [giseditor-0.22-32]: https://drive.google.com/file/d/0B7ryOauZNjlbbVhoNTZWUW9uN2s/view?usp=sharing
  [giseditor-0.22-64]: https://drive.google.com/file/d/0B7ryOauZNjlbU2ZBQVkzd2dLbUE/view?usp=sharing
- [giseditor-0.23]: https://drive.google.com/file/d/0B7ryOauZNjlbTm1qbjZ1VWhFSVk/view?usp=sharing
+ [giseditor-0.23]: https://drive.google.com/file/d/0B7ryOauZNjlbVm8zRGZCemVPVGc/view?usp=sharing
 
 
 軟體安裝 (Linux)
