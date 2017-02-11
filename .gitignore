@@ -9,3 +9,4 @@ giseditor.bat
 giseditor.exe
 giseditor.exe.config
 *.mbtiles
+.idea/*

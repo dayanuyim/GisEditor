@@ -45,7 +45,7 @@
 
     於座標列任一座標系統，輸入座標並鍵入[Enter]，可移至該位置。
      * 輸入格式為二個數字，以逗點或空白隔開
-     * 二度分帶輸入若為整數，單位為公尺；若為浮點數，單位為公里
+     * 二度分帶輸入若為整數，單位為**公尺**；若為浮點數，單位為**公里**
      * 經緯度可輸入整數或小數，單位為度。
 
 2\. 航點編輯<a name=sec_wpt></a>
@@ -62,7 +62,7 @@
 
 3. 航點編輯視窗<a name="wpt_edit"></a>
 
-    點擊任一航點圖示或`右鍵->Edit waypoints->Edit 1-by-1`
+    點擊任一航點圖示或`右鍵->Edit waypoints`或熱鍵`Ctrl+w`
 
     ![航點編輯視窗][img_wptedit]
 
@@ -73,7 +73,7 @@
 
 4. 航點列表視窗
 
-    右鍵->Edit waypoints->Edit in list
+    右鍵->Show waypoints list
 
     ![航點列表視窗][img_wptlist]
 
@@ -120,31 +120,44 @@
 3\. 航跡編輯<a name="sec_trk"></a>
 ------------
 
-1. 航跡編輯視窗
+1. 航跡編輯視窗<a name="trk_edit_board"></a>
+
+    `右鍵->Edit Tracks`或熱鍵`Ctrl+t`
 
     ![航跡編輯視窗][img_trkboard]
 
      *  Track: 航跡名稱
      *  Color：航跡顏色。
+     *  刪除鈕：刪除此航跡
      *  航跡點：選取一或多個航跡點可在地圖上顯示
      *  Focus Track Point：將所選取的航跡點置中於地圖
 
     *注意* 航跡顏色亦輸入任何 python 支援顏色，但不具可攜性
 
-2. 自動分割航跡
+2. 刪除航跡
+
+    請進入[航跡編輯視窗](#trk_edit_board)，點擊刪除鈕。
+
+3. 繪製航跡
+
+     *  `右鍵->Draw Track...`或熱鍵`F1` 進入航跡繪製模式
+     *  左鍵在地圖上拖曳可繪製地圖
+     *  熱鍵`ESC` 可離開航跡繪製模式
+
+4. 自動分割航跡
 
      *  以每日作分割：`右鍵->Split tracks...->by day`
      *  以時間差距作分割：`右鍵->Split tracks...->by time gap`
      *  以距離差距作分割：`右鍵->Split tracks...->by distance`
 
-3. 輸出航跡檔
+5. 輸出航跡檔
 
     `右鍵->Save to gpx...`
 
 4\. 輸出地圖截圖<a name="sec_saveimg"></a>
 ----------------
 
-`右鍵->Save to image...`
+`右鍵->Save to image...`或熱鍵`F2`
 
 ![地圖截圖][img_saveimage]
  *  S鈕：參數設定
@@ -167,23 +180,22 @@
      *  系統會讀取 `$GISEDITOR_HOME/mapcache` 的 XML 檔，格式可參考 [MOBAC customMapSource][custom_map_source]。
 
 2. 開啟地圖列表
-     * 點選地圖名稱旁的 `[<]` 按鈕可展開地圖列表。
+     * 點選地圖名稱旁的`[▼]按鈕`可展開地圖列表。
 
 3. 收闔地圖列表
-     * 按 ESC 鍵可收起地圖列表
+     * 按`ESC鍵`或地圖名稱旁的`[▲]按鈕`可收起地圖列表
 
-4. 啟用地圖
-     * 按 [+] 鈕可啟用地圖，預設會放置於圖層最下方。
+4. 啟用/不啟用地圖
+     * 勾選checkbox可啟用地圖，不勾選則不啟用地圖。
 
-5. 不啟用地圖
-     * 按 [-] 鈕可不啟用地圖。
-
-6. 調整不透明度
+5. 調整不透明度(α值)
      * 百分比可調整地圖的不透明度，100%為完全不透明，0%表示完全透明。
 
-7. 疊圖順序
+6. 疊圖順序
      * *疊圖順序*即為啟用中的地圖*由上而下*之順序。
-     * 目前尚無直接調整順序的方法，可先將所有地圖不啟用，再依序啟用欲選擇的地圖。
+     * 可按住地圖名稱，拖曳插入以調整順序。
+
+    ![拖曳疊圖順序][img_maplist_dnd]
 
 [custom_map_source]: http://mobac.sourceforge.net/wiki/index.php/Custom_XML_Map_Sources#customMapSource
 [img_main]: https://github.com/dayanuyim/GisEditor/raw/dev/doc/pic/02_main.png
@@ -194,3 +206,4 @@
 [img_trkboard]: https://github.com/dayanuyim/GisEditor/raw/dev/doc/pic/07_trk_board.png
 [img_saveimage]: https://github.com/dayanuyim/GisEditor/raw/dev/doc/pic/08_save_image.png
 [img_maplist]: https://github.com/dayanuyim/GisEditor/raw/dev/doc/pic/09_maplist.png
+[img_maplist_dnd]: https://github.com/dayanuyim/GisEditor/raw/dev/doc/pic/10_maplist_dnd.png

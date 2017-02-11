@@ -4,10 +4,10 @@
 
 import logging
 from PIL import Image, ExifTags
-from gpx import WayPoint
 from datetime import datetime
 #my
-import sym
+from src.gpx import WayPoint
+import src.sym as sym
 
 class PicDocument(WayPoint):
     @property

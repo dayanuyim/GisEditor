@@ -10,8 +10,8 @@ from threading import Timer
 from PIL import Image, ImageTk, ImageDraw, ImageColor
 
 #my modules
-import conf
-from coord import TileSystem, CoordinateSystem
+import src.conf as conf
+from src.coord import TileSystem, CoordinateSystem
 
 class DrawGuard:
     def __init__(self, img):
@@ -24,6 +24,63 @@ class DrawGuard:
     def __exit__(self, type, value, traceback):
         if self.__draw is not None:
             del self.__draw
+
+# Notice: 'accelerator string' may not a perfect guess, need more heuristic improvement
+def __guessAccelerator(event):
+    return event.strip('<>').replace('Control', 'Ctrl').replace('-', '+')
+
+# Bind widget's event and menu's accelerator
+def bindMenuCmdAccelerator(widget, event, menu, label, command):
+    widget.bind(event, lambda e: command())
+    menu.add_command(label=label, command=command, accelerator=__guessAccelerator(event))
+
+# @command: a function accept a boolean argument
+# @return: return the check variable
+def bindMenuCheckAccelerator(widget, event, menu, label, command):
+    var = tk.BooleanVar()
+
+    #keep variable
+    attrname = "accelerator_" + event
+    setattr(widget, attrname, var)
+
+    def event_cb(e):
+        var.set(not var.get()) #trigger
+        command(var.get())
+
+    def menu_cb():
+        command(var.get())
+
+    widget.bind(event, event_cb)
+    menu.add_checkbutton(label=label, command=menu_cb, accelerator=__guessAccelerator(event),
+            onvalue=True, offvalue=False, variable=var)
+
+    return var
+
+#be quiet to wait to show
+def quietenTopLevel(toplevel):
+    toplevel.withdraw()  #hidden
+    toplevel._visible = tk.BooleanVar(value=False)
+
+#for show
+def showToplevel(toplevel):
+    toplevel.update()  #update window size
+
+    toplevel.deiconify() #show
+    toplevel._visible.set(True)
+
+    #toplevel.attributes("-topmost", 1) #topmost
+    toplevel.lift()
+    toplevel.focus_set()  #prevent key-press sent back to parent
+    toplevel.grab_set()   #disalbe interact of parent
+    toplevel.master.wait_variable(toplevel._visible)
+
+#for hide or close
+def hideToplevel(toplevel):
+    toplevel.master.focus_set()
+    toplevel.grab_release()
+
+    toplevel.withdraw()
+    toplevel._visible.set(False)
 
 def imageIsTransparent(img):
     if img is None:
@@ -48,11 +105,8 @@ def saveXml(xml_root, filepath, enc="UTF-8"):
         f.write(txt)
 
 def listdiff(list1, list2):
-    result = []
-    for e in list1:
-        if not e in list2:
-            result.append(e)
-    return result
+    list2 = set(list2)
+    return [e for e in list1 if e not in list2]
 
 def mkdirSafely(path, is_recursive=True):
     if not os.path.exists(path):
@@ -400,11 +454,15 @@ class AreaSelector:
         return self.__state
 
     def exit(self):
+        if self.__done.get():
+            return
         #rec the last pos
         self.__last_pos = self.__getpos()
         #delete item
         self.__canvas.delete('AS')  #delete objects of 'AreaSelector'
+        self.__canvas['cursor'] = ''
         self.__done.set(True)
+
     #}} interface
 
 
@@ -769,4 +827,3 @@ if __name__ == '__main__':
     img = Image.new('RGBA', (400,300), (255, 255, 255, 96))  #transparent
     with DrawGuard(img) as draw:
         print('...processing')
-

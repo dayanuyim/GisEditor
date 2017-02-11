@@ -1,0 +1,11 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<customMapSource>
+    <name>臺灣通用電子地圖(等高線)-OPENDATA</name>
+    <minZoom>6</minZoom>
+    <maxZoom>15</maxZoom>
+    <tileType>jpg</tileType>
+    <tileUpdate>NLSC WMTS</tileUpdate>
+    <url>http://maps.nlsc.gov.tw/S_Maps/wmts?SERVICE=WMTS&amp;REQUEST=GetTile&amp;VERSION=1.0.0&amp;LAYER=EMAP5_OPENDATA&amp;STYLE=_null&amp;TILEMATRIXSET=GoogleMapsCompatible&amp;TILEMATRIX={$z}&amp;TILEROW={$y}&amp;TILECOL={$x}&amp;FORMAT=image/jpeg</url>
+    <backgroundColor>#000000</backgroundColor>
+</customMapSource>
+ 

@@ -7,12 +7,12 @@ import platform
 from os import path
 from PIL import ImageFont, Image
 from datetime import timedelta
-from coord import CoordinateSystem
+from src.coord import CoordinateSystem
 from configparser import ConfigParser
 from collections import OrderedDict
 
 #default raw data
-import raw
+import src.raw as raw
 
 #constance util
 def _tosymkey(sym):
@@ -104,10 +104,13 @@ __USER_CONF = os.path.join(__CONF_DIR, 'giseditor.user.conf')
 
 SYM_RULE_CONF = os.path.join(__CONF_DIR, 'sym_rule.conf')
 EXE_ICON = os.path.join(__DATA_DIR, 'giseditor.ico')
+DEL_ICON = os.path.join(__DATA_DIR, 'delete_icon.png')
 
 GPSBABEL_EXT_FMT = raw.gpsbabel_ext_fmt
 
 MAP_UPDATE_PERIOD = timedelta(seconds=1)
+
+DEF_COLOR = "DarkMagenta"
 
 # App conf ###########################################
 __app_conf = __readConf(__APP_CONF)
@@ -167,6 +170,10 @@ MAX_SUPP_LEVEL = __user_conf.getint('settings', 'max_supp_level', fallback=18)
 SPLIT_TIME_GAP = timedelta(hours=__user_conf.getfloat('settings', 'split_time_gap_hr', fallback=5.0))
 SPLIT_DIST_GAP = __user_conf.getfloat('settings', 'split_dist_gap_km', fallback=100.0)
 
+TRK_WIDTH = __user_conf.getint('settings', 'trk_width', fallback=3)
+TRK_SET_FOCUS = __user_conf.getboolean('settings', 'trk_set_focus', fallback=True)
+WPT_SET_FOCUS = __user_conf.getboolean('settings', 'wpt_set_focus', fallback=True)
+
 SELECT_AREA_X = __user_conf.getfloat('image', 'select_area_x', fallback=7.0)
 SELECT_AREA_Y = __user_conf.getfloat('image', 'select_area_y', fallback=5.0)
 SELECT_AREA_ALIGN = __user_conf.getboolean('image', 'select_area_align', fallback=True)
@@ -182,6 +189,9 @@ def writeUserConf():
     __user_conf["settings"]["max_supp_level"] = "%d" % (MAX_SUPP_LEVEL,)
     __user_conf["settings"]["split_time_gap"] = "%f" % (SPLIT_TIME_GAP.total_seconds()/3600,)
     __user_conf["settings"]["split_dist_gap"] = "%f" % (SPLIT_DIST_GAP,)
+    __user_conf["settings"]["trk_width"]      = "%d" % (TRK_WIDTH,)
+    __user_conf["settings"]["trk_set_focus"]  = "%s" % ('True' if TRK_SET_FOCUS else 'False',)
+    __user_conf["settings"]["wpt_set_focus"]  = "%s" % ('True' if WPT_SET_FOCUS else 'False',)
 
     #image
     __user_conf["image"] = OrderedDict()
