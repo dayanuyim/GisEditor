@@ -10,6 +10,7 @@ from datetime import timedelta
 from src.coord import CoordinateSystem
 from configparser import ConfigParser
 from collections import OrderedDict
+from matplotlib import font_manager
 
 #default raw data
 import src.raw as raw
@@ -75,12 +76,24 @@ def __defaultGpsbabelExe():
     return "gpsbabel.exe"
 
 def __defaultImgFont():
-    system = platform.system()
-    if system == "Linux":
-        return "ukai.ttc"
-    if system == "Windows":
-        return "ARIALUNI.TTF"
-    return "unifont.ttf"
+    preferreds = ("msjh.ttc",
+            "arialuni.ttf",
+            "ukai.ttc")
+
+    def is_preferred(name):
+        name = name.lower()
+        for f in preferreds:
+            if f in name:
+                return True
+        return False
+
+    # NOTICE! need patch font_manager.py to let ttf support ttc format
+    fonts = font_manager.findSystemFonts(fontpaths=None, fontext='ttf')
+    pref_fonts = [ font for font in fonts if is_preferred(font)]
+    font = pref_fonts[0] if pref_fonts else fonts[0]
+
+    logging.info("Default Image Font: %s" % font)
+    return font
 
 def abspath(path, related_home):
     return path if os.path.isabs(path) else os.path.join(related_home, path)
@@ -118,8 +131,6 @@ __app_conf = __readConf(__APP_CONF)
 #original conf
 __mapcache_dir  = __app_conf.get('settings', 'mapcache_dir', fallback='mapcache')
 __gpsbabel_exe  = __app_conf.get('settings', 'gpsbabel_exe', fallback=__defaultGpsbabelExe())
-__img_font_size = __app_conf.getint('settings', 'img_font_size', fallback=18)
-__img_font      = __app_conf.get('settings', 'img_font', fallback=__defaultImgFont())
 __icon_size     = __app_conf.getint('settings', 'icon_size', fallback=32)
 __def_symbol    = __app_conf.get('settings', 'def_symbol', fallback='Waypoint')
 __db_schema     = __app_conf.get('settings', 'db_schema', fallback='tms')
@@ -128,8 +139,6 @@ __tz            = __app_conf.getfloat('settings', 'tz', fallback=8.0)
 #publish conf
 MAPCACHE_DIR  = abspath(__mapcache_dir, __HOME_DIR)
 GPSBABEL_EXE  = abspath(__gpsbabel_exe, __HOME_DIR)
-IMG_FONT_SIZE = __img_font_size
-IMG_FONT      = ImageFont.truetype(__img_font, IMG_FONT_SIZE)  #global used font (Note: the operation is time wasting)
 ICON_SIZE     = __icon_size
 DEF_SYMBOL    = _tosymkey(__def_symbol)
 DB_SCHEMA     = __db_schema            #valid value is 'tms' or 'zyx'
@@ -141,8 +150,6 @@ def writeAppConf():
     __app_conf['settings'] = OrderedDict()
     __app_conf['settings']['mapcache_dir'] = preferOrigIfEql(MAPCACHE_DIR, __mapcache_dir, __HOME_DIR)
     __app_conf['settings']['gpsbabel_exe'] = preferOrigIfEql(GPSBABEL_EXE, __gpsbabel_exe, __HOME_DIR)
-    __app_conf['settings']['img_font_size'] = str(IMG_FONT_SIZE)
-    __app_conf['settings']['img_font'] = __img_font  #the same as origin
     __app_conf['settings']['icon_size'] = str(ICON_SIZE)
     __app_conf['settings']['def_symbol'] = DEF_SYMBOL
     __app_conf['settings']['db_schema'] = DB_SCHEMA
@@ -163,6 +170,11 @@ if not os.path.exists(__APP_CONF):
 
 # User conf ###########################################
 __user_conf = __readConf(__USER_CONF)
+
+IMG_FONT_SIZE = __user_conf.getint('settings', 'img_font_size', fallback=18)
+
+__img_font      = __user_conf.get('settings', 'img_font', fallback=__defaultImgFont())
+IMG_FONT      = ImageFont.truetype(__img_font, IMG_FONT_SIZE)  #global used font (Note: the operation is time wasting)
 
 MIN_SUPP_LEVEL = __user_conf.getint('settings', 'min_supp_level', fallback=7)
 MAX_SUPP_LEVEL = __user_conf.getint('settings', 'max_supp_level', fallback=18)
@@ -185,6 +197,8 @@ USER_MAPS = __readUserMaps(__user_conf)
 def writeUserConf():
     #settings
     __user_conf["settings"] = OrderedDict()
+    __user_conf['settings']['img_font_size'] = str(IMG_FONT_SIZE)
+    __user_conf['settings']['img_font'] = __img_font  #the same as origin
     __user_conf["settings"]["min_supp_level"] = "%d" % (MIN_SUPP_LEVEL,)
     __user_conf["settings"]["max_supp_level"] = "%d" % (MAX_SUPP_LEVEL,)
     __user_conf["settings"]["split_time_gap"] = "%f" % (SPLIT_TIME_GAP.total_seconds()/3600,)
