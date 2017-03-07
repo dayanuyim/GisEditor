@@ -131,16 +131,12 @@ __app_conf = __readConf(__APP_CONF)
 #original conf
 __mapcache_dir  = __app_conf.get('settings', 'mapcache_dir', fallback='mapcache')
 __gpsbabel_exe  = __app_conf.get('settings', 'gpsbabel_exe', fallback=__defaultGpsbabelExe())
-__icon_size     = __app_conf.getint('settings', 'icon_size', fallback=32)
-__def_symbol    = __app_conf.get('settings', 'def_symbol', fallback='Waypoint')
 __db_schema     = __app_conf.get('settings', 'db_schema', fallback='tms')
 __tz            = __app_conf.getfloat('settings', 'tz', fallback=8.0)
 
 #publish conf
 MAPCACHE_DIR  = abspath(__mapcache_dir, __HOME_DIR)
 GPSBABEL_EXE  = abspath(__gpsbabel_exe, __HOME_DIR)
-ICON_SIZE     = __icon_size
-DEF_SYMBOL    = _tosymkey(__def_symbol)
 DB_SCHEMA     = __db_schema            #valid value is 'tms' or 'zyx'
 TZ            = timedelta(hours=__tz)  #todo: get the info from system of geo location
 TRK_COLORS    = __readTrkColors(__app_conf)
@@ -150,8 +146,6 @@ def writeAppConf():
     __app_conf['settings'] = OrderedDict()
     __app_conf['settings']['mapcache_dir'] = preferOrigIfEql(MAPCACHE_DIR, __mapcache_dir, __HOME_DIR)
     __app_conf['settings']['gpsbabel_exe'] = preferOrigIfEql(GPSBABEL_EXE, __gpsbabel_exe, __HOME_DIR)
-    __app_conf['settings']['icon_size'] = str(ICON_SIZE)
-    __app_conf['settings']['def_symbol'] = DEF_SYMBOL
     __app_conf['settings']['db_schema'] = DB_SCHEMA
     __app_conf['settings']['tz'] = str(TZ.total_seconds()/3600)
 
@@ -182,6 +176,9 @@ MAX_SUPP_LEVEL = __user_conf.getint('settings', 'max_supp_level', fallback=18)
 SPLIT_TIME_GAP = timedelta(hours=__user_conf.getfloat('settings', 'split_time_gap_hr', fallback=5.0))
 SPLIT_DIST_GAP = __user_conf.getfloat('settings', 'split_dist_gap_km', fallback=100.0)
 
+DEF_SYMBOL    = _tosymkey(__user_conf.get('settings', 'def_symbol', fallback='Waypoint'))
+ICON_SIZE     = __user_conf.getint('settings', 'icon_size', fallback=32)
+
 TRK_WIDTH = __user_conf.getint('settings', 'trk_width', fallback=3)
 TRK_SET_FOCUS = __user_conf.getboolean('settings', 'trk_set_focus', fallback=True)
 WPT_SET_FOCUS = __user_conf.getboolean('settings', 'wpt_set_focus', fallback=True)
@@ -197,12 +194,14 @@ USER_MAPS = __readUserMaps(__user_conf)
 def writeUserConf():
     #settings
     __user_conf["settings"] = OrderedDict()
-    __user_conf['settings']['img_font_size'] = str(IMG_FONT_SIZE)
-    __user_conf['settings']['img_font'] = __img_font  #the same as origin
+    __user_conf['settings']['img_font_size']  = str(IMG_FONT_SIZE)
+    __user_conf['settings']['img_font']       = __img_font  #the same as origin
     __user_conf["settings"]["min_supp_level"] = "%d" % (MIN_SUPP_LEVEL,)
     __user_conf["settings"]["max_supp_level"] = "%d" % (MAX_SUPP_LEVEL,)
     __user_conf["settings"]["split_time_gap"] = "%f" % (SPLIT_TIME_GAP.total_seconds()/3600,)
     __user_conf["settings"]["split_dist_gap"] = "%f" % (SPLIT_DIST_GAP,)
+    __user_conf['settings']['def_symbol']     = DEF_SYMBOL
+    __user_conf['settings']['icon_size']      = str(ICON_SIZE)
     __user_conf["settings"]["trk_width"]      = "%d" % (TRK_WIDTH,)
     __user_conf["settings"]["trk_set_focus"]  = "%s" % ('True' if TRK_SET_FOCUS else 'False',)
     __user_conf["settings"]["wpt_set_focus"]  = "%s" % ('True' if WPT_SET_FOCUS else 'False',)
