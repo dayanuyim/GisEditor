@@ -335,7 +335,8 @@ class AreaSelectorSettings(Dialog):
         f = tk.Frame(self)
         f.grid(row=row, column=0, sticky='w')
         tk.Label(f, text='precision: level', anchor='e').pack(side='left', expand=1, fill='both')
-        tk.Spinbox(f, from_=13, to=16, width=2, textvariable=self.var_level).pack(side='left', expand=1, fill='both')
+        tk.Spinbox(f, from_=conf.MIN_SUPP_LEVEL, to=conf.MAX_SUPP_LEVEL, width=2, textvariable=self.var_level)\
+                .pack(side='left', expand=1, fill='both')
 
         #align
         row += 1
