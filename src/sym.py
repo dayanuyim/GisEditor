@@ -38,23 +38,35 @@ __symbols = __readSymbols(conf.ICON_DIR)
 def getSymNames():
     return __symbols.keys()
 
-def getIcon(name, def_sym=conf.DEF_SYMBOL):
-    name = conf._tosymkey(name)
-    icon = __getIcon(name)
-    if not icon and name != def_sym:
-        return __getIcon(def_sym) #return default
-    return icon
+def getIcon(name, def_name=conf.DEF_SYMBOL):
+    sym = getSymbol(name, def_name)
+    return sym[-1] if sym is not None else None
 
-def __getIcon(name):
+def getAuthor(name, def_name=conf.DEF_SYMBOL):
+    sym = getSymbol(name, def_name)
+    return sym[1] if sym is not None else None
+
+def getSymbol(name, def_name=conf.DEF_SYMBOL):
+    name = conf._tosymkey(name)
+    sym = __getSymbol(name)
+    if not sym and name != def_name:
+        return __getSymbol(def_name) #return default
+    return sym
+
+def __getSymbol(name):
     sym = __symbols.get(name)
     if not sym:
         return None
+
     path, author, icon = sym
+
+    #prepare icon
     if icon is None:
         icon = __readIcon(path, conf.ICON_SIZE)
-        if icon:
-            __symbols[name] = (path, author, icon)
-    return icon
+        sym = (path, author, icon)
+        __symbols[name] = sym    #re-store
+
+    return sym
 
 def __readIcon(path, sz):
     if path is None:
@@ -214,7 +226,13 @@ class SymBoard(tk.Toplevel):
         if widget is not None:
             if widget['bg'] != self.__filter_bg_color:
                 widget['bg'] = self.__hl_bg_color
-            self.title(widget.sym)
+            desc = "中文"
+            author = getAuthor(widget.sym)
+
+            title = widget.sym
+            #if desc: title = "%s [%s]" % (title, desc)
+            if author: title = "%s - by %s" % (title, author)
+            self.title(title)
         else:
             self.title("")
 
