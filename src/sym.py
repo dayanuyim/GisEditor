@@ -345,6 +345,9 @@ class SymbolRules:
     def load(self):
         path = self.__path
 
+        if not os.path.exists(path):
+            return
+
         #get all line
         with codecs.open(path, 'r', encoding='utf8') as f:
             lines = []

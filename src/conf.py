@@ -73,7 +73,7 @@ def __defaultGpsbabelExe():
             return "C:\\Program Files (x86)\\GPSBabel\\gpsbabel.exe"
         else:
             return "C:\\Program Files\\GPSBabel\\gpsbabel.exe"
-    return "gpsbabel.exe"
+    return "gpsbabel"
 
 def __defaultImgFont():
     preferreds = ("msjh.ttc",
