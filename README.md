@@ -119,6 +119,7 @@ MBTiles 下載 (可選)
 
 手動安裝 (Linux)  <a name="linux_install"></a>  
 ============
+
 1. 安裝字型
     預設使用ubuntu OS內建ukai
     
@@ -192,3 +193,34 @@ MBTiles 下載 (可選)
     ![右鍵選單][img_rightmenu]
 
 [img_rightmenu]: https://github.com/dayanuyim/GisEditor/raw/dev/doc/pic/01_right_menu.png
+
+
+MAC (手動安裝)
+===========
+
+1. install python 3
+
+2. install ActiveTcl 8.5.18.0
+    
+    * Must install the version, higher or lower version may not work.
+
+    * Please check _Security & Privacy_ if MAC prevent you from installation.
+
+3. install library
+
+    ```
+    brew install libtiff libjpeg webp little-cms2 freetype
+    ```
+
+4. install python requirement
+
+    ```
+    pip install -r requirement.txt
+    ```
+
+5. install gpsbabel
+    
+    ```
+    brew install gpsbabel
+    ```
+
