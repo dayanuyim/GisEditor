@@ -24,6 +24,8 @@ def __readSymbols(icon_dir):
     symbols = {}
     try:
         for fname in os.listdir(icon_dir):
+            if fname.startswith('.'):
+                continue
             fpath = os.path.join(icon_dir, fname)
             if os.path.isfile(fpath):
                 name, author = __splitSymFilename(fname)

@@ -76,19 +76,19 @@ def __defaultGpsbabelExe():
     return "gpsbabel"
 
 def __defaultImgFont():
-    preferreds = ("msjh.ttc",
-            "arialuni.ttf",
-            "ukai.ttc")
+    preferreds = ("msjh.ttc",     #winxp
+            "arialuni.ttf",       #win7
+            "ukai.ttc",           #ubuntu
+            "arial unicode.ttf")  #mac
 
     def is_preferred(name):
-        name = name.lower()
-        for f in preferreds:
-            if f in name:
-                return True
-        return False
+        name = os.path.basename(name).lower()
+        return name in preferreds
 
     # NOTICE! need patch font_manager.py to let ttf support ttc format
     fonts = font_manager.findSystemFonts(fontpaths=None, fontext='ttf')
+    #for font in fonts:
+        #print(font)
     pref_fonts = [ font for font in fonts if is_preferred(font)]
     font = pref_fonts[0] if pref_fonts else fonts[0]
 

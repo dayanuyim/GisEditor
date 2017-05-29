@@ -297,9 +297,12 @@ class MapBoard(tk.Frame):
             self.disp_canvas.bind('<Button-5>', lambda e: self.__onMouseWheel(e, -1)) #roll down
         else:
             self.disp_canvas.bind('<MouseWheel>', lambda e: self.__onMouseWheel(e, e.delta))
+
         self.disp_canvas.bind('<Motion>', self.onMotion)
         self.disp_canvas.bind("<Button-1>", lambda e: self.onClickDown(e, 'left'))
-        self.disp_canvas.bind("<Button-3>", lambda e: self.onClickDown(e, 'right'))
+        self.disp_canvas.bind("<Button-2>" if platform.system() == "Darwin" else "<Button3>",
+                lambda e: self.onClickDown(e, 'right'))
+
         self.disp_canvas.bind("<Button1-Motion>", lambda e: self.onClickMotion(e, 'left'))
         self.disp_canvas.bind("<Button1-ButtonRelease>", lambda e: self.onClickUp(e, 'left'))
         self.disp_canvas.bind("<Button3-ButtonRelease>", lambda e: self.onClickUp(e, 'right'))
@@ -1874,16 +1877,21 @@ class MapController:
 
     #draw pic as waypoint
     def __drawWpt(self, map, map_attr):
-        wpts = self.getAllWpts()  #gpx's wpt + pic's wpt
-        if self.__mark_wpt:
-            wpts.append(self.__mark_wpt)
-        if len(wpts) == 0:
-            return
+        try:
+            wpts = self.getAllWpts()  #gpx's wpt + pic's wpt
+            if self.__mark_wpt:
+                wpts.append(self.__mark_wpt)
 
-        with DrawGuard(map) as draw:
-            for wpt in wpts:
-                (px, py) = wpt.pixel(map_attr.level)
-                self.drawWayPoint(map, map_attr, wpt, "black", draw=draw)
+            if len(wpts) == 0:
+                return
+
+            with DrawGuard(map) as draw:
+                for wpt in wpts:
+                    (px, py) = wpt.pixel(map_attr.level)
+                    self.drawWayPoint(map, map_attr, wpt, "black", draw=draw)
+        except Exception as ex:
+            logging.error('draw wpt error: %s' % str(ex))
+            
 
     @classmethod
     def pasteTransparently(cls, img, img2, pos=(0,0), errmsg=None):
@@ -2951,6 +2959,7 @@ if __name__ == '__main__':
             format="%(asctime)s.%(msecs)03d [%(levelname)s] [%(module)s] %(message)s", datefmt="%H:%M:%S")
 
     logging.info("Initialize GisEditor version " + __version);
+
     try:
         #create root
         root = tk.Tk()
