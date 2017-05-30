@@ -9,9 +9,16 @@ from xml.etree import ElementTree as ET
 from threading import Timer
 from PIL import Image, ImageTk, ImageDraw, ImageColor
 
+import pytz
+from timezonefinder import TimezoneFinder
+
 #my modules
 import src.conf as conf
 from src.coord import TileSystem, CoordinateSystem
+
+def getLocTimezone(lat, lon):
+    tz_loc = TimezoneFinder().timezone_at(lat=lat, lng=lon)  #ex: Asia/Taipei
+    return pytz.timezone(tz_loc)
 
 # business utils ==========================
 def _getWptPos(wpt):
@@ -29,14 +36,22 @@ def getPtEleText(wpt):
         return "%.1f m" % (wpt.ele) 
     return "N/A"
 
-def getPtTimeText(wpt, tz=None):
-    #todo get TZ by location
+def getPtTimezone(pt):
+    return getLocTimezone(lat=pt.lat, lon=pt.lon)
+
+def getPtLocaltime(pt, tz=None):
     if tz is None:
-        tz = conf.TZ;
-    if wpt is not None and wpt.time is not None:
-        time = wpt.time + tz
-        return  time.strftime("%Y-%m-%d %H:%M:%S")
-    return "N/A"
+        tz = getLocTimezone(lat=pt.lat, lon=pt.lon)
+    if pt is not None and pt.time is not None:
+        #assume time is localized by pytz.utc
+        return pt.time.astimezone(tz)
+    return None
+
+def getPtTimeText(wpt, tz=None):
+    time = getPtLocaltime(wpt, tz)
+
+    return "N/A" if time is None else \
+            time.strftime("%Y-%m-%d %H:%M:%S")
 
 # PIL utils ===================================
 class DrawGuard:

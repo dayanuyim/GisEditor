@@ -14,6 +14,7 @@ import inspect
 import argparse
 import platform
 import re
+import pytz
 from os import path
 from PIL import Image, ImageTk, ImageDraw, ImageFont, ImageColor
 from math import floor, ceil, sqrt
@@ -32,7 +33,7 @@ from src.gpx import GpsDocument, WayPoint, Track, TrackPoint
 from src.pic import PicDocument
 from src.util import GeoPoint, getPrefCornerPos, DrawGuard, imageIsTransparent, bindMenuCmdAccelerator, bindMenuCheckAccelerator
 from src.util import AreaSelector, AreaSizeTooLarge, GeoInfo  #should move to ui.py
-from src.util import getPtPosText, getPtEleText, getPtTimeText
+from src.util import getPtPosText, getPtEleText, getPtTimeText, getPtTimezone, getPtLocaltime
 from src.tool import *
 from src.tile import TileAgent, MapDescriptor
 from src.sym import askSym, toSymbol
@@ -77,7 +78,7 @@ def getGpsDocument(path):
 
         (fname, ext) = os.path.splitext(path)
         ext = ext.lower()
-        gps = GpsDocument(conf.TZ)
+        gps = GpsDocument()
 
         if ext == '.gpx':
             gps.load(filename=path)
@@ -95,7 +96,7 @@ def getGpsDocument(path):
 
 def getPicDocument(path):
     try:
-        return PicDocument(path, conf.TZ)
+        return PicDocument(path)
     except Exception as ex:
         showmsg("cannot read the picture '%s': %s" % (path, str(ex)))
     return None
@@ -524,7 +525,7 @@ class MapBoard(tk.Frame):
         px, py = pos
         geo = self.getGeoPointAt(px, py)
         wpt = WayPoint(geo.lat, geo.lon)
-        wpt.time = datetime.now()
+        wpt.time = datetime.utcnow().replace(tzinfo=pytz.utc)
         return wpt
 
     def addWpt(self, wpt):
@@ -958,8 +959,8 @@ class MapBoard(tk.Frame):
 
     @staticmethod
     def trkDiffDay(pt1, pt2):
-        t1 = pt1.time + conf.TZ
-        t2 = pt2.time + conf.TZ
+        t1 = getPtLocaltime(pt1)
+        t2 = getPtLocaltime(pt2)
         return not (t1.year == t2.year and \
                     t1.month == t2.month and \
                     t1.day == t2.day)
@@ -2864,14 +2865,14 @@ class TrkSingleBoard(tk.Toplevel):
         self.__left_btn['state'] = 'disabled' if idx == 0 else 'normal'
         self.__right_btn['state'] = 'disabled' if idx == sz-1 else 'normal'
 
-        #pt
+        #pt list
         self.pt_list.delete(0, 'end')
         self.pt_list.data = trk
-        sn = 0
-        for pt in trk:
-            sn += 1
-            txt = "#%04d  %s: %s, %s" % ( sn, getPtTimeText(pt), getPtPosText(pt), getPtEleText(pt))
-            self.pt_list.insert('end', txt)
+        if trk:
+            tz = getPtTimezone(trk[0])  #optimize, prevent calculation for each pt 
+            for sn, pt in enumerate(trk, 1):
+                txt = "#%04d  %s: %s, %s" % ( sn, getPtTimeText(pt, tz), getPtPosText(pt), getPtEleText(pt))
+                self.pt_list.insert('end', txt)
 
 def getAspectResize(img, size):
     dst_w, dst_h = size

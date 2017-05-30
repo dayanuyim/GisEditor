@@ -5,6 +5,7 @@
 import os
 import logging
 import src.util as util
+import pytz
 from xml.etree import ElementTree as ET
 from datetime import datetime
 from PIL import Image
@@ -28,8 +29,7 @@ class GpsDocument:
     @property
     def tracks(self): return self.__trks
 
-    def __init__(self, tz=None):
-        self.__tz = tz
+    def __init__(self):
 
         self.__wpts = []
         self.__trks = []
@@ -102,7 +102,7 @@ class GpsDocument:
             wpt.ele = float(elem.text) if elem is not None and elem.text else 0.0
 
             elem = wpt_elem.find("./gpx:time", self.ns)
-            wpt.time = datetime.strptime(elem.text, "%Y-%m-%dT%H:%M:%SZ") if elem is not None and elem.text else None
+            wpt.time = datetime.strptime(elem.text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=pytz.utc) if elem is not None and elem.text else None
 
             elem = wpt_elem.find("./gpx:name", self.ns)
             wpt.name = elem.text if elem is not None and elem.text is not None else ""
@@ -150,7 +150,7 @@ class GpsDocument:
             pt.ele = None if elem is None else float(elem.text)
 
             elem = trkpt_elem.find("./gpx:time", self.ns)
-            pt.time = None if elem is None else datetime.strptime(elem.text, "%Y-%m-%dT%H:%M:%SZ")
+            pt.time = None if elem is None else datetime.strptime(elem.text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=pytz.utc)
 
             self.addTrkpt(trk_idx, pt)
 
@@ -222,11 +222,6 @@ class GpsDocument:
         gpx.set('xsi:schemaLocation', "http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd")
         return gpx
 
-    def __toUTC(self, time):
-        if self.__tz:
-            return time - self.__tz
-        return time
-
     # if year is < 1900 or < 1000, strftime() may not pad zero for year, which cause strptime() exception.
     # [ref] https://docs.python.org/3.5/library/datetime.html#strftime-and-strptime-behavior
     def __toUTCFormat(self, time):
@@ -242,7 +237,7 @@ class GpsDocument:
         text.text = "Garmin International"
 
         time = ET.SubElement(metadata, 'time')
-        time.text = self.__toUTCFormat(self.__toUTC(datetime.now()))
+        time.text = self.__toUTCFormat(datetime.utcnow())
 
         if self.maxlat and self.maxlon and self.minlat and self.minlon:
             bounds = ET.SubElement(metadata, 'bounds')

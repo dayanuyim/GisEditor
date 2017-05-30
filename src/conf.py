@@ -132,13 +132,11 @@ __app_conf = __readConf(__APP_CONF)
 __mapcache_dir  = __app_conf.get('settings', 'mapcache_dir', fallback='mapcache')
 __gpsbabel_exe  = __app_conf.get('settings', 'gpsbabel_exe', fallback=__defaultGpsbabelExe())
 __db_schema     = __app_conf.get('settings', 'db_schema', fallback='tms')
-__tz            = __app_conf.getfloat('settings', 'tz', fallback=8.0)
 
 #publish conf
 MAPCACHE_DIR  = abspath(__mapcache_dir, __HOME_DIR)
 GPSBABEL_EXE  = abspath(__gpsbabel_exe, __HOME_DIR)
 DB_SCHEMA     = __db_schema            #valid value is 'tms' or 'zyx'
-TZ            = timedelta(hours=__tz)  #todo: get the info from system of geo location
 TRK_COLORS    = __readTrkColors(__app_conf)
 APP_SYMS      = __readAppSyms(__app_conf)
 
@@ -147,7 +145,6 @@ def writeAppConf():
     __app_conf['settings']['mapcache_dir'] = preferOrigIfEql(MAPCACHE_DIR, __mapcache_dir, __HOME_DIR)
     __app_conf['settings']['gpsbabel_exe'] = preferOrigIfEql(GPSBABEL_EXE, __gpsbabel_exe, __HOME_DIR)
     __app_conf['settings']['db_schema'] = DB_SCHEMA
-    __app_conf['settings']['tz'] = str(TZ.total_seconds()/3600)
 
     __app_conf['trk_colors'] = OrderedDict()
     for i in range(len(TRK_COLORS)):
