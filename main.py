@@ -32,6 +32,7 @@ from src.gpx import GpsDocument, WayPoint, Track, TrackPoint
 from src.pic import PicDocument
 from src.util import GeoPoint, getPrefCornerPos, DrawGuard, imageIsTransparent, bindMenuCmdAccelerator, bindMenuCheckAccelerator
 from src.util import AreaSelector, AreaSizeTooLarge, GeoInfo  #should move to ui.py
+from src.util import getPtPosText, getPtEleText, getPtTimeText
 from src.tool import *
 from src.tile import TileAgent, MapDescriptor
 from src.sym import askSym, toSymbol
@@ -2501,9 +2502,9 @@ class WptSingleBoard(WptBoard):
         #info
         self.showWptIcon(wpt)
         self._var_name.set(wpt.name)   #this have side effect to set symbol icon
-        self._var_pos.set(conf.getPtPosText(wpt))
-        self._var_ele.set(conf.getPtEleText(wpt))
-        self._var_time.set(conf.getPtTimeText(wpt))
+        self._var_pos.set(getPtPosText(wpt))
+        self._var_ele.set(getPtEleText(wpt))
+        self._var_time.set(getPtTimeText(wpt))
 
         #button state
         self.__left_btn['state'] = 'disabled' if idx == 0 else 'normal'
@@ -2557,14 +2558,14 @@ class WptListBoard(WptBoard):
             name_label = tk.Label(frame, text=w.name, font=font, anchor='w')
             self.initWidget(name_label, row, 1)
 
-            pos_txt = conf.getPtPosText(w, fmt='%.3f\n%.3f')
+            pos_txt = getPtPosText(w, fmt='%.3f\n%.3f')
             pos_label = tk.Label(frame, text=pos_txt, font=font)
             self.initWidget(pos_label, row, 2)
 
-            ele_label = tk.Label(frame, text=conf.getPtEleText(w), font=font)
+            ele_label = tk.Label(frame, text=getPtEleText(w), font=font)
             self.initWidget(ele_label, row, 3)
 
-            time_label = tk.Label(frame, text=conf.getPtTimeText(w), font=font)
+            time_label = tk.Label(frame, text=getPtTimeText(w), font=font)
             self.initWidget(time_label, row, 4)
 
             #save
@@ -2869,7 +2870,7 @@ class TrkSingleBoard(tk.Toplevel):
         sn = 0
         for pt in trk:
             sn += 1
-            txt = "#%04d  %s: %s, %s" % ( sn, conf.getPtTimeText(pt), conf.getPtPosText(pt), conf.getPtEleText(pt))
+            txt = "#%04d  %s: %s, %s" % ( sn, getPtTimeText(pt), getPtPosText(pt), getPtEleText(pt))
             self.pt_list.insert('end', txt)
 
 def getAspectResize(img, size):
