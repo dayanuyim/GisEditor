@@ -1,5 +1,7 @@
 __pycache__/
 
+.DS_Store
+
 bak/
 cache/
 giseditor.conf
