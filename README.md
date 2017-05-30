@@ -224,3 +224,23 @@ MAC (手動安裝)
     brew install gpsbabel
     ```
 
+6. For terminal use, to create a script and put to your $PATH
+
+    ```
+    echo 'python3 /full/path/to/main.py "$@"' > ~/bin/giseditor
+    chmod +x ~/bin/giseditor
+    ```
+
+7. For GUI use, using automaker.app
+
+    * open automaker.app (MAC-builtin)
+    * select _create appliction_ -> _shell script_
+    * put script
+        ```
+        /full/path/to/python3 /full/path/to/main.py "$@"
+        ```
+    * save to app
+    * move the app to Application Folder
+
+    
+
