@@ -3,6 +3,142 @@
 import math
 from math import tan, sin, cos, radians, degrees, floor
 
+EARTH_RADIUS = 6378137
+MIN_LATITUDE = -85.05112878
+MAX_LATITUDE = 85.05112878
+MIN_LONGITUDE = -180
+MAX_LONGITUDE = 180
+
+
+def crop(val, min_val, max_val):
+    """force a value btw min_val and max_val"""
+    return min(max(val, min_val), max_val)
+
+
+class Position:
+    """A position as coordinate, pixel, tile_position
+    """
+
+    # parameters for TWD 97 <-> Latitude, Longitude
+    a = 6378137.0
+    b = 6356752.3142451
+    lon0 = radians(121)
+    k0 = 0.9999
+    dx = 250000
+    dy = 0
+    e = 0.006694379990166088 #e = 1 - b**2 / a**2
+    e2 = 4.072415612689127e-30 #e2 = e / b**2 / a**2
+
+    __slots__ = ('latitude', 'longitude', 'valid_latitude', 'valid_longitude', 'ground_resolution', 'map_size',
+                 'pixel_x', 'pixel_y', 'tile_x', 'tile_y', 'twd97_x', 'twd97_y', 'twd67_x', 'twd67_y')
+
+    def __init__(self, coord=None, coord_in_degree=None, pixel=None, level=None, tile=None, twd97=None, twd67=None):
+        """
+        :param coord (float, float):
+            latitude, longitude in decimal ex: (120, 23)
+        :param coord_in_degree ((int, int, float), (int,int, float)):
+            latitude, longitude in degree ex: ((120, 58, 25.975),(23, 58, 32.34))
+        :param pixel (int, int):
+            position in pixel not tile
+        :param tile (int, int):
+            position in pixel already tile
+        :param level int:
+            a zoom in lavel
+        """
+        self.latitude = coord[0] if coord else None
+        self.longitude = coord[1] if coord else None
+        if coord_in_degree:
+            lat_d, lat_m, lat_s = coord_in_degree[0]
+            lon_d, lon_m, lon_s = coord_in_degree[1]
+            self.latitude = lat_d + lat_m/60 + lat_s/3600
+            self.longitude = lon_d + lon_m/60 + lon_s/3600
+        self.valid_latitude = crop(self.latitude, MIN_LATITUDE, MAX_LATITUDE) if self.latitude else None
+        self.valid_longitude = crop(self.longitude, MIN_LATITUDE, MAX_LATITUDE) if self.longitude else None
+        self.ground_resolution = math.cos(self.latitude * math.pi / 180) * 2 * math.pi * EARTH_RADIUS / self.map_size \
+            if coord and level else None
+        self.map_size = 256 << level if level else None
+        self.pixel_x = pixel[0] if pixel else None
+        self.pixel_y = pixel[1] if pixel else None
+        self.tile_x = tile[0] if tile else None
+        self.tile_y = tile[1] if tile else None
+        self.twd97_x = twd97[0] if twd97 else None
+        self.twd97_y = twd97[1] if twd97 else None
+        self.twd67_x = twd67[0] if twd67 else None
+        self.twd67_y = twd67[1] if twd67 else None
+
+    def map_scale(self, screen_dpi):
+        return self.ground_resolution * screen_dpi / 0.0254
+
+    def gen_latitude_longitude(self):
+        if not getattr(self, 'level', None):
+            raise AttributeError('Lack of level attribute')
+        x = crop(self.pixel_x, 0, self.map_size - 1) / self.map_size - 0.5
+        y = 0.5 - crop(self.pixel_y, 0, self.map_size - 1) / self.map_size
+        self.latitude = 90 - 360 * math.atan(math.exp(-y * 2 * math.pi)) / math.pi
+        self.longitude = x * 360
+
+    def gen_pixel_from_tile(self):
+        self.pixel_x, self.pixel_y = tuple(map(lambda v: int(v) << 8, self.tile))
+
+    def gen_pixel_from_coord(self):
+        x = (self.valid_longitude + 180) / 360
+        sin_latitude = math.sin(self.valid_latitude * math.pi / 180)
+        y = 0.5 - math.log((1 + sin_latitude) / (1 - sin_latitude)) / (4 * math.pi)
+        self.pixel_x = int(crop(x * self.map_size + 0.5, 0, self.map_size - 1))
+        self.pixel_y = int(crop(y * self.map_size + 0.5, 0, self.map_size - 1))
+
+    def gen_tile(self):
+        self.tile_x, self.tile_y = tuple(map(lambda v: int(v) >> 8 if v else None, self.pixel))
+
+    def __getattribute__(self, item):
+        if item == 'pixel':
+            if not self.pixel_x:
+                if self.valid_longitude:
+                    self.gen_pixel_from_coord()
+                if self.tile_x:
+                    self.gen_pixel_from_tile()
+            return self.pixel_x, self.pixel_y
+        elif item == 'coord':
+            if not self.latitude:
+                self.gen_latitude_longitude()
+            return self.latitude, self.longitude
+        elif item == 'tile':
+            if not self.tile_x:
+                self.gen_tile()
+            return self.tile_x, self.tile_y
+        elif item == 'coord_in_degree':
+            if not self.latitude:
+                self.gen_latitude_longitude()
+            lat_d = int(self.latitude)
+            lat_m = int((self.latitude - lat_d) * 60)
+            lat_s = ((self.latitude - lat_d) * 60 - lat_m) * 60
+
+            lon_d = int(self.longitude)
+            lon_m = int((self.longitude - lon_d) * 60)
+            lon_s = ((self.longitude - lon_d) * 60 - lon_m) * 60
+            return (lat_d, lat_m, lat_s), (lon_d, lon_m, lon_s)
+        elif item == 'twd97':
+            if not self.longitude:
+                self.gen_latitude_longitude()
+            V = Position.a / (1 - Position.e * sin(self.latitude)**2)**0.5
+            T = tan(self.latitude)**2
+            C = Position.e2 * cos(self.latitude)** 2
+            A = cos(self.latitude) * (self.longitude - Position.lon0)
+            e_2 = Position.e**2
+            e_3 = Position.e**3
+            M = Position.a *((1.0 - Position.e / 4.0 - 3.0 * e_2 / 64.0 - 5.0 * e_3 / 256.0) *
+                             self.latitude - (3.0 * Position.e / 8.0 + 3.0 * e_2 / 32.0 + 45.0 * e_3 /
+                                              1024.0) * sin(2.0 * self.latitude) +
+                             (15.0 * e_2 / 256.0 + 45.0 * e_3 / 1024.0) * sin(4.0 * self.latitude) -
+                             (35.0 * e_3 / 3072.0) * sin(6.0 * self.latitude))
+
+            x = Position.dx + Position.k0 * V * (A + (1 - T + C) * A**3 / 6 + (5 - 18 * T + T**2 + 72 * C - 58 *
+                                                                               Position.e2) * A**5 / 120)
+            y = Position.dy + Position.k0 * (M + V * tan(Position.latitude) * (A**2 / 2 + (5 - T + 9 * C + 4 * C**2) *
+                                           A**4 / 24 + (61 - 58 * T + T**2 + 600 * C - 330 * Position.e2) * A**6 / 720))
+            return x, y
+
+
 class TileSystem:
     EARTH_RADIUS = 6378137
     MIN_LATITUDE = -85.05112878
