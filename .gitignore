@@ -4,6 +4,7 @@ __pycache__/
 
 bak/
 cache/
+env/
 giseditor.conf
 giseditor.user.conf
 sym_rule.conf
