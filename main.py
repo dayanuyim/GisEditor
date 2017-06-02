@@ -2968,12 +2968,12 @@ def init_arguments():
 
 if __name__ == '__main__':
 
-
     __version = '0.23'
     args = init_arguments()
 
     if args.conf:
-        conf.CONF_DIR = args.conf
+        conf.change_conf_dir(args.conf)
+        logging.info('Change configure folder to ' + args.conf)
 
     #init logging
     log_level = logging.DEBUG if args.verbose >= 2 else logging.INFO if args.verbose == 1 else logging.WARNING

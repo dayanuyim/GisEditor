@@ -4,31 +4,32 @@ import os
 import logging
 import codecs
 import platform
-from os import path
-from PIL import ImageFont, Image
+import shutil
+from PIL import ImageFont
 from datetime import timedelta
-from src.coord import CoordinateSystem
 from configparser import ConfigParser
 from collections import OrderedDict
 from matplotlib import font_manager
 
-#default raw data
-import src.raw as raw
+import src.raw as raw  # default raw data
 
 #constance util
 def _tosymkey(sym):
     return sym.title()
 
+
 def __readConf(fpath):
     parser = ConfigParser()
-    parser.optionxform = str #case sensitive
+    parser.optionxform = str  # case sensitive
     if os.path.exists(fpath):
         parser.read(fpath, encoding='utf-8')
     return parser
 
+
 def __writeConf(conf, fpath):
     with codecs.open(fpath, 'w', encoding='utf-8') as f:
         conf.write(f, space_around_delimiters=False)
+
 
 def __parseUserMapLine(line):
     tokens = line.split(',')
@@ -36,9 +37,11 @@ def __parseUserMapLine(line):
     alpha = float(tokens[1])
     return en, alpha
 
+
 def __genUserMapLine(item):
     en, alpha = item
     return "%d,%.2f" % (1 if en else 0, alpha)
+
 
 def __readUserMaps(conf):
     maps = OrderedDict()
@@ -51,6 +54,7 @@ def __readUserMaps(conf):
                 logging.warning("parsing user maps for line '%s' error: %s" % (line, str(ex)))
     return maps
 
+
 def __readTrkColors(conf):
     if not conf.has_section('trk_colors'):
         return raw.trk_colors
@@ -58,12 +62,14 @@ def __readTrkColors(conf):
         #return conf['trk_colors'].values()
         return [v for k, v in conf['trk_colors'].items()]
 
+
 def __readAppSyms(conf):
     if not conf.has_section('app_syms'):
         return [_tosymkey(sym) for sym in raw.app_syms]
     else:
         return [_tosymkey(v) for k, v in conf['app_syms'].items()]
 
+# TODO (yanganto): refactory with from distutils.spawn import find_executable
 def __defaultGpsbabelExe():
     system = platform.system()
     if system == "Linux":
@@ -74,6 +80,7 @@ def __defaultGpsbabelExe():
         else:
             return "C:\\Program Files\\GPSBabel\\gpsbabel.exe"
     return "gpsbabel"
+
 
 def __defaultImgFont():
     preferreds = ("msjh.ttc",     #winxp
@@ -95,8 +102,10 @@ def __defaultImgFont():
     logging.info("Default Image Font: %s" % font)
     return font
 
+
 def abspath(path, related_home):
     return path if os.path.isabs(path) else os.path.join(related_home, path)
+
 
 def preferOrigIfEql(path, orig_path, related_home):
     p1 = path if os.path.isabs(path) else os.path.join(related_home, path)
@@ -105,18 +114,19 @@ def preferOrigIfEql(path, orig_path, related_home):
         return orig_path
     return path
 
+
+
 # buitin conf ###########################################
 __SRC_DIR = os.path.dirname(os.path.abspath(__file__))
 __HOME_DIR = os.path.abspath(os.path.join(__SRC_DIR, ".."))
-__CONF_DIR = os.path.join(__HOME_DIR, 'conf')
-CONF_DIR = __CONF_DIR  # can be patch by argument in main.py
 __DATA_DIR = os.path.join(__HOME_DIR, 'data')
 ICON_DIR = os.path.join(__HOME_DIR, 'icon')
+__CONF_DIR = os.path.join(__HOME_DIR, 'conf')
 
-__APP_CONF = os.path.join(CONF_DIR, 'giseditor.conf')
-__USER_CONF = os.path.join(CONF_DIR, 'giseditor.user.conf')
+__APP_CONF = os.path.join(__CONF_DIR, 'giseditor.conf')
+__USER_CONF = os.path.join(__CONF_DIR, 'giseditor.user.conf')
 
-SYM_RULE_CONF = os.path.join(CONF_DIR, 'sym_rule.conf')
+SYM_RULE_CONF = os.path.join(__CONF_DIR, 'sym_rule.conf')
 EXE_ICON = os.path.join(__DATA_DIR, 'giseditor.ico')
 DEL_ICON = os.path.join(__DATA_DIR, 'delete_icon.png')
 
@@ -125,6 +135,34 @@ GPSBABEL_EXT_FMT = raw.gpsbabel_ext_fmt
 MAP_UPDATE_PERIOD = timedelta(seconds=1)
 
 DEF_COLOR = "DarkMagenta"
+
+
+def change_conf_dir(conf_dir):
+    """change the configures with __CONF_DIR"""
+    global __CONF_DIR
+    global __APP_CONF
+    global __USER_CONF
+    global SYM_RULE_CONF
+
+    if not os.path.exists(conf_dir):
+        os.makedirs(conf_dir)
+
+    app_conf = os.path.join(conf_dir, 'giseditor.conf')
+    user_conf = os.path.join(conf_dir, 'giseditor.user.conf')
+
+    if not os.path.exists(app_conf):
+        shutil.copyfile(__APP_CONF, app_conf)
+    if not os.path.exists(user_conf):
+        shutil.copyfile(__USER_CONF, user_conf)
+
+    __CONF_DIR = conf_dir
+    __APP_CONF = app_conf
+    __USER_CONF = user_conf
+    SYM_RULE_CONF = os.path.join(conf_dir, 'sym_rule.conf')
+
+if platform.system() != "Windows":  # for *nix system
+    change_conf_dir(os.path.expanduser('~/.conf/giseditor'))
+
 
 # App conf ###########################################
 __app_conf = __readConf(__APP_CONF)
