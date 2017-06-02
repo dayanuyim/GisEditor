@@ -109,13 +109,14 @@ def preferOrigIfEql(path, orig_path, related_home):
 __SRC_DIR = os.path.dirname(os.path.abspath(__file__))
 __HOME_DIR = os.path.abspath(os.path.join(__SRC_DIR, ".."))
 __CONF_DIR = os.path.join(__HOME_DIR, 'conf')
+CONF_DIR = __CONF_DIR  # can be patch by argument in main.py
 __DATA_DIR = os.path.join(__HOME_DIR, 'data')
 ICON_DIR = os.path.join(__HOME_DIR, 'icon')
 
-__APP_CONF = os.path.join(__CONF_DIR, 'giseditor.conf')
-__USER_CONF = os.path.join(__CONF_DIR, 'giseditor.user.conf')
+__APP_CONF = os.path.join(CONF_DIR, 'giseditor.conf')
+__USER_CONF = os.path.join(CONF_DIR, 'giseditor.user.conf')
 
-SYM_RULE_CONF = os.path.join(__CONF_DIR, 'sym_rule.conf')
+SYM_RULE_CONF = os.path.join(CONF_DIR, 'sym_rule.conf')
 EXE_ICON = os.path.join(__DATA_DIR, 'giseditor.ico')
 DEL_ICON = os.path.join(__DATA_DIR, 'delete_icon.png')
 

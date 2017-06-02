@@ -2,7 +2,6 @@
 
 import os
 import subprocess
-import sys
 import tkinter as tk
 import Pmw as pmw
 import urllib.request
@@ -10,13 +9,12 @@ import shutil
 import tempfile
 import time
 import logging
-import inspect
 import argparse
 import platform
 import re
 import pytz
 from os import path
-from PIL import Image, ImageTk, ImageDraw, ImageFont, ImageColor
+from PIL import Image, ImageTk, ImageDraw, ImageColor
 from math import floor, ceil, sqrt
 from tkinter import messagebox, filedialog, ttk
 from datetime import datetime, timedelta
@@ -29,9 +27,9 @@ import src.sym as sym
 import src.coord as coord
 import src.util as util
 from src.ui import MapSelectFrame
-from src.gpx import GpsDocument, WayPoint, Track, TrackPoint
+from src.gpx import GpsDocument, WayPoint, TrackPoint
 from src.pic import PicDocument
-from src.util import GeoPoint, getPrefCornerPos, DrawGuard, imageIsTransparent, bindMenuCmdAccelerator, bindMenuCheckAccelerator
+from src.util import GeoPoint, DrawGuard, imageIsTransparent, bindMenuCmdAccelerator, bindMenuCheckAccelerator
 from src.util import AreaSelector, AreaSizeTooLarge, GeoInfo  #should move to ui.py
 from src.util import getPtPosText, getPtEleText, getPtTimeText, getPtTimezone, getPtLocaltime
 from src.tool import *
@@ -41,13 +39,13 @@ from src.sym import askSym, toSymbol
 to_pixel = coord.TileSystem.getPixcelXYByTileXY
 to_tile = coord.TileSystem.getTileXYByPixcelXY
 
-#print to console/log and messagebox (generalize this with LOG, moving to util.py)
 def showmsg(msg):
+    """print to console/log and messagebox (generalize this with LOG, moving to util.py)"""
     logging.error(msg)
     messagebox.showwarning('', msg)
 
-#read pathes
 def isGpsFile(path):
+    """read pathes"""
     (fname, ext) = os.path.splitext(path)
     ext = ext.lower()
     return ext in conf.GPSBABEL_EXT_FMT
@@ -156,8 +154,8 @@ def __parsePath(path, gps_path, pic_path):
     else:
         logging.info("omit the file: " + path)
 
-#may generalize the method, and moving to util.py
 def parsePathes(pathes):
+    """may generalize the method, and moving to util.py"""
     gps_path = []
     pic_path = []
     for path in pathes:
@@ -166,8 +164,9 @@ def parsePathes(pathes):
     pic_path.sort()
     return gps_path, pic_path
 
-#The Main board to display the map
+
 class MapBoard(tk.Frame):
+    """The Main board to display the map"""
     MODE_NORMAL = 0
     MODE_DRAW_TRK = 1
     MODE_SAVE_IMG = 2
@@ -1464,7 +1463,7 @@ class MapAgent:
 
         return  (disp_map, disp_attr)
 
-#todo: what is the class's purpose?, suggest to reconsider
+# todo: what is the class's purpose?, suggest to reconsider
 class MapController:
 
     #{{ properties
@@ -1867,18 +1866,18 @@ class MapController:
                 del _draw
 
 
-    #disable for now, because the algo will be broken if two pt across the image
     def isTrackInImage(self, trk, map_attr):
+        """Currently disabled, 'cause the algo will be broken if two pt across the image"""
         return True
         #if some track point is in disp
-        for pt in trk:
-            (px, py) = pt.pixel(map_attr.level)
-            if map_attr.coversPoint(px, py):
-                return True
-        return False
+        # for pt in trk:
+        #     (px, py) = pt.pixel(map_attr.level)
+        #     if map_attr.coversPoint(px, py):
+        #         return True
+        # return False
 
-    #draw pic as waypoint
     def __drawWpt(self, map, map_attr):
+        """draw pic as waypoint"""
         try:
             wpts = self.getAllWpts()  #gpx's wpt + pic's wpt
             if self.__mark_wpt:
@@ -2013,6 +2012,7 @@ class MapController:
                 py -= attr.up_py
                 draw.text((px, py -py_shift), str(y), fill="black", font=font)
 
+
 class MapProgressRec:
     @property
     #complete rate of tiles
@@ -2056,6 +2056,7 @@ class MapProgressRec:
 
         return False
 
+
 class TileArea:
     @property
     def level(self): return self._level
@@ -2098,8 +2099,10 @@ class TileArea:
     def __ne__(self, rhs):
         return not self.__eq__(rhs)
 
-    # return overlayed area or None
     def overlay(self, rhs):
+        """
+        :return: overlayed area or None
+        """
         if self.level != rhs.level:
            return None
 
@@ -2179,6 +2182,7 @@ class TileArea:
                 return None
         return inter_area
 
+
 class MapAttr(TileArea):
     @property
     def left_px(self): return self.x
@@ -2218,6 +2222,7 @@ class MapAttr(TileArea):
     @classmethod
     def toMapAttr(cls, area, fail_tiles=0):
         return MapAttr(area.level, area.pos, area.size, fail_tiles)
+
 
 class WptBoard(tk.Toplevel):
     @property
@@ -2511,6 +2516,7 @@ class WptSingleBoard(WptBoard):
         self.__left_btn['state'] = 'disabled' if idx == 0 else 'normal'
         self.__right_btn['state'] = 'disabled' if idx == sz-1 else 'normal'
 
+
 class WptListBoard(WptBoard):
     def __init__(self, master, wpt_list, wpt=None):
         super().__init__(master, wpt_list, wpt)
@@ -2622,6 +2628,7 @@ class WptListBoard(WptBoard):
     #override
     def setCurrWpt(self, wpt):
         self._curr_wpt = wpt
+
 
 class TrkSingleBoard(tk.Toplevel):
     @property
@@ -2874,6 +2881,7 @@ class TrkSingleBoard(tk.Toplevel):
                 txt = "#%04d  %s: %s, %s" % ( sn, getPtTimeText(pt, tz), getPtPosText(pt), getPtEleText(pt))
                 self.pt_list.insert('end', txt)
 
+
 def getAspectResize(img, size):
     dst_w, dst_h = size
     src_w, src_h = img.size
@@ -2893,6 +2901,7 @@ def getAspectResize(img, size):
 
     return img.resize((w, h))
 
+
 def getTextImag(text, size):
     w, h = size
     img = Image.new("RGBA", size)
@@ -2900,6 +2909,7 @@ def getTextImag(text, size):
         draw.text( (int(w/2-20), int(h/2)), text, fill='lightgray', font=conf.IMG_FONT)
 
     return img
+
 
 def __testTileArea():
     a1 = TileArea(16, (0, 0), (10, 10))
@@ -2916,6 +2926,7 @@ def __testTileArea():
     print(a1.overlay(a5)) # part
     print(a4.overlay(a1)) # part
 
+
 def canExit(disp_board):
 
     if not disp_board.is_alter:
@@ -2931,10 +2942,12 @@ def canExit(disp_board):
 
     return False
 
+
 def onExit(root, disp_board):
     if canExit(disp_board):
         disp_board.exit()
         root.destroy()
+
 
 def getTitleText(files):
     txt = ""
@@ -2945,15 +2958,22 @@ def getTitleText(files):
         txt += "- "
     return txt + "GisEditor"
 
-def initArguments():
+
+def init_arguments():
     parser = argparse.ArgumentParser(description='ref https://github.com/dayanuyim/GisEditor')
     parser.add_argument("-v", "--verbose", help="show detail information", action="count", default=0)
+    parser.add_argument("-c", "--conf", help="load the config file in specific folder", default="")
     parser.add_argument('files', nargs='*', help="Gps or photo files to parse")
     return parser.parse_args()
 
 if __name__ == '__main__':
+
+
     __version = '0.23'
-    args = initArguments()
+    args = init_arguments()
+
+    if args.conf:
+        conf.CONF_DIR = args.conf
 
     #init logging
     log_level = logging.DEBUG if args.verbose >= 2 else logging.INFO if args.verbose == 1 else logging.WARNING
