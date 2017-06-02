@@ -302,7 +302,7 @@ class MapBoard(tk.Frame):
 
         self.disp_canvas.bind('<Motion>', self.onMotion)
         self.disp_canvas.bind("<Button-1>", lambda e: self.onClickDown(e, 'left'))
-        self.disp_canvas.bind("<Button-2>" if platform.system() == "Darwin" else "<Button3>",
+        self.disp_canvas.bind("<Button-2>" if platform.system() == "Darwin" else "<Button-3>",
                 lambda e: self.onClickDown(e, 'right'))
 
         self.disp_canvas.bind("<Button1-Motion>", lambda e: self.onClickMotion(e, 'left'))
