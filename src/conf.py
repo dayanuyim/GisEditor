@@ -149,19 +149,20 @@ def change_conf_dir(conf_dir):
 
     app_conf = os.path.join(conf_dir, 'giseditor.conf')
     user_conf = os.path.join(conf_dir, 'giseditor.user.conf')
+    sym_rule_conf = os.path.join(conf_dir, 'sym_rule.conf')
 
     if not os.path.exists(app_conf):
         shutil.copyfile(__APP_CONF, app_conf)
     if not os.path.exists(user_conf):
         shutil.copyfile(__USER_CONF, user_conf)
+    if not os.path.exists(sym_rule_conf):
+        shutil.copyfile(os.path.join(__CONF_DIR, 'sample', 'sym_rule.conf.sample'), sym_rule_conf)
 
     __CONF_DIR = conf_dir
     __APP_CONF = app_conf
     __USER_CONF = user_conf
-    SYM_RULE_CONF = os.path.join(conf_dir, 'sym_rule.conf')
+    SYM_RULE_CONF = sym_rule_conf
 
-if platform.system() != "Windows":  # for *nix system
-    change_conf_dir(os.path.expanduser('~/.conf/giseditor'))
 
 
 # App conf ###########################################
@@ -195,8 +196,6 @@ def writeAppConf():
 
     __writeConf(__app_conf, __APP_CONF)
 
-if not os.path.exists(__APP_CONF):
-    writeAppConf()
 
 # User conf ###########################################
 __user_conf = __readConf(__USER_CONF)
@@ -257,6 +256,15 @@ def writeUserConf():
 
     #write
     __writeConf(__user_conf, __USER_CONF)
+
+
+# Change the configure dependence on OS and setup(write) the config
+
+if platform.system() == "Linux":
+    change_conf_dir(os.path.expanduser('~/.config/giseditor'))
+
+if not os.path.exists(__APP_CONF):
+    writeAppConf()
 
 if not os.path.exists(__USER_CONF):
     writeUserConf()
