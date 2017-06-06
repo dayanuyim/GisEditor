@@ -136,7 +136,15 @@ MAP_UPDATE_PERIOD = timedelta(seconds=1)
 
 DEF_COLOR = "DarkMagenta"
 
+def __dup_conf_file(from_conf, to_dir):
+    dup_conf = os.path.join(to_dir, os.path.basename(from_conf))
 
+    if os.path.exists(from_conf) and not os.path.exists(dup_conf):
+        shutil.copyfile(from_conf, dup_conf)
+
+    return dup_conf
+
+#make local conf by system conf
 def change_conf_dir(conf_dir):
     """change the configures with __CONF_DIR"""
     global __CONF_DIR
@@ -144,26 +152,20 @@ def change_conf_dir(conf_dir):
     global __USER_CONF
     global SYM_RULE_CONF
 
-    if not os.path.exists(conf_dir):
-        os.makedirs(conf_dir)
+    os.makedirs(conf_dir, exist_ok=True)
 
-    app_conf = os.path.join(conf_dir, 'giseditor.conf')
-    user_conf = os.path.join(conf_dir, 'giseditor.user.conf')
-    sym_rule_conf = os.path.join(conf_dir, 'sym_rule.conf')
+    #copy 
+    app_conf = __dup_conf_file(__APP_CONF, conf_dir)
+    user_conf = __dup_conf_file(__USER_CONF, conf_dir)
+    sym_rule_conf = __dup_conf_file(SYM_RULE_CONF, conf_dir)
 
-    if not os.path.exists(app_conf):
-        shutil.copyfile(__APP_CONF, app_conf)
-    if not os.path.exists(user_conf):
-        shutil.copyfile(__USER_CONF, user_conf)
-    if not os.path.exists(sym_rule_conf):
-        shutil.copyfile(os.path.join(__CONF_DIR, 'sample', 'sym_rule.conf.sample'), sym_rule_conf)
-
+    #assign after copy is ok
     __CONF_DIR = conf_dir
     __APP_CONF = app_conf
     __USER_CONF = user_conf
     SYM_RULE_CONF = sym_rule_conf
 
-
+change_conf_dir(os.path.expanduser('~/.config/giseditor'))
 
 # App conf ###########################################
 __app_conf = __readConf(__APP_CONF)
@@ -257,18 +259,12 @@ def writeUserConf():
     #write
     __writeConf(__user_conf, __USER_CONF)
 
-
-# Change the configure dependence on OS and setup(write) the config
-
-if platform.system() == "Linux":
-    change_conf_dir(os.path.expanduser('~/.config/giseditor'))
-
+# save init conf ======================================== 
 if not os.path.exists(__APP_CONF):
     writeAppConf()
 
 if not os.path.exists(__USER_CONF):
     writeUserConf()
-
 
 if __name__ == "__main__":
     writeAppConf()
