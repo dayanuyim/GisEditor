@@ -2968,7 +2968,7 @@ def init_arguments():
 
 if __name__ == '__main__':
 
-    __version = '0.23'
+    __version = '0.24'
     args = init_arguments()
 
     if args.conf:
