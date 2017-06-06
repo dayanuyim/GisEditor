@@ -9,10 +9,51 @@ from xml.etree import ElementTree as ET
 from threading import Timer
 from PIL import Image, ImageTk, ImageDraw, ImageColor
 
+import pytz
+from timezonefinder import TimezoneFinder
+
 #my modules
 import src.conf as conf
 from src.coord import TileSystem, CoordinateSystem
 
+def getLocTimezone(lat, lon):
+    tz_loc = TimezoneFinder().timezone_at(lat=lat, lng=lon)  #ex: Asia/Taipei
+    return pytz.timezone(tz_loc)
+
+# business utils ==========================
+def _getWptPos(wpt):
+    x_tm2_97, y_tm2_97 = CoordinateSystem.TWD97_LatLonToTWD97_TM2(wpt.lat, wpt.lon)
+    x_tm2_67, y_tm2_67 = CoordinateSystem.TWD97_TM2ToTWD67_TM2(x_tm2_97, y_tm2_97)
+    return (x_tm2_67, y_tm2_67)
+
+def getPtPosText(wpt, fmt='(%.3f, %.3f)'):
+    x, y = _getWptPos(wpt)
+    text = fmt % (x/1000, y/1000)
+    return text
+
+def getPtEleText(wpt):
+    if wpt is not None and wpt.ele is not None:
+        return "%.1f m" % (wpt.ele) 
+    return "N/A"
+
+def getPtTimezone(pt):
+    return getLocTimezone(lat=pt.lat, lon=pt.lon)
+
+def getPtLocaltime(pt, tz=None):
+    if tz is None:
+        tz = getLocTimezone(lat=pt.lat, lon=pt.lon)
+    if pt is not None and pt.time is not None:
+        #assume time is localized by pytz.utc
+        return pt.time.astimezone(tz)
+    return None
+
+def getPtTimeText(wpt, tz=None):
+    time = getPtLocaltime(wpt, tz)
+
+    return "N/A" if time is None else \
+            time.strftime("%Y-%m-%d %H:%M:%S")
+
+# PIL utils ===================================
 class DrawGuard:
     def __init__(self, img):
         self.__img = img
@@ -335,7 +376,8 @@ class AreaSelectorSettings(Dialog):
         f = tk.Frame(self)
         f.grid(row=row, column=0, sticky='w')
         tk.Label(f, text='precision: level', anchor='e').pack(side='left', expand=1, fill='both')
-        tk.Spinbox(f, from_=13, to=16, width=2, textvariable=self.var_level).pack(side='left', expand=1, fill='both')
+        tk.Spinbox(f, from_=conf.MIN_SUPP_LEVEL, to=conf.MAX_SUPP_LEVEL, width=2, textvariable=self.var_level)\
+                .pack(side='left', expand=1, fill='both')
 
         #align
         row += 1

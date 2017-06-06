@@ -1,11 +1,14 @@
 __pycache__/
 
+.DS_Store
+
 env/
 bak/
 cache/
+env/
 giseditor.conf
 giseditor.user.conf
-sym_rule.conf
+#sym_rule.conf
 giseditor.bat
 giseditor.exe
 giseditor.exe.config

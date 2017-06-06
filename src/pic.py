@@ -5,7 +5,9 @@
 import logging
 from PIL import Image, ExifTags
 from datetime import datetime
+import pytz
 #my
+from src.util import getLocTimezone
 from src.gpx import WayPoint
 import src.sym as sym
 
@@ -13,8 +15,7 @@ class PicDocument(WayPoint):
     @property
     def img(self): return self.__img
 
-    def __init__(self, path, tz=None):
-        self.__tz = tz
+    def __init__(self, path):
         self.__path = path
         self.__img = Image.open(path)
         self.__exif = self.getExif(self.__img)
@@ -50,9 +51,10 @@ class PicDocument(WayPoint):
 
     def exifToDateTime(self, time_str, def_value=None):
         try:
-            time = datetime.strptime(time_str, "%Y:%m:%d %H:%M:%S")
-            if self.__tz is not None:
-                time -= self.__tz  #to utc
+            time = datetime.strptime(time_str, "%Y:%m:%d %H:%M:%S") #local time
+            if self.lat and self.lon:
+                tz = getLocTimezone(lat=self.lat, lon=self.lon)
+                time = tz.localize(time, is_dst=None).astimezone(pytz.utc)
             return time
         except Exception as ex:
             logging.error('Parsing Exif DateTime Error: ' + str(ex))

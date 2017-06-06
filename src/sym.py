@@ -3,6 +3,7 @@
 import re
 import os
 import codecs
+import logging
 import tkinter as tk
 import Pmw as pmw
 from PIL import Image, ImageTk
@@ -12,42 +13,62 @@ import src.conf as conf
 import src.util as util
 
 # symbol icon ======================================
-def __getSymIcons(icon_dir):
-    sym_icons = {}
+def __splitSymFilename(fname):
+    sym = os.path.splitext(fname)[0].split('@')
+
+    name = conf._tosymkey(sym[0])
+    author = sym[1] if len(sym) >= 2 else None
+    return name, author
+
+def __readSymbols(icon_dir):
+    symbols = {}
     try:
-        for f in os.listdir(icon_dir):
-            p = os.path.join(icon_dir, f)
-            if os.path.isfile(p):
-                name, ext = os.path.splitext(f)
-                sym = conf._tosymkey(name)
-                sym_icons[sym] = (p, None)
+        for fname in os.listdir(icon_dir):
+            if fname.startswith('.'):
+                continue
+            fpath = os.path.join(icon_dir, fname)
+            if os.path.isfile(fpath):
+                name, author = __splitSymFilename(fname)
+                symbols[name] = (fpath, author, None)
     except Exception as ex:
         logging.error('read icons error: ' + str(ex))
-    return sym_icons
+    return symbols
 
-#sym->icon_path, icon_image
-__sym_icons = __getSymIcons(conf.ICON_DIR)
+#name->path, author, icon
+__symbols = __readSymbols(conf.ICON_DIR)
 
-def getAllSymbols():
-    return __sym_icons.keys()
+def getSymNames():
+    return __symbols.keys()
 
-def getIcon(sym, def_sym=conf.DEF_SYMBOL):
-    sym = conf._tosymkey(sym)
-    icon = __getIcon(sym)
-    if not icon and sym != def_sym:
-        return __getIcon(def_sym) #return default
-    return icon
+def getIcon(name, def_name=conf.DEF_SYMBOL):
+    sym = getSymbol(name, def_name)
+    return sym[-1] if sym is not None else None
 
-def __getIcon(sym):
-    icon = __sym_icons.get(sym)
-    if not icon:
+def getAuthor(name, def_name=conf.DEF_SYMBOL):
+    sym = getSymbol(name, def_name)
+    return sym[1] if sym is not None else None
+
+def getSymbol(name, def_name=conf.DEF_SYMBOL):
+    name = conf._tosymkey(name)
+    sym = __getSymbol(name)
+    if not sym and name != def_name:
+        return __getSymbol(def_name) #return default
+    return sym
+
+def __getSymbol(name):
+    sym = __symbols.get(name)
+    if not sym:
         return None
-    path, img = icon
-    if img is None:
-        img = __readIcon(path, conf.ICON_SIZE)
-        if img:
-            __sym_icons[sym] = (path, img)
-    return img
+
+    path, author, icon = sym
+
+    #prepare icon
+    if icon is None:
+        icon = __readIcon(path, conf.ICON_SIZE)
+        sym = (path, author, icon)
+        __symbols[name] = sym    #re-store
+
+    return sym
 
 def __readIcon(path, sz):
     if path is None:
@@ -101,7 +122,7 @@ class SymBoard(tk.Toplevel):
         self.protocol('WM_DELETE_WINDOW', lambda: self.onClosed(None))
 
         #init
-        all_syms = getAllSymbols()
+        all_syms = getSymNames()
         self.__app_syms = conf.APP_SYMS;
         self.__ext_syms = util.listdiff(all_syms, self.__app_syms)
 
@@ -207,7 +228,13 @@ class SymBoard(tk.Toplevel):
         if widget is not None:
             if widget['bg'] != self.__filter_bg_color:
                 widget['bg'] = self.__hl_bg_color
-            self.title(widget.sym)
+            desc = "中文"
+            author = getAuthor(widget.sym)
+
+            title = widget.sym
+            #if desc: title = "%s [%s]" % (title, desc)
+            if author: title = "%s - by %s" % (title, author)
+            self.title(title)
         else:
             self.title("")
 
@@ -319,6 +346,9 @@ class SymbolRules:
 
     def load(self):
         path = self.__path
+
+        if not os.path.exists(path):
+            return
 
         #get all line
         with codecs.open(path, 'r', encoding='utf8') as f:

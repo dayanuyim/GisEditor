@@ -5,7 +5,7 @@
     <maxZoom>19</maxZoom>
     <tileType>jpg</tileType>
     <tileUpdate>None</tileUpdate>
-    <url>http://maps.nlsc.gov.tw/S_Maps/wmts/EMAP8/default/EPSG:3857/{$z}/{$y}/{$x}</url>
+    <url>http://wmts.nlsc.gov.tw/wmts/EMAP8/default/EPSG:3857/{$z}/{$y}/{$x}</url>
     <backgroundColor>#000000</backgroundColor>
     <expireDays>14</expireDays>
 </customMapSource>
