@@ -251,6 +251,10 @@ class GpsDocument:
             bounds.set("minlon", str(self.minlon))
 
     def subWptElement(self, parent):
+        #
+        # Notice: The order of elements matters.
+        # ref: http://www.topografix.com/GPX/1/1/#type_wptType
+        #
         for w in self.__wpts:
             wpt = ET.SubElement(parent, 'wpt')
             wpt.set("lat", str(w.lat))
@@ -266,9 +270,6 @@ class GpsDocument:
             name = ET.SubElement(wpt, "name")
             name.text = w.name
 
-            sym = ET.SubElement(wpt, "sym")
-            sym.text = w.sym
-
             if w.cmt:
                 cmt = ET.SubElement(wpt, "cmt")
                 cmt.text = w.cmt
@@ -276,6 +277,9 @@ class GpsDocument:
             if w.desc:
                 desc = ET.SubElement(wpt, "desc")
                 desc.text = w.desc
+
+            sym = ET.SubElement(wpt, "sym")
+            sym.text = w.sym
 
             #extension =====
             extensions = ET.SubElement(wpt, "extensions")
