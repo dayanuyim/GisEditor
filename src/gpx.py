@@ -102,7 +102,7 @@ class GpsDocument:
             wpt.ele = float(elem.text) if elem is not None and elem.text else 0.0
 
             elem = wpt_elem.find("./gpx:time", self.ns)
-            wpt.time = datetime.strptime(elem.text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=pytz.utc) if elem is not None and elem.text else None
+            wpt.time = self.__toUTCTime(elem.text) if elem is not None and elem.text else None
 
             elem = wpt_elem.find("./gpx:name", self.ns)
             wpt.name = elem.text if elem is not None and elem.text is not None else ""
@@ -150,7 +150,7 @@ class GpsDocument:
             pt.ele = None if elem is None else float(elem.text)
 
             elem = trkpt_elem.find("./gpx:time", self.ns)
-            pt.time = None if elem is None else datetime.strptime(elem.text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=pytz.utc)
+            pt.time = None if elem is None else self.__toUTCTime(elem.text)
 
             self.addTrkpt(trk_idx, pt)
 
@@ -228,6 +228,10 @@ class GpsDocument:
         txt = time.strftime("%Y-%m-%dT%H:%M:%SZ")
         #padding zero if year's length < 4
         return "0" * ( 4 - txt.index('-')) + txt
+
+    def __toUTCTime(self, txt):
+        fmt = "%Y-%m-%dT%H:%M:%S.%fZ" if "." in txt else "%Y-%m-%dT%H:%M:%SZ"
+        return datetime.strptime(txt, fmt).replace(tzinfo=pytz.utc)
 
     def subMetadataElement(self, parent):
         metadata = ET.SubElement(parent, 'metadata')
