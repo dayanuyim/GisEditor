@@ -690,33 +690,51 @@ class MapBoard(tk.Frame):
             #do Not show message box to user, which may be a 'temperary' key-in error
 
     def onPosSet(self, e):
-        #if val_txt is digit, regarding as int with unit 'meter'
-        #          otherwise, regarding as float with unit 'kilimeter'
-        def toTM2(val_txt):
-            val_txt = val_txt.strip()
-            return int(val_txt) if val_txt.isdigit() else int(float(val_txt)*1000)
+
+        def sixCoord(ref, val):
+            return max(0, round(ref - val, -5)) + val  # get closed hundred-kilimeter, then plus to val
+
+        #if val_txt is :
+        #   float: float with unit 'kilimeter'
+        # 3-digit: int with unit 'hundred-meter', need to prefix
+        #   digit: int with unit 'meter'
+        def __toTM2(val_txt, ref):
+            return int(float(val_txt)*1000) if not val_txt.isdigit() else \
+                   sixCoord(ref, int(val_txt)*100) if len(val_txt) == 3 else \
+                   int(val_txt)
+
+        def toTM2x(val_txt):
+            return __toTM2(val_txt, self.__map_ctrl.geo.twd67_x)
+
+        def toTM2y(val_txt):
+            return __toTM2(val_txt, self.__map_ctrl.geo.twd67_y)
 
         def toDegree(val_txt):
-            val_txt = val_txt.strip()
             return float(val_txt)
 
         #get geo point
         geo = None
         try:
-            pos = e.widget.get()
-            x, y = filter(None, re.split('[^\d\.]', pos)) #split by not 'digit' or '.'. Removing empty string.
+            pos = e.widget.get().strip()
+            if len(pos) == 6 and pos.isdigit(): # six-digit-coord, without split
+                n1, n2 = pos[0:3], pos[3:6]
+            else:
+                n1, n2 = filter(None, re.split('[^\d\.]', pos)) #split by not 'digit' or '.'. Removing empty string.
+                n1, n2 = n1.strip(), n2.strip()
 
             #make geo according to the coordinate
             if e.widget == self.__info_67tm2:
-                geo = GeoPoint(twd67_x=toTM2(x), twd67_y=toTM2(y))
+                geo = GeoPoint(twd67_x=toTM2x(n1), twd67_y=toTM2y(n2))
+
             elif e.widget == self.__info_97tm2:
-                geo = GeoPoint(twd97_x=toTM2(x), twd97_y=toTM2(y))
+                geo = GeoPoint(twd97_x=toTM2x(n1), twd97_y=toTM2y(n2))
+
             elif e.widget == self.__info_97latlon:
-                geo = GeoPoint(lat=toDegree(x), lon=toDegree(y))
+                geo = GeoPoint(lat=toDegree(n1), lon=toDegree(n2))
             else:
                 raise ValueError("Code flow error to set location") #should not happen
         except Exception as ex:
-            messagebox.showwarning("Please use format '%d,%d'.", "get locatoin error: %s" % (str(ex),))
+            messagebox.showwarning("Please use valid format: 2 decimals(KM), 2 integer(M), or 6 digits", "Get locatoin error: %s" % (str(ex),))
             return
 
         #check
