@@ -340,6 +340,8 @@ class GeoInfo:
             x = round(geo.twd97_x/grid_x) * grid_x
             y = round(geo.twd97_y/grid_y) * grid_y
             grid_geo = GeoPoint(twd97_x=x, twd97_y=y)
+        else:
+            raise ValueError("Unknown coord system '%s'" % (self.__coord_sys,))
 
         return grid_geo.diffPixel(self.__ref_geo, self.__level)
 
@@ -349,13 +351,33 @@ class GeoInfo:
             x = self.__ref_geo.twd67_x + km*1000
             y = self.__ref_geo.twd67_y
             geo2 = GeoPoint(twd67_x=x, twd67_y=y)
-        else:
-            #if self.__coord_sys == "TWD97":  #as default
+        elif self.__coord_sys == "TWD97":
             x = self.__ref_geo.twd97_x + km*1000
             y = self.__ref_geo.twd97_y
             geo2 = GeoPoint(twd97_x=x, twd97_y=y)
+        else:
+            raise ValueError("Unknown coord system '%s'" % (self.__coord_sys,))
 
         return geo2.diffPixel(self.__ref_geo, self.__level)[0]
+
+    def getCoordByPixel(self, px, py):
+        geo = GeoPoint(px=px, py=py, level=self.__level)
+        if self.__coord_sys == "TWD67":
+            return (geo.twd67_x, geo.twd67_y)
+        if self.__coord_sys == "TWD97":
+            return (geo.twd97_x, geo.twd97_y)
+        else:
+            raise ValueError("Unknown coord system '%s'" % (self.__coord_sys,))
+
+    def getPixelByCoord(self, x, y):
+        geo = None
+        if self.__coord_sys == "TWD67":
+            geo = GeoPoint(twd67_x=x, twd67_y=y)
+        elif self.__coord_sys == "TWD97":
+            geo = GeoPoint(twd97_x=x, twd97_y=y)
+        else:
+            raise ValueError("Unknown coord system '%s'" % (self.__coord_sys,))
+        return geo.pixel(self.__level)
 
 #The UI of settings to access conf
 class AreaSelectorSettings(Dialog):

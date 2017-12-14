@@ -1,3 +1,13 @@
+# coord system
+TWD67 = 'TWD67'
+TWD97 = 'TWD97'
+SUPP_COORD_SYSTEMS = [TWD67, TWD97]
+
+# TODO enum class
+COORD_NONE = 0
+COORD_TEXT = 1
+COORD_KM = 2
+COORD_100M = 3
 
 trk_colors = ('White', 'Cyan', 'Magenta', 'Blue', 'Yellow', 'Green', 'Red',
                 'DarkGray', 'LightGray', 'DarkCyan', 'DarkMagenta', 'DarkBlue', 'DarkGreen', 'DarkRed', 'Black')

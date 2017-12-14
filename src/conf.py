@@ -204,8 +204,9 @@ __user_conf = __readConf(__USER_CONF)
 
 IMG_FONT_SIZE = __user_conf.getint('settings', 'img_font_size', fallback=18)
 
-__img_font      = __user_conf.get('settings', 'img_font', fallback=__defaultImgFont())
-IMG_FONT      = ImageFont.truetype(__img_font, IMG_FONT_SIZE)  #global used font (Note: the operation is time wasting)
+__img_font     = __user_conf.get('settings', 'img_font', fallback=__defaultImgFont())
+IMG_FONT       = ImageFont.truetype(__img_font, IMG_FONT_SIZE)  #global used font (Note: the operation is time wasting)
+IMG_FONT_SMALL = ImageFont.truetype(__img_font, IMG_FONT_SIZE - 4)  #global used font (Note: the operation is time wasting)
 
 MIN_SUPP_LEVEL = __user_conf.getint('settings', 'min_supp_level', fallback=7)
 MAX_SUPP_LEVEL = __user_conf.getint('settings', 'max_supp_level', fallback=18)
