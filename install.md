@@ -1,4 +1,5 @@
-手動安裝 (Windows) <a name="win_install"></a>
+<a name="win_install"></a>
+手動安裝 (Windows)
 ==================
 
 1. 下載並安裝 [python3][] (安裝過程請勾選安裝 pip、並允許設定環境變數)
@@ -51,8 +52,9 @@
 
 -------------------------------------------------------
 
-手動安裝 (Linux)  <a name="linux_install"></a>  
-============
+<a name="linux_install"></a>  
+手動安裝 (Linux)
+================
 
 1. 安裝字型
     預設使用ubuntu OS內建ukai
@@ -129,7 +131,8 @@
 [img_rightmenu]: https://github.com/dayanuyim/GisEditor/raw/dev/doc/pic/01_right_menu.png
 
 
-手動安裝 (MAC) <a name="mac_install"></a>
+<a name="mac_install"></a>
+手動安裝 (MAC)
 ==============
 
 1. install python 3
