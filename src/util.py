@@ -4,10 +4,13 @@ import platform
 import tkinter as tk
 import xml.dom.minidom
 import logging
+import tempfile
+import urllib.request
 from tkinter import messagebox
 from xml.etree import ElementTree as ET
 from threading import Timer
 from PIL import Image, ImageTk, ImageDraw, ImageColor
+from uuid import uuid4
 
 import pytz
 from timezonefinder import TimezoneFinder
@@ -19,6 +22,16 @@ from src.coord import TileSystem, CoordinateSystem
 def getLocTimezone(lat, lon):
     tz_loc = TimezoneFinder().timezone_at(lat=lat, lng=lon)  #ex: Asia/Taipei
     return pytz.timezone(tz_loc)
+
+def downloadAsTemp(url):
+    ext = url.split('.')[-1]
+    tmp_path = os.path.join(tempfile.gettempdir(),  "giseditor-%s.%s" % (str(uuid4()), ext))
+    print(tmp_path)
+
+    with urllib.request.urlopen(url, timeout=30) as response, open(tmp_path, 'wb') as tmp_file:
+        tmp_file.write(response.read())
+
+    return tmp_path
 
 # business utils ==========================
 def _getWptPos(wpt):
@@ -65,6 +78,29 @@ class DrawGuard:
     def __exit__(self, type, value, traceback):
         if self.__draw is not None:
             del self.__draw
+
+'''
+Draw Text with Shadow
+'''
+def drawTextShadow(draw, xy, text, fill, font, shadow_fill="white", shadow_size=2):
+    #shadow
+    px, py = xy
+    for i in range(-shadow_size, shadow_size + 1):
+        if i:
+            draw.text((px + i, py + i), text, fill=shadow_fill, font=font);
+    #text
+    draw.text(xy, text, fill=fill, font=font)
+
+'''
+Draw Text with Color-filled Bounding-Box
+'''
+def drawTextBg(draw, xy, text, fill, font, bg_fill="white"):
+    x, y = xy
+    w, h = font.getsize(text)
+    #bg
+    draw.rectangle((x, y, x + w, y + h), fill=bg_fill)
+    #text
+    draw.text(xy, text, fill=fill, font=font)
 
 # Notice: 'accelerator string' may not a perfect guess, need more heuristic improvement
 def __guessAccelerator(event):
@@ -340,6 +376,8 @@ class GeoInfo:
             x = round(geo.twd97_x/grid_x) * grid_x
             y = round(geo.twd97_y/grid_y) * grid_y
             grid_geo = GeoPoint(twd97_x=x, twd97_y=y)
+        else:
+            raise ValueError("Unknown coord system '%s'" % (self.__coord_sys,))
 
         return grid_geo.diffPixel(self.__ref_geo, self.__level)
 
@@ -349,13 +387,33 @@ class GeoInfo:
             x = self.__ref_geo.twd67_x + km*1000
             y = self.__ref_geo.twd67_y
             geo2 = GeoPoint(twd67_x=x, twd67_y=y)
-        else:
-            #if self.__coord_sys == "TWD97":  #as default
+        elif self.__coord_sys == "TWD97":
             x = self.__ref_geo.twd97_x + km*1000
             y = self.__ref_geo.twd97_y
             geo2 = GeoPoint(twd97_x=x, twd97_y=y)
+        else:
+            raise ValueError("Unknown coord system '%s'" % (self.__coord_sys,))
 
         return geo2.diffPixel(self.__ref_geo, self.__level)[0]
+
+    def getCoordByPixel(self, px, py):
+        geo = GeoPoint(px=px, py=py, level=self.__level)
+        if self.__coord_sys == "TWD67":
+            return (geo.twd67_x, geo.twd67_y)
+        if self.__coord_sys == "TWD97":
+            return (geo.twd97_x, geo.twd97_y)
+        else:
+            raise ValueError("Unknown coord system '%s'" % (self.__coord_sys,))
+
+    def getPixelByCoord(self, x, y):
+        geo = None
+        if self.__coord_sys == "TWD67":
+            geo = GeoPoint(twd67_x=x, twd67_y=y)
+        elif self.__coord_sys == "TWD97":
+            geo = GeoPoint(twd97_x=x, twd97_y=y)
+        else:
+            raise ValueError("Unknown coord system '%s'" % (self.__coord_sys,))
+        return geo.pixel(self.__level)
 
 #The UI of settings to access conf
 class AreaSelectorSettings(Dialog):

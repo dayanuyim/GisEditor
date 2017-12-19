@@ -4,7 +4,6 @@ import os
 import subprocess
 import tkinter as tk
 import Pmw as pmw
-import urllib.request
 import shutil
 import tempfile
 import time
@@ -13,6 +12,7 @@ import argparse
 import platform
 import re
 import pytz
+import types
 from os import path
 from PIL import Image, ImageTk, ImageDraw, ImageColor
 from math import floor, ceil, sqrt
@@ -32,12 +32,20 @@ from src.pic import PicDocument
 from src.util import GeoPoint, DrawGuard, imageIsTransparent, bindMenuCmdAccelerator, bindMenuCheckAccelerator
 from src.util import AreaSelector, AreaSizeTooLarge, GeoInfo  #should move to ui.py
 from src.util import getPtPosText, getPtEleText, getPtTimeText, getPtTimezone, getPtLocaltime
+from src.util import downloadAsTemp, drawTextBg
 from src.tool import *
 from src.tile import TileAgent, MapDescriptor
 from src.sym import askSym, toSymbol
+from src.raw import *
 
 to_pixel = coord.TileSystem.getPixcelXYByTileXY
 to_tile = coord.TileSystem.getTileXYByPixcelXY
+
+# TODO init from conf
+Options = types.SimpleNamespace(
+    coordLineSys = None,
+    coordLineDensity = COORD_NONE,
+)
 
 def showmsg(msg):
     """print to console/log and messagebox (generalize this with LOG, moving to util.py)"""
@@ -57,16 +65,6 @@ def isPicFile(path):
     if ext in ('.jpg', '.jpeg', '.tif', '.gif', '.png'):
         return True
     return False
-
-def downloadAsTemp(url):
-    ext = url.split('.')[-1]
-    tmp_path = os.path.join(tempfile.gettempdir(),  "giseditor_dl." + ext)
-
-    with urllib.request.urlopen(url, timeout=30) as response, open(tmp_path, 'wb') as tmp_file:
-        tmp_file.write(response.read())
-
-    return tmp_path
-
 
 def getGpsDocument(path):
     try:
@@ -347,6 +345,11 @@ class MapBoard(tk.Frame):
         split_trk_menu.add_command(label='By distance', command=lambda:self.onSplitTrk(self.trkDistGap))
         self.__rclick_menu.add_cascade(label='Split tracks...', menu=split_trk_menu)
 
+        # coordintate lines
+        self.master.bind("<Control-6>", lambda e: self.onCoordLine(TWD67))
+        self.master.bind("<Control-9>", lambda e: self.onCoordLine(TWD97))
+
+        # mode to draw trk
         ck_var = bindMenuCheckAccelerator(self.master, '<F' + str(self.MODE_DRAW_TRK) + '>',
                 self.__rclick_menu, 'Draw tracks...',
                 lambda checked:self.__changeMode(self.MODE_DRAW_TRK if checked else self.MODE_NORMAL))
@@ -354,10 +357,12 @@ class MapBoard(tk.Frame):
 
         self.__rclick_menu.add_separator()
 
+        # mode to save image
         bindMenuCmdAccelerator(self.master, '<F' + str(self.MODE_SAVE_IMG) + '>',
                 self.__rclick_menu, 'Save to image...',
                 lambda:self.__changeMode(self.MODE_SAVE_IMG))
 
+        # mode to save gpx
         bindMenuCmdAccelerator(self.master, '<Control-s>',
                 self.__rclick_menu, 'Save to gpx...',
                 command=self.onGpxSave)
@@ -540,12 +545,17 @@ class MapBoard(tk.Frame):
         if self.__mode == self.MODE_SAVE_IMG:
             return
 
+        #clear message
+        if hasattr(self, '__status_label'):
+            self.__status_label['text'] = ''
+
         #check if level valid
         if self.__map_ctrl.level == level:
             return
 
         if level < conf.MIN_SUPP_LEVEL or level > conf.MAX_SUPP_LEVEL:
-            messagebox.showwarning('Level Over Limit', 'The level should between %d ~ %d' % (conf.MIN_SUPP_LEVEL, conf.MAX_SUPP_LEVEL))
+            #messagebox.showwarning('Level Over Limit', 'The level should between %d ~ %d' % (conf.MIN_SUPP_LEVEL, conf.MAX_SUPP_LEVEL))
+            self.__status_label['text'] = 'The level should between %d ~ %d' % (conf.MIN_SUPP_LEVEL, conf.MAX_SUPP_LEVEL)
             return
 
         #check frequecy
@@ -569,7 +579,7 @@ class MapBoard(tk.Frame):
             self.__setMapInfo()
             self.resetMap()
         except Exception as ex:
-            logging.error("sest level '%s' error: %s" % (str(level), str(ex)))
+            logging.error("set level '%s' error: %s" % (str(level), str(ex)))
             messagebox.showwarning('set level error', str(ex))
     
     def __getMapNameText(self):
@@ -690,33 +700,51 @@ class MapBoard(tk.Frame):
             #do Not show message box to user, which may be a 'temperary' key-in error
 
     def onPosSet(self, e):
-        #if val_txt is digit, regarding as int with unit 'meter'
-        #          otherwise, regarding as float with unit 'kilimeter'
-        def toTM2(val_txt):
-            val_txt = val_txt.strip()
-            return int(val_txt) if val_txt.isdigit() else int(float(val_txt)*1000)
+
+        def sixCoord(ref, val):
+            return max(0, round(ref - val, -5)) + val  # get closed hundred-kilimeter, then plus to val
+
+        #if val_txt is :
+        #   float: float with unit 'kilimeter'
+        # 3-digit: int with unit 'hundred-meter', need to prefix
+        #   digit: int with unit 'meter'
+        def __toTM2(val_txt, ref):
+            return int(float(val_txt)*1000) if not val_txt.isdigit() else \
+                   sixCoord(ref, int(val_txt)*100) if len(val_txt) == 3 else \
+                   int(val_txt)
+
+        def toTM2x(val_txt):
+            return __toTM2(val_txt, self.__map_ctrl.geo.twd67_x)
+
+        def toTM2y(val_txt):
+            return __toTM2(val_txt, self.__map_ctrl.geo.twd67_y)
 
         def toDegree(val_txt):
-            val_txt = val_txt.strip()
             return float(val_txt)
 
         #get geo point
         geo = None
         try:
-            pos = e.widget.get()
-            x, y = filter(None, re.split('[^\d\.]', pos)) #split by not 'digit' or '.'. Removing empty string.
+            pos = e.widget.get().strip()
+            if len(pos) == 6 and pos.isdigit(): # six-digit-coord, without split
+                n1, n2 = pos[0:3], pos[3:6]
+            else:
+                n1, n2 = filter(None, re.split('[^\d\.]', pos)) #split by not 'digit' or '.'. Removing empty string.
+                n1, n2 = n1.strip(), n2.strip()
 
             #make geo according to the coordinate
             if e.widget == self.__info_67tm2:
-                geo = GeoPoint(twd67_x=toTM2(x), twd67_y=toTM2(y))
+                geo = GeoPoint(twd67_x=toTM2x(n1), twd67_y=toTM2y(n2))
+
             elif e.widget == self.__info_97tm2:
-                geo = GeoPoint(twd97_x=toTM2(x), twd97_y=toTM2(y))
+                geo = GeoPoint(twd97_x=toTM2x(n1), twd97_y=toTM2y(n2))
+
             elif e.widget == self.__info_97latlon:
-                geo = GeoPoint(lat=toDegree(x), lon=toDegree(y))
+                geo = GeoPoint(lat=toDegree(n1), lon=toDegree(n2))
             else:
                 raise ValueError("Code flow error to set location") #should not happen
         except Exception as ex:
-            messagebox.showwarning("Please use format '%d,%d'.", "get locatoin error: %s" % (str(ex),))
+            messagebox.showwarning("Please use valid format: 2 decimals(KM), 2 integer(M), or 6 digits", "Get locatoin error: %s" % (str(ex),))
             return
 
         #check
@@ -955,6 +983,20 @@ class MapBoard(tk.Frame):
             #trk_board.addAlteredHandler(self.setAlter)
             #trk_board.show()
 
+    def onCoordLine(self, coord_sys):
+        def _next(density):
+            if density == COORD_NONE: return COORD_KM
+            if density == COORD_KM: return COORD_100M
+            if density == COORD_100M: return COORD_NONE
+            return COORD_NONE
+
+        curr_density = COORD_NONE if coord_sys != Options.coordLineSys else Options.coordLineDensity
+
+        # set options
+        Options.coordLineSys = coord_sys
+        Options.coordLineDensity = _next(curr_density)
+
+        self.resetMap()
 
     @staticmethod
     def trkDiffDay(pt1, pt2):
@@ -1982,35 +2024,101 @@ class MapController:
         if attr.level <= 12:  #too crowded to show
             return
 
-        coord_sys = [desc.coord_sys for desc in self.__map_descs if desc.enabled and desc.coord_sys in ("TWD67", "TWD97")]
-        if not coord_sys:
+        # get coordinate line system/density, prefer options to maps
+        coord_sys = None
+        coord_density = COORD_NONE
+
+        if Options.coordLineSys:
+            coord_sys = Options.coordLineSys
+            coord_density = Options.coordLineDensity
+        else:
+            map_coords = [desc.coord_sys for desc in self.__map_descs \
+                    if desc.enabled and desc.coord_sys in SUPP_COORD_SYSTEMS]
+            if map_coords:
+                coord_sys = map_coords[0]
+                coord_density = COORD_TEXT
+
+        # no coordinate system to be drawn
+        if coord_sys is None:
             return
-        coord_sys = coord_sys[0]
 
-        #set draw
-        py_shift = 20
-        font = self.__font
+        # init GeoInfo
+        geo_info = GeoInfo(self.geo, self.level, coord_sys)
 
+        # xy to draw
+        lines, texts, line5, line10, text10 = self.__getCoordValueXY(attr, geo_info, coord_density)
+
+        #to draw acoording to data
         with DrawGuard(map) as draw:
-            #get xy of TM2
-            (left_x, up_y) = self.__getCoordByPixel(attr.left_px, attr.up_py, attr.level, coord_sys)
-            (right_x, low_y) = self.__getCoordByPixel(attr.right_px, attr.low_py, attr.level, coord_sys)
+            for xy in lines:
+                draw.line(xy, fill="#909090", width=1)
+            for xy in line5:
+                draw.line(xy, fill="#606060", width=1)
+            for xy in line10:
+                draw.line(xy, fill="#202020", width=1)
+            for xy, text in texts:
+                drawTextBg(draw, xy, text, fill="gray", font=conf.IMG_FONT_SMALL)
+            for xy, text in text10:
+                drawTextBg(draw, xy, text, fill="black", font=conf.IMG_FONT)
 
-            #draw coord x per KM
-            for x in range(ceil(left_x/1000), floor(right_x/1000) +1):
+    def __getCoordValueXY(self, attr, geo_info, coord_density):
+        # xy list
+        lines = []
+        texts = []
+        line5 = []
+        line10 = []
+        text10 = []
+
+        # w/h
+        width = attr.right_px - attr.left_px
+        height = attr.low_py - attr.up_py
+
+        # TM2 x/y of bounding-box
+        left_x, up_y = geo_info.getCoordByPixel(attr.left_px, attr.up_py)
+        right_x, low_y = geo_info.getCoordByPixel(attr.right_px, attr.low_py)
+
+        scale = 100 #if coord_density >= COORD_100M else 1000
+
+        # xy for text
+        def toTxt10XY(px, py): return (px + 5, py - 20)
+        def toTxtXY(px, py):   return (px + 5, py - 20 + 4)
+
+        # the functions depends on x or y
+        def getPx(px, py): return px
+        def getPy(px, py): return py
+        def toVer(px): return (px, 0, px, height)
+        def toHor(py): return (0, py, width, py)
+        def getBasePixelOfX(x): return geo_info.getPixelByCoord(x*scale, low_y)
+        def getBasePixelOfY(y): return geo_info.getPixelByCoord(left_x, y*scale)
+
+        # the logic to collect xy position of line/text.
+        # (the function prevents from looping x and y, respectively.)
+        def getCoordData(begin_pos, end_pos, base_fun, line_fun, pxl_fun):
+            for pos in range(ceil(begin_pos/scale), floor(end_pos/scale) +1):
                 #print("tm: ", x)
-                (px, py) = self.__getPixelByCoord(x*1000, low_y, attr.level, coord_sys)
+                px, py = base_fun(pos)
                 px -= attr.left_px
                 py -= attr.up_py
-                draw.text((px, py - py_shift), str(x), fill="black", font=font)
+                p = pxl_fun(px, py) # selecting px or py by pxl_fun
 
-            #draw coord y per KM
-            for y in range(ceil(low_y/1000), floor(up_y/1000) +1):
-                #print("tm: ", y)
-                (px, py) = self.__getPixelByCoord(left_x, y*1000, attr.level, coord_sys)
-                px -= attr.left_px
-                py -= attr.up_py
-                draw.text((px, py -py_shift), str(y), fill="black", font=font)
+                if coord_density >= COORD_TEXT and pos % 10 == 0:
+                    text10.append( (toTxt10XY(px,py), str(int(pos/10))) )
+                if coord_density >= COORD_KM and pos % 10 == 0:
+                    line10.append(line_fun(p))
+                if coord_density >= COORD_100M:
+                    if pos % 5 == 0:
+                        line5.append(line_fun(p))
+                    else:
+                        lines.append(line_fun(p))
+
+                    if pos % 10 != 0 and attr.level >= 16:  #also show text for 100m
+                        texts.append( (toTxtXY(px,py), str(pos%10)) )
+
+        # get data
+        getCoordData(left_x, right_x, getBasePixelOfX, toVer, getPx)
+        getCoordData(low_y, up_y, getBasePixelOfY, toHor, getPy)
+
+        return lines, texts, line5, line10, text10
 
 
 class MapProgressRec:
@@ -2968,7 +3076,7 @@ def init_arguments():
 
 if __name__ == '__main__':
 
-    __version = '0.24'
+    __version = '0.25'
     args = init_arguments()
 
     if args.conf:

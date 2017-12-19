@@ -1,0 +1,9 @@
+OpenCycleMap https://{s}.tile.thunderforest.com/cycle/{z}/{x}/{y}.png?apikey=de0a3cc10e414b9b91520f0529adc7eb
+Transport https://{s}.tile.thunderforest.com/transport/{z}/{x}/{y}.png?apikey=de0a3cc10e414b9b91520f0529adc7eb
+Landscape https://{s}.tile.thunderforest.com/landscape/{z}/{x}/{y}.png?apikey=de0a3cc10e414b9b91520f0529adc7eb
+Outdoors https://{s}.tile.thunderforest.com/outdoors/{z}/{x}/{y}.png?apikey=de0a3cc10e414b9b91520f0529adc7eb
+Transport Dark https://{s}.tile.thunderforest.com/transport-dark/{z}/{x}/{y}.png?apikey=de0a3cc10e414b9b91520f0529adc7eb
+Spinal Map https://{s}.tile.thunderforest.com/spinal-map/{z}/{x}/{y}.png?apikey=de0a3cc10e414b9b91520f0529adc7eb
+Pioneer https://{s}.tile.thunderforest.com/pioneer/{z}/{x}/{y}.png?apikey=de0a3cc10e414b9b91520f0529adc7eb
+Mobile Atlas https://{s}.tile.thunderforest.com/mobile-atlas/{z}/{x}/{y}.png?apikey=de0a3cc10e414b9b91520f0529adc7eb
+Neighbourhood https://{s}.tile.thunderforest.com/neighbourhood/{z}/{x}/{y}.png?apikey=de0a3cc10e414b9b91520f0529adc7eb

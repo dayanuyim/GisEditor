@@ -1,0 +1,11 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<customMapSource>
+    <name>Thunderforest OpenCycleMap</name>
+    <minZoom>0</minZoom>
+    <maxZoom>17</maxZoom>
+    <tileType>png</tileType>
+    <tileUpdate>OpenStreetMap</tileUpdate>
+    <url>https://{$serverpart}.tile.thunderforest.com/cycle/{$z}/{$x}/{$y}.png?apikey=de0a3cc10e414b9b91520f0529adc7eb</url>
+    <backgroundColor>#000000</backgroundColor>
+	<serverParts>a b c</serverParts>
+</customMapSource>

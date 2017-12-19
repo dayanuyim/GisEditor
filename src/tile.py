@@ -371,9 +371,9 @@ class TileAgent:
             logging.info("[%s] DL %s" % (self.map_id, url))
             with urllib.request.urlopen(url, timeout=30) as response:
                 tile_data = response.read()
+            logging.info('[%s] DL %s [OK]' % (self.map_id, url))
         except Exception as ex:
-            logging.warning('[%s] Error to download %s: %s' % (self.map_id, url, str(ex)))
-        logging.info('[%s] DL %s [%s]' % (self.map_id, url, 'SUCCESS' if tile_data else 'FAILED'))
+            logging.warning('[%s] DL %s [FAILED][%s]' % (self.map_id, url, str(ex)))
 
         #as failed, and not save to memory/disk
         if self.__state == self.ST_CLOSING:
