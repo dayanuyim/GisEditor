@@ -9,7 +9,8 @@
 
 ![程式畫面][img_main]
 
-1\. 地圖瀏覽<a name="sec_browsing"></a>
+<a name="sec_browsing"></a>
+1\. 地圖瀏覽
 ------------
 
 1. 開啟
@@ -52,7 +53,8 @@
         * 若為2個小數點，單位為**公里**
      * 經緯度輸入可為2個整數或小數，單位為度。
 
-2\. 航點編輯<a name=sec_wpt></a>
+<a name=sec_wpt></a>
+2\. 航點編輯
 ------------
 
 1. 新增航點
@@ -121,7 +123,8 @@
 
     `右鍵->Apply sumbol rules`
 
-3\. 航跡編輯<a name="sec_trk"></a>
+<a name="sec_trk"></a>
+3\. 航跡編輯
 ------------
 
 1. 航跡編輯視窗<a name="trk_edit_board"></a>
@@ -158,7 +161,8 @@
 
     `右鍵->Save to gpx...`
 
-4\. 輸出地圖截圖<a name="sec_saveimg"></a>
+<a name="sec_saveimg"></a>
+4\. 輸出地圖截圖
 ----------------
 
 `右鍵->Save to image...`或熱鍵`F2`
@@ -175,7 +179,8 @@
      *  上/下/左/右邊界延展：滑鼠移至選取區邊界，鼠標變為Resize圖示時可拖曳做縮放；或可[Ctrl+方向鍵]放大、[Shift+方向鍵]縮小。
      *  右下邊界延展：滑鼠移至選取區右下角，鼠標變為Resize圖示時可拖曳做縮放。
 
-5\. 地圖疊圖<a name="sec_maplist"></a>
+<a name="sec_maplist"></a>
+5\. 地圖疊圖
 ------------
 
 ![地圖疊圖][img_maplist]
