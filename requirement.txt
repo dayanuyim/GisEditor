@@ -1,7 +1,0 @@
-image>=1.5.3
-Pillow>=3.2.0
-Pmw>=2.0.1
-matplotlib
-timezonefinder>=2.1.0
-certifi>=2017.11.5
-

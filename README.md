@@ -45,6 +45,7 @@ Map Adapter to WMTS
  [giseditor-0.22-32]: https://drive.google.com/file/d/0B7ryOauZNjlbbVhoNTZWUW9uN2s/view?usp=sharing
  [giseditor-0.22-64]: https://drive.google.com/file/d/0B7ryOauZNjlbU2ZBQVkzd2dLbUE/view?usp=sharing
  [giseditor-0.23]: https://drive.google.com/file/d/0B7ryOauZNjlbVm8zRGZCemVPVGc/view?usp=sharing
+ [giseditor-0.25]: https://drive.google.com/file/d/1S9pry2DPY2XI9wC80XC49-FgQeT6umwk/view?usp=sharing
 
 
 操作說明
@@ -54,11 +55,20 @@ Map Adapter to WMTS
 
 更新歷史
 --------
-  - 0.23 版
+  - v0.25
+      - TM2格線
+      - 支援六碼座標
+
+  - v0.24
+      - 使用者個人設定檔 (~/.config)
+      - 自動選擇字型
+
+  - v0.23 版
       - 加入[台灣通用電子地圖][emap]支援
       - 新的地圖列表介面
       - MapSource 相容性修正
       - 疊圖情況下圖檔輸出錯誤修正
+
 
 [emap]: http://emap.nlsc.gov.tw
 

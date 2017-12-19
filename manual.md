@@ -5,6 +5,7 @@
 3. [航跡編輯](#sec_trk)
 4. [輸出地圖截圖](#sec_saveimg)
 5. [地圖疊圖](#sec_maplist)
+6. [地圖格線](#sec_coordline)
 
 ![程式畫面][img_main]
 
@@ -44,9 +45,12 @@
 7. 移至任一位置
 
     於座標列任一座標系統，輸入座標並鍵入[Enter]，可移至該位置。
-     * 輸入格式為二個數字，以逗點或空白隔開
-     * 二度分帶輸入若為整數，單位為**公尺**；若為浮點數，單位為**公里**
-     * 經緯度可輸入整數或小數，單位為度。
+     * 輸入格式若為2個數字，以逗點、空白或非數字之字元隔開
+     * 二度分帶輸入
+        * 若為1個六位數整數或2個三位數整數，為**六碼座標**
+        * 若為2個整數，單位為**公尺**
+        * 若為2個小數點，單位為**公里**
+     * 經緯度輸入可為2個整數或小數，單位為度。
 
 2\. 航點編輯<a name=sec_wpt></a>
 ------------
@@ -197,6 +201,17 @@
 
     ![拖曳疊圖順序][img_maplist_dnd]
 
+<a name="sec_coordline"></a>
+6\. 地圖格線
+------------
+
+![地圖格線][img_coord_line]
+
+可開啟TM2格線，畫出KM或100KM格線。
+
+1. TWD67 TM2 格線：熱鍵 `Crtl+6`
+2. TWD97 TM2 格線：熱鍵 `Crtl+9`
+
 [custom_map_source]: http://mobac.sourceforge.net/wiki/index.php/Custom_XML_Map_Sources#customMapSource
 [img_main]: https://github.com/dayanuyim/GisEditor/raw/dev/doc/pic/02_main.png
 [img_wptedit]: https://github.com/dayanuyim/GisEditor/raw/dev/doc/pic/03_wpt_edit.png
@@ -207,3 +222,4 @@
 [img_saveimage]: https://github.com/dayanuyim/GisEditor/raw/dev/doc/pic/08_save_image.png
 [img_maplist]: https://github.com/dayanuyim/GisEditor/raw/dev/doc/pic/09_maplist.png
 [img_maplist_dnd]: https://github.com/dayanuyim/GisEditor/raw/dev/doc/pic/10_maplist_dnd.png
+[img_coord_line]: https://github.com/dayanuyim/GisEditor/raw/dev/doc/pic/11_coord_line.png
