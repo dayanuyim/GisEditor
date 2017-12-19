@@ -984,17 +984,22 @@ class MapBoard(tk.Frame):
             #trk_board.show()
 
     def onCoordLine(self, coord_sys):
+        #the next coordline resolution
         def _next(density):
             if density == COORD_NONE: return COORD_KM
             if density == COORD_KM: return COORD_100M
             if density == COORD_100M: return COORD_NONE
             return COORD_NONE
 
-        curr_density = COORD_NONE if coord_sys != Options.coordLineSys else Options.coordLineDensity
-
-        # set options
-        Options.coordLineSys = coord_sys
-        Options.coordLineDensity = _next(curr_density)
+        # the same coordinate system with the next density
+        if Options.coordLineSys == coord_sys:
+            Options.coordLineDensity = _next(Options.coordLineDensity)
+            if Options.coordLineDensity == COORD_NONE:   #also disable coordinate system
+                Options.coordLineSys = None
+        # reset to new coordintate system
+        else:
+            Options.coordLineSys = coord_sys
+            Options.coordLineDensity = _next(COORD_NONE)
 
         self.resetMap()
 
