@@ -4,7 +4,6 @@ import os
 import subprocess
 import tkinter as tk
 import Pmw as pmw
-import urllib.request
 import shutil
 import tempfile
 import time
@@ -33,6 +32,7 @@ from src.pic import PicDocument
 from src.util import GeoPoint, DrawGuard, imageIsTransparent, bindMenuCmdAccelerator, bindMenuCheckAccelerator
 from src.util import AreaSelector, AreaSizeTooLarge, GeoInfo  #should move to ui.py
 from src.util import getPtPosText, getPtEleText, getPtTimeText, getPtTimezone, getPtLocaltime
+from src.util import downloadAsTemp, drawTextBg
 from src.tool import *
 from src.tile import TileAgent, MapDescriptor
 from src.sym import askSym, toSymbol
@@ -44,17 +44,8 @@ to_tile = coord.TileSystem.getTileXYByPixcelXY
 # TODO init from conf
 Options = types.SimpleNamespace(
     coordLineSys = None,
-    coordLineLayer = COORD_NONE,
+    coordLineDensity = COORD_NONE,
 )
-
-def drawTextShadow(draw, xy, text, fill, font, shadow_fill="white", shadow_size=2):
-    #shadow
-    px, py = xy
-    for i in range(-shadow_size, shadow_size + 1):
-        if i:
-            draw.text((px + i, py + i), text, fill=shadow_fill, font=font);
-    #normal
-    draw.text(xy, text, fill=fill, font=font)
 
 def showmsg(msg):
     """print to console/log and messagebox (generalize this with LOG, moving to util.py)"""
@@ -74,16 +65,6 @@ def isPicFile(path):
     if ext in ('.jpg', '.jpeg', '.tif', '.gif', '.png'):
         return True
     return False
-
-def downloadAsTemp(url):
-    ext = url.split('.')[-1]
-    tmp_path = os.path.join(tempfile.gettempdir(),  "giseditor_dl." + ext)
-
-    with urllib.request.urlopen(url, timeout=30) as response, open(tmp_path, 'wb') as tmp_file:
-        tmp_file.write(response.read())
-
-    return tmp_path
-
 
 def getGpsDocument(path):
     try:
@@ -1003,17 +984,17 @@ class MapBoard(tk.Frame):
             #trk_board.show()
 
     def onCoordLine(self, coord_sys):
-        def _next(layer):
-            if layer == COORD_NONE: return COORD_KM
-            if layer == COORD_KM: return COORD_100M
-            if layer == COORD_100M: return COORD_NONE
+        def _next(density):
+            if density == COORD_NONE: return COORD_KM
+            if density == COORD_KM: return COORD_100M
+            if density == COORD_100M: return COORD_NONE
             return COORD_NONE
 
-        curr_layer = COORD_NONE if coord_sys != Options.coordLineSys else Options.coordLineLayer
+        curr_density = COORD_NONE if coord_sys != Options.coordLineSys else Options.coordLineDensity
 
         # set options
         Options.coordLineSys = coord_sys
-        Options.coordLineLayer = _next(curr_layer)
+        Options.coordLineDensity = _next(curr_density)
 
         self.resetMap()
 
@@ -2043,19 +2024,19 @@ class MapController:
         if attr.level <= 12:  #too crowded to show
             return
 
-        # get coordinate line system/layer, prefer options to maps
+        # get coordinate line system/density, prefer options to maps
         coord_sys = None
-        coord_layer = COORD_NONE
+        coord_density = COORD_NONE
 
         if Options.coordLineSys:
             coord_sys = Options.coordLineSys
-            coord_layer = Options.coordLineLayer
+            coord_density = Options.coordLineDensity
         else:
             map_coords = [desc.coord_sys for desc in self.__map_descs \
                     if desc.enabled and desc.coord_sys in SUPP_COORD_SYSTEMS]
             if map_coords:
                 coord_sys = map_coords[0]
-                coord_layer = COORD_TEXT
+                coord_density = COORD_TEXT
 
         # no coordinate system to be drawn
         if coord_sys is None:
@@ -2065,7 +2046,7 @@ class MapController:
         geo_info = GeoInfo(self.geo, self.level, coord_sys)
 
         # xy to draw
-        lines, texts, line5, line10, text10 = self.__getCoordValueXY(attr, geo_info, coord_layer)
+        lines, texts, line5, line10, text10 = self.__getCoordValueXY(attr, geo_info, coord_density)
 
         #to draw acoording to data
         with DrawGuard(map) as draw:
@@ -2074,15 +2055,13 @@ class MapController:
             for xy in line5:
                 draw.line(xy, fill="#606060", width=1)
             for xy in line10:
-                draw.line(xy, fill="#303030", width=1)
+                draw.line(xy, fill="#202020", width=1)
             for xy, text in texts:
-                #draw.text(xy, text, fill="gray", font=conf.IMG_FONT_SMALL)
-                drawTextShadow(draw, xy, text, fill="gray", font=conf.IMG_FONT_SMALL)
+                drawTextBg(draw, xy, text, fill="gray", font=conf.IMG_FONT_SMALL)
             for xy, text in text10:
-                #draw.text(xy, text, fill="black", font=conf.IMG_FONT)
-                drawTextShadow(draw, xy, text, fill="black", font=conf.IMG_FONT)
+                drawTextBg(draw, xy, text, fill="black", font=conf.IMG_FONT)
 
-    def __getCoordValueXY(self, attr, geo_info, coord_layer):
+    def __getCoordValueXY(self, attr, geo_info, coord_density):
         # xy list
         lines = []
         texts = []
@@ -2098,7 +2077,7 @@ class MapController:
         left_x, up_y = geo_info.getCoordByPixel(attr.left_px, attr.up_py)
         right_x, low_y = geo_info.getCoordByPixel(attr.right_px, attr.low_py)
 
-        scale = 100 #if coord_layer >= COORD_100M else 1000
+        scale = 100 #if coord_density >= COORD_100M else 1000
 
         # xy for text
         def toTxt10XY(px, py): return (px + 5, py - 20)
@@ -2122,11 +2101,11 @@ class MapController:
                 py -= attr.up_py
                 p = pxl_fun(px, py) # selecting px or py by pxl_fun
 
-                if coord_layer >= COORD_TEXT and pos % 10 == 0:
+                if coord_density >= COORD_TEXT and pos % 10 == 0:
                     text10.append( (toTxt10XY(px,py), str(int(pos/10))) )
-                if coord_layer >= COORD_KM and pos % 10 == 0:
+                if coord_density >= COORD_KM and pos % 10 == 0:
                     line10.append(line_fun(p))
-                if coord_layer >= COORD_100M:
+                if coord_density >= COORD_100M:
                     if pos % 5 == 0:
                         line5.append(line_fun(p))
                     else:
@@ -3097,7 +3076,7 @@ def init_arguments():
 
 if __name__ == '__main__':
 
-    __version = '0.24'
+    __version = '0.25'
     args = init_arguments()
 
     if args.conf:

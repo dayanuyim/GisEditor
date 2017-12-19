@@ -4,10 +4,13 @@ import platform
 import tkinter as tk
 import xml.dom.minidom
 import logging
+import tempfile
+import urllib.request
 from tkinter import messagebox
 from xml.etree import ElementTree as ET
 from threading import Timer
 from PIL import Image, ImageTk, ImageDraw, ImageColor
+from uuid import uuid4
 
 import pytz
 from timezonefinder import TimezoneFinder
@@ -19,6 +22,16 @@ from src.coord import TileSystem, CoordinateSystem
 def getLocTimezone(lat, lon):
     tz_loc = TimezoneFinder().timezone_at(lat=lat, lng=lon)  #ex: Asia/Taipei
     return pytz.timezone(tz_loc)
+
+def downloadAsTemp(url):
+    ext = url.split('.')[-1]
+    tmp_path = os.path.join(tempfile.gettempdir(),  "giseditor-%s.%s" % (str(uuid4()), ext))
+    print(tmp_path)
+
+    with urllib.request.urlopen(url, timeout=30) as response, open(tmp_path, 'wb') as tmp_file:
+        tmp_file.write(response.read())
+
+    return tmp_path
 
 # business utils ==========================
 def _getWptPos(wpt):
@@ -65,6 +78,29 @@ class DrawGuard:
     def __exit__(self, type, value, traceback):
         if self.__draw is not None:
             del self.__draw
+
+'''
+Draw Text with Shadow
+'''
+def drawTextShadow(draw, xy, text, fill, font, shadow_fill="white", shadow_size=2):
+    #shadow
+    px, py = xy
+    for i in range(-shadow_size, shadow_size + 1):
+        if i:
+            draw.text((px + i, py + i), text, fill=shadow_fill, font=font);
+    #text
+    draw.text(xy, text, fill=fill, font=font)
+
+'''
+Draw Text with Color-filled Bounding-Box
+'''
+def drawTextBg(draw, xy, text, fill, font, bg_fill="white"):
+    x, y = xy
+    w, h = font.getsize(text)
+    #bg
+    draw.rectangle((x, y, x + w, y + h), fill=bg_fill)
+    #text
+    draw.text(xy, text, fill=fill, font=font)
 
 # Notice: 'accelerator string' may not a perfect guess, need more heuristic improvement
 def __guessAccelerator(event):
