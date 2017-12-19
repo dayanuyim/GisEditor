@@ -22,7 +22,7 @@ Map Adapter to WMTS
 
  *  Windows免安裝檔
 
-    [version 0.23 (latest)][giseditor-0.23]
+    [version 0.25 (latest)][giseditor-0.25]
 
  *  預載地圖(可選)
 
