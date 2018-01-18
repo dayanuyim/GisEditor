@@ -1071,15 +1071,13 @@ class MapBoard(tk.Frame):
             return True
 
         #get preferred coord system
-        coord_sys = [desc.coord_sys for desc in self.__map_descs if desc.enabled and desc.coord_sys in ("TWD67", "TWD97")]
-        if coord_sys:
-            coord_sys = coord_sys[0]
-        else:
-            coord_sys = enabled_maps[0].coord_sys
-
+        map_coords = [desc.coord_sys for desc in self.__map_descs if desc.enabled and desc.coord_sys in SUPP_COORD_SYSTEMS]
+        coord_sys = map_coords[0] if map_coords else \
+                    enabled_maps[0].coord_sys
         try:
             #select area
             geo_info = GeoInfo(self.__map_ctrl.geo, self.__map_ctrl.level, coord_sys)
+
             self.__canvas_sel_area = AreaSelector(self.disp_canvas, geo_info)
 
             #wait the returned state
