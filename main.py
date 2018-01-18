@@ -1865,9 +1865,9 @@ class MapController:
 
         with DrawGuard(map) as draw:
             for gpx in self.__gpx_layers:
-                #draw tracks
+                # Draw tracks in reversed order, to put the first track on the most top.
                 #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "draw gpx...")
-                for trk in gpx.tracks:
+                for trk in reversed(gpx.tracks):
                     if self.isTrackInImage(trk, map_attr):
                         self.drawTrkPoint(map, map_attr, trk, trk.color, draw=draw)
 
