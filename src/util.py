@@ -103,31 +103,10 @@ def drawTextBg(draw, xy, text, fill, font, bg_fill="white"):
     #text
     draw.text(xy, text, fill=fill, font=font)
 
-
-def flattenAlpha(img):
-    alpha = img.split()[-1]  # Pull off the alpha layer
-    ab = alpha.tobytes()  # Original 8-bit alpha
-
-    checked = []  # Create a new array to store the cleaned up alpha layer bytes
-
-    # Walk through all pixels and set them either to 0 for transparent or 255 for opaque fancy pants
-    transparent = 50  # change to suit your tolerance for what is and is not transparent
-
-    p = 0
-    for pixel in range(0, len(ab)):
-        if p % 2:
-            checked.append(0)  # Transparent
-        else:
-            checked.append(255)  # Opaque
-        p += 1
-
-    mask = Image.frombytes('L', img.size, bytes(checked))
-    img.putalpha(mask)
-    return img
-
-# PIL only support 0/255 alpha value on MAC, ref:
+# using screntone to walkaround for tranparent,
+# beacuase PIL only support 0/255 alpha value on MAC, ref:
 #   https://stackoverflow.com/questions/41576637/are-rgba-pngs-unsupported-in-python-3-5-pillow
-def macAlpha(img):
+def screentone(img):
 
     w, h = img.size
 
@@ -632,7 +611,7 @@ class AreaSelector:
 
         if platform.system() == "Darwin":
             img = Image.new('RGBA', (w,h), self.__panel_color)
-            img = macAlpha(img)  # experimental: workaround for drawing alpha on MAC
+            img = screentone(img)  # experimental: workaround for drawing alpha on MAC
         else:
             color = ImageColor.getrgb(self.__panel_color) + (96,) #transparent
             img = Image.new('RGBA', (w,h), color)
