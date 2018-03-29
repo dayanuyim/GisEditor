@@ -1,0 +1,12 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<customMapSource>
+    <name>魯地圖</name>
+    <minZoom>6</minZoom>
+    <maxZoom>19</maxZoom>
+    <tileType>jpg</tileType>
+    <tileUpdate>None</tileUpdate>
+    <url>http://rudy-daily.tile.basecamp.tw/{$z}/{$x}/{$y}.png</url>
+    <backgroundColor>#000000</backgroundColor>
+    <expireDays>14</expireDays>
+</customMapSource>
+ 
