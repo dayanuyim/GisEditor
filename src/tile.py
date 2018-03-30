@@ -6,7 +6,7 @@
 import os
 import math
 import tkinter as tk
-import urllib.request
+from urllib.request import Request, urlopen
 import shutil
 import sqlite3
 import logging
@@ -368,8 +368,9 @@ class TileAgent:
         tile_data = None
         try:
             url = self.genTileUrl(level, x, y)
+            req = Request(url, headers={'User-Agent': 'Mozilla/5.0'})
             logging.info("[%s] DL %s" % (self.map_id, url))
-            with urllib.request.urlopen(url, timeout=30) as response:
+            with urlopen(req, timeout=30) as response:
                 tile_data = response.read()
             logging.info('[%s] DL %s [OK]' % (self.map_id, url))
         except Exception as ex:

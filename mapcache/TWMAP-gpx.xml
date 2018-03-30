@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<customMapSource>
+    <name>TWTOPO-happyman-gpx</name>
+    <minZoom>10</minZoom>
+    <maxZoom>16</maxZoom>
+    <tileType>png</tileType>
+    <tileUpdate>IfNoneMatch</tileUpdate>
+    <url>http://rs.happyman.idv.tw/map/gpxtrack/{$z}/{$x}/{$y}.png</url>
+    <backgroundColor>#000000</backgroundColor>
+    <expireDays>14</expireDays>
+</customMapSource>

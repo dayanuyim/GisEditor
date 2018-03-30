@@ -11,6 +11,7 @@ from xml.etree import ElementTree as ET
 from threading import Timer
 from PIL import Image, ImageTk, ImageDraw, ImageColor
 from uuid import uuid4
+from src.raw import *
 
 import pytz
 from timezonefinder import TimezoneFinder
@@ -101,6 +102,27 @@ def drawTextBg(draw, xy, text, fill, font, bg_fill="white"):
     draw.rectangle((x, y, x + w, y + h), fill=bg_fill)
     #text
     draw.text(xy, text, fill=fill, font=font)
+
+# using screntone to walkaround for tranparent,
+# beacuase PIL only support 0/255 alpha value on MAC, ref:
+#   https://stackoverflow.com/questions/41576637/are-rgba-pngs-unsupported-in-python-3-5-pillow
+def screentone(img):
+
+    w, h = img.size
+
+    transp = (0,) * w
+    opaque = (255,) * w
+
+    alpha = []
+    for i in range(h):
+        if i % 2:
+            alpha.extend(opaque)
+        else:
+            alpha.extend(transp)
+
+    mask = Image.frombytes('L', img.size, bytes(alpha))
+    img.putalpha(mask)
+    return img
 
 # Notice: 'accelerator string' may not a perfect guess, need more heuristic improvement
 def __guessAccelerator(event):
@@ -361,18 +383,18 @@ class GeoInfo:
         self.__coord_sys = coord_sys
 
     def getNearbyGridPoint(self, pos, grid_sz=(1000,1000)):
-        if self.__coord_sys not in ("TWD67", "TWD97"):
+        if self.__coord_sys not in SUPP_COORD_SYSTEMS:
             raise ValueError("Cannot get near by grid point for coordinate system '%s'" % (self.__coord_sys,))
 
         geo = self.__ref_geo.addPixel(pos[0], pos[1], self.__level)
         grid_x, grid_y = grid_sz
 
         grid_geo = None
-        if self.__coord_sys == "TWD67":
+        if self.__coord_sys == TWD67:
             x = round(geo.twd67_x/grid_x) * grid_x
             y = round(geo.twd67_y/grid_y) * grid_y
             grid_geo = GeoPoint(twd67_x=x, twd67_y=y)
-        elif self.__coord_sys == "TWD97":
+        elif self.__coord_sys == TWD97:
             x = round(geo.twd97_x/grid_x) * grid_x
             y = round(geo.twd97_y/grid_y) * grid_y
             grid_geo = GeoPoint(twd97_x=x, twd97_y=y)
@@ -383,11 +405,11 @@ class GeoInfo:
 
     def toPixelLength(self, km):
         geo2 = None
-        if self.__coord_sys == "TWD67":
+        if self.__coord_sys == TWD67:
             x = self.__ref_geo.twd67_x + km*1000
             y = self.__ref_geo.twd67_y
             geo2 = GeoPoint(twd67_x=x, twd67_y=y)
-        elif self.__coord_sys == "TWD97":
+        elif self.__coord_sys == TWD97:
             x = self.__ref_geo.twd97_x + km*1000
             y = self.__ref_geo.twd97_y
             geo2 = GeoPoint(twd97_x=x, twd97_y=y)
@@ -398,18 +420,18 @@ class GeoInfo:
 
     def getCoordByPixel(self, px, py):
         geo = GeoPoint(px=px, py=py, level=self.__level)
-        if self.__coord_sys == "TWD67":
+        if self.__coord_sys == TWD67:
             return (geo.twd67_x, geo.twd67_y)
-        if self.__coord_sys == "TWD97":
+        if self.__coord_sys == TWD97:
             return (geo.twd97_x, geo.twd97_y)
         else:
             raise ValueError("Unknown coord system '%s'" % (self.__coord_sys,))
 
     def getPixelByCoord(self, x, y):
         geo = None
-        if self.__coord_sys == "TWD67":
+        if self.__coord_sys == TWD67:
             geo = GeoPoint(twd67_x=x, twd67_y=y)
-        elif self.__coord_sys == "TWD97":
+        elif self.__coord_sys == TWD97:
             geo = GeoPoint(twd97_x=x, twd97_y=y)
         else:
             raise ValueError("Unknown coord system '%s'" % (self.__coord_sys,))
@@ -581,13 +603,20 @@ class AreaSelector:
         self.__canvas.delete(name)
         self.__genPanel(name, pos, size)
 
+
     def __genPanel(self, name, pos, size):
         #area img
-        r, g, b = ImageColor.getrgb(self.__panel_color)
         w = max(1, size[0])
         h = max(1, size[1])
-        img = Image.new('RGBA', (w,h), (r, g, b, 96))  #transparent
+
+        if platform.system() == "Darwin":
+            img = Image.new('RGBA', (w,h), self.__panel_color)
+            img = screentone(img)  # experimental: workaround for drawing alpha on MAC
+        else:
+            color = ImageColor.getrgb(self.__panel_color) + (96,) #transparent
+            img = Image.new('RGBA', (w,h), color)
         img = ImageTk.PhotoImage(img) #to photo image
+
         #area item
         item = self.__canvas.create_image(pos, image=img, anchor='nw', tag=('AS',name))
         #bind
