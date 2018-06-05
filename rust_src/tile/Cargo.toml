@@ -1,0 +1,12 @@
+[package]
+authors = ["Messense Lv <messense@icloud.com>"]
+name = "tile"
+version = "0.1.0"
+
+[dependencies.pyo3]
+version = "^0.2.7"
+default-features = false
+
+[lib]
+name = "tile"
+crate-type = ["cdylib"]
