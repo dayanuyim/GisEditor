@@ -3,6 +3,9 @@ authors = ["Messense Lv <messense@icloud.com>"]
 name = "tile"
 version = "0.1.0"
 
+[dependencies]
+quick-xml = "0.12.0"
+
 [dependencies.pyo3]
 version = "^0.2.7"
 default-features = false

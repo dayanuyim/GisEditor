@@ -34,3 +34,9 @@ rust_src/tile/build/
 rust_src/tile/Cargo\.lock
 
 rust_src/tile/tile\.egg-info/
+
+rust_src/tile/target/
+
+src/tile/__init__\.py
+
+*.so
