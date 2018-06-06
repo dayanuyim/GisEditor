@@ -56,7 +56,7 @@ impl DiskCache{
 struct MapDescriptor{
     token: PyToken,
     enabled: bool,
-    alpha: f32,     // XXX: implement with f8 when the type ready
+    alpha: u8,     
     map_title: String,
     level_min: u32,
     level_max: u32,
@@ -73,11 +73,12 @@ struct MapDescriptor{
 #[pymethods]
 impl MapDescriptor{
     #[new]
-    fn __new__(obj: &PyRawObject) -> PyResult<()> {
+    fn __new__(obj: &PyRawObject) -> PyResult<()> 
+    {
         obj.init(|t| MapDescriptor{
             token: t, 
             enabled: false, 
-            alpha: 1.0, 
+            alpha: 255, 
             map_title: String::new(),
             level_min: 0,
             level_max: 0,
@@ -91,6 +92,18 @@ impl MapDescriptor{
             expire_sec: 0
         })
     }
+
+    #[getter]
+    fn get_alpha(&self) -> PyResult<f32> {
+        Ok(self.alpha as f32 / 255.0)
+    }
+
+    #[setter]
+    fn set_alpha(&mut self, value: f32) -> PyResult<()> {
+        self.alpha = (value * 255.0) as u8;
+        Ok(())
+    }
+
     fn save(&self, output_folder: String, file_name: String) -> PyResult<()>
     {
         Ok(_map_descriptor_save(

@@ -1,4 +1,4 @@
-"""handle for tile system, especially WMTS"""
+from __future__ import absolute_import
 from ._tile import DiskCache, MapDescriptor
 
 import os
