@@ -54,20 +54,31 @@ impl DiskCache{
 
 #[pyclass]
 struct MapDescriptor{
-    token: PyToken,
+    #[prop(get, set)]
     enabled: bool,
     alpha: u8,     
+    #[prop(set)]
     map_title: String,
+    #[prop(get, set)]
     level_min: u32,
+    #[prop(get, set)]
     level_max: u32,
+    #[prop(set)]
     tile_format: String,
+    #[prop(set)]
     url_template: String,
     server_parts: Vec<String>,
+    #[prop(get, set)]
     invert_y: bool,
+    #[prop(set)]
     coord_sys: String,
+    #[prop(get, set)]
     lower_corner: (f32, f32),
+    #[prop(get, set)]
     upper_corner: (f32, f32),
-    expire_sec: u64
+    #[prop(get, set)]
+    expire_sec: u64,
+    token: PyToken
 }
 
 #[pymethods]
@@ -76,7 +87,6 @@ impl MapDescriptor{
     fn __new__(obj: &PyRawObject) -> PyResult<()> 
     {
         obj.init(|t| MapDescriptor{
-            token: t, 
             enabled: false, 
             alpha: 255, 
             map_title: String::new(),
@@ -89,7 +99,8 @@ impl MapDescriptor{
             coord_sys: String::new(),
             lower_corner: (-180.0, -85.0),
             upper_corner: (180.0, 85.0),
-            expire_sec: 0
+            expire_sec: 0,
+            token: t
         })
     }
 
