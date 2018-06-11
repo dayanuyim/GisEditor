@@ -52,30 +52,31 @@ impl DiskCache{
     }
 }
 
+//
 #[pyclass]
 struct MapDescriptor{
     #[prop(get, set)]
     enabled: bool,
     alpha: u8,     
-    #[prop(set)]
-    map_title: String,
-    #[prop(get, set)]
-    level_min: u32,
-    #[prop(get, set)]
-    level_max: u32,
-    #[prop(set)]
+    #[prop(clone_get, set)]
+    map_id: String,
+    #[prop(get)]
+    min_zoom: u8, // 0 ~ 24 
+    #[prop(get)]
+    max_zoom: u8, // 0 ~ 24 
+    #[prop(clone_get, set)]
     tile_format: String,
-    #[prop(set)]
+    #[prop(clone_get, set)]
     url_template: String,
     server_parts: Vec<String>,
     #[prop(get, set)]
     invert_y: bool,
-    #[prop(set)]
+    #[prop(clone_get, set)]
     coord_sys: String,
-    #[prop(get, set)]
-    lower_corner: (f32, f32),
-    #[prop(get, set)]
-    upper_corner: (f32, f32),
+    #[prop(get)]
+    lower_corner: (f32, f32), // (-180 ~ 180, -85 ~ 85)
+    #[prop(get)]
+    upper_corner: (f32, f32), // (-180 ~ 180, -85 ~ 85)
     #[prop(get, set)]
     expire_sec: u64,
     token: PyToken
@@ -89,9 +90,9 @@ impl MapDescriptor{
         obj.init(|t| MapDescriptor{
             enabled: false, 
             alpha: 255, 
-            map_title: String::new(),
-            level_min: 0,
-            level_max: 0,
+            map_id: String::new(),
+            min_zoom: 0, 
+            max_zoom: 0,
             tile_format: String::new(),
             url_template: String::new(),
             server_parts: Vec::new(),
@@ -115,14 +116,47 @@ impl MapDescriptor{
         Ok(())
     }
 
-    fn save(&self, output_folder: String, file_name: String) -> PyResult<()>
-    {
+    #[setter]
+    fn set_min_zoom(&mut self, value: u8) -> PyResult<()> {
+        let normal_value = std::cmp::min(24, std::cmp::max(0, value));
+        if normal_value > self.max_zoom {
+            self.min_zoom = self.max_zoom;
+        }
+        self.max_zoom = normal_value;
+        Ok(())
+    }
+
+    #[setter]
+    fn set_max_zoom(&mut self, value: u8) -> PyResult<()> {
+        let normal_value = std::cmp::min(24, std::cmp::max(0, value));
+        if normal_value < self.min_zoom{
+            self.max_zoom = self.min_zoom;
+        }
+        self.min_zoom = normal_value;
+        Ok(())
+    }
+
+    #[setter]
+    fn set_lower_corner(&mut self, value: (f32, f32)) -> PyResult<()> {
+        self.lower_corner.0 = 180f32.min(-180f32.max(value.0));
+        self.lower_corner.1 = 85f32.min(-85f32.max(value.1));
+        Ok(())
+    }
+
+    #[setter]
+    fn set_upper_corner(&mut self, value: (f32, f32)) -> PyResult<()> {
+        self.upper_corner.0 = 180f32.min(-180f32.max(value.0));
+        self.upper_corner.1 = 85f32.min(-85f32.max(value.1));
+        Ok(())
+    }
+
+    fn save(&self, output_folder: String, file_name: String) -> PyResult<()> {
         Ok(_map_descriptor_save(
                 output_folder.as_str(),
                 file_name.as_str(),
-                self.map_title.as_str(),
-                &self.level_min,
-                &self.level_max,
+                self.map_id.as_str(),
+                &self.min_zoom,
+                &self.max_zoom,
                 self.tile_format.as_str(),
                 self.url_template.as_str(),
                 &self.server_parts.join(" "),
@@ -135,12 +169,60 @@ impl MapDescriptor{
                 &self.expire_sec
                 ))
     }
+
+    fn read(&mut self, file_path: Option<String>, xml_str: Option<String>, map_id: Option<String>) -> PyResult<()>{
+        match map_id {
+            Some(id) => { self.map_id = "id".to_string(); },
+            None => { self.map_id = Path::new(&file_path.clone().unwrap()).file_stem().unwrap().to_str().unwrap().to_string(); }
+        }
+        let mut file = File::open(file_path.unwrap())?;
+        let mut xml_content = String::new();
+        file.read_to_string(&mut xml_content)?;
+        _map_descriptor_read(&xml_content, &mut self.min_zoom, &mut self.max_zoom, &mut self.tile_format, &mut self.url_template, 
+                             &mut self.server_parts, &mut self.invert_y, &mut self.coord_sys, &mut self.lower_corner.0, 
+                             &mut self.lower_corner.1, &mut self.upper_corner.0, &mut self.upper_corner.1, &mut self.expire_sec);
+        Ok(())
+    }
+
+    // CamelStyle is not suitable for python
+    // This function may deprecated
+    // please call read method
+    fn parseXml(&mut self, file_path: Option<String>, xml_str: Option<String>, map_id: Option<String>) -> PyResult<()>{
+        println!("mal nameing function: parseXml is some day");
+        self.read(file_path, xml_str, map_id)
+    }
+
+    // XXX: not sure clone is nessary
+    // fn clone(&self){
+    //     println!("clone is not implement");
+    // }
+//     def clone(self):
+//         desc = MapDescriptor()
+//         desc.map_id = self.map_id
+//         desc.map_title = self.map_title
+//         desc.level_min = self.level_min
+//         desc.level_max = self.level_max
+//         desc.tile_format = self.tile_format
+//         desc.url_template = self.url_template
+//         desc.server_parts = self.server_parts
+//         desc.invert_y = self.invert_y
+//         desc.coord_sys = self.coord_sys
+//         desc.lower_corner = self.lower_corner
+//         desc.upper_corner = self.upper_corner
+//         desc.expire_sec = self.expire_sec
+//         desc.alpha = self.alpha
+//         desc.enabled = self.enabled
+//         return desc
+}
+fn _map_descriptor_read(xml_content: &String, min_zoom: &mut u8, max_zoom: &mut u8, 
+                        tile_type: &mut str, url: &mut str, server_parts: &mut Vec<String>, invert_y: &mut bool, coordinatesystem: &mut str, 
+                        lower_corner_x: &mut f32, lower_corner_y: &mut f32, upper_corner_x: &mut f32, upper_corner_y: &mut f32, expire_sec: &mut u64) {
+    // TODO: implement the reader
 }
 
-fn _map_descriptor_save(output_folder: &str, file_name: &str, map_title: &str, min_zoom: &u32, max_zoom: &u32, 
+fn _map_descriptor_save(output_folder: &str, file_name: &str, map_title: &str, min_zoom: &u8, max_zoom: &u8, 
                         tile_type: &str, url: &str, server_parts: &str, invert_y: &bool, coordinatesystem: &str, 
-                        lower_corner_x: &f32, lower_corner_y: &f32, upper_corner_x: &f32, upper_corner_y: &f32, expire_sec: &u64)
-{
+                        lower_corner_x: &f32, lower_corner_y: &f32, upper_corner_x: &f32, upper_corner_y: &f32, expire_sec: &u64) {
     let xml = r#"
 <customMapSource>
     <name></name>
@@ -254,7 +336,6 @@ fn _map_descriptor_save(output_folder: &str, file_name: &str, map_title: &str, m
                 field = String::new();
             },
             Ok(Event::Eof) => break,
-            // you can use either `e` or `&e` if you don't want to move the event
             Ok(e) => assert!(writer.write_event(&e).is_ok()),
             Err(e) => panic!("Error at position {}: {:?}", reader.buffer_position(), e),
         }
@@ -264,140 +345,6 @@ fn _map_descriptor_save(output_folder: &str, file_name: &str, map_title: &str, m
     let result = writer.into_inner().into_inner();
     fs::write(Path::new(output_folder).join(file_name).with_extension("xml"), result);
 }
-
-
-
-
-//     def clone(self):
-//         desc = MapDescriptor()
-//         desc.map_id = self.map_id
-//         desc.map_title = self.map_title
-//         desc.level_min = self.level_min
-//         desc.level_max = self.level_max
-//         desc.tile_format = self.tile_format
-//         desc.url_template = self.url_template
-//         desc.server_parts = self.server_parts
-//         desc.invert_y = self.invert_y
-//         desc.coord_sys = self.coord_sys
-//         desc.lower_corner = self.lower_corner
-//         desc.upper_corner = self.upper_corner
-//         desc.expire_sec = self.expire_sec
-//         desc.alpha = self.alpha
-//         desc.enabled = self.enabled
-//         return desc
-
-//     # satic method #######################################
-//     @classmethod
-//     def __getElemText(cls, root, tag_path, def_value=None, errmsg=None):
-//         elem = root.find(tag_path)
-//         if elem is not None:
-//             return elem.text
-//         else:
-//             if errmsg:
-//                 logging.warning(errmsg)
-//             return def_value
-
-//     @classmethod
-//     def __cropValue(cls, val, low, up, errmsg=None):
-//         _val = min(max(low, val), up)
-//         if _val != val and errmsg:
-//             logging.warning(errmsg)
-//         return _val
-
-//     @classmethod
-//     def __parseLatlon(cls, latlon_str, def_latlon):
-//         tokens = latlon_str.split(' ')
-//         if len(tokens) != 2:
-//             logging.info("not valid lat lon string: '%s'" % (latlon_str,))
-//             return def_latlon
-
-//         try:
-//             lat = float(tokens[0])
-//             lon = float(tokens[1])
-//             lat = cls.__cropValue(lat, -180, 180, "not valid lat value: %f" % (lat,))
-//             lon = cls.__cropValue(lon, -85, 85, "not valid lon value: %f" % (lon,))
-//             return (lat, lon)
-//         except Exception as ex:
-//             logging.error("parsing latlon string '%s' error: '%s'" % (latlon_str, str(ex)))
-
-//         return def_latlon
-
-//     @classmethod
-//     def __parseExpireDays(cls, expire_txt, id):
-//         try:
-//             expire_val = float(expire_txt)
-//             return int(expire_val * 86400)
-//         except Exception as ex:
-//             logging.warning("[map desc '%s'] parsing expire_days '%s', error: %s" % (id, expire_txt, str(ex)))
-//         return 0
-
-//     @classmethod
-//     def __parseXml(cls, xml_root, id):
-//         if not id:
-//             raise ValueError("[map desc] map id is empty")
-
-//         name = cls.__getElemText(xml_root, "./name", "")
-//         if not name:
-//             raise ValueError("[map desc '%s'] no map name" % (id,))
-
-//         min_zoom = int(cls.__getElemText(xml_root, "./minZoom", "0", "[map desc '%s'] invalid min zoom, set to 0" % (id,)))
-//         max_zoom = int(cls.__getElemText(xml_root, "./maxZoom", "24", "[map desc '%s'] invalid max zoom, set to 24" % (id,)))
-//         min_zoom = cls.__cropValue(min_zoom, 0, 24, "[map desc '%s'] min zoom should be in 0~24" % (id,))
-//         max_zoom = cls.__cropValue(max_zoom, 0, 24, "[map desc '%s'] max zoom should be in 0~24" % (id,))
-//         if min_zoom > max_zoom:
-//             raise ValueError("[map desc '%s'] min_zoom(%d) is larger tahn max_zoom(%d)" % (id, min_zoom, max_zoom))
-
-//         tile_type = cls.__getElemText(xml_root, "./tileType", "").lower()
-//         if tile_type not in ("jpg", "png"):
-//             raise ValueError("[map desc '%s'] not support tile format '%s'" % (id, tile_type))
-
-//         url = cls.__getElemText(xml_root, "./url", "")
-//         if not url or ("{$x}" not in url) or ("{$y}" not in url) or ("{$z}" not in url):
-//             raise ValueError("[map desc '%s'] url not catains {$x}, {$y}, or {$z}: %s" % (id, url))
-
-//         server_parts = cls.__getElemText(xml_root, "./serverParts", "")
-
-//         invert_y = cls.__getElemText(xml_root, "./invertYCoordinate", "false").lower()
-//         if invert_y not in ("false", "true"):
-//             logging.warning("[map desc '%s'] invalid invertYCoordinate value: '%s', set to 'false'" % (id, invert_y))
-
-
-//         coord_sys = cls.__getElemText(xml_root, "./coordinatesystem", "EPSG:4326").upper()
-
-//         lower_corner = cls.__parseLatlon(cls.__getElemText(xml_root, "./lowerCorner", ""), (-180, -85))
-//         upper_corner = cls.__parseLatlon(cls.__getElemText(xml_root, "./upperCorner", ""), (180, 85))
-
-//         expire_days = cls.__getElemText(xml_root, "./expireDays", "0")
-//         expire_sec = cls.__parseExpireDays(expire_days, id)
-
-//         #collection data
-//         desc = MapDescriptor()
-//         desc.map_id = id
-//         desc.map_title = name
-//         desc.level_min = min_zoom
-//         desc.level_max = max_zoom
-//         desc.url_template = url
-//         desc.server_parts = server_parts.split(' ') if server_parts else None
-//         desc.invert_y = (invert_y == "true")
-//         desc.coord_sys = coord_sys
-//         desc.lower_corner = lower_corner
-//         desc.upper_corner = upper_corner
-//         desc.expire_sec = expire_sec
-//         desc.tile_format = tile_type
-//         return desc
-
-//     @classmethod
-//     def parseXml(cls, filepath=None, xmlstr=None, id=None):
-//         if filepath is not None:
-//             xml_root = ET.parse(filepath).getroot()
-//             if not id:
-//                 id = os.path.splitext(os.path.basename(filepath))[0]
-//             return cls.__parseXml(xml_root, id)
-//         elif xmlstr is not None:
-//             xml_root = ET.fromstring(xmlstr)
-//             return cls.__parseXml(xml_root, id)
-//         else:
-//             return None
 
 #[pymodinit(_tile)]
 fn init_mod(_py: Python, m: &PyModule) -> PyResult<()> {

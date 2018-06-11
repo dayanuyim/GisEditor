@@ -1,5 +1,5 @@
 [package]
-authors = ["Messense Lv <messense@icloud.com>"]
+authors = ["Antonio Yang<yanganto@gmail.com>"]
 name = "tile"
 version = "0.1.0"
 
@@ -7,8 +7,8 @@ version = "0.1.0"
 quick-xml = "0.12.0"
 
 [dependencies.pyo3]
-version = "^0.2.7"
-default-features = false
+git = "https://github.com/yanganto/pyo3.git"
+branch = "#178_setter_for_non_copy_type" 
 
 [lib]
 name = "tile"
