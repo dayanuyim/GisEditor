@@ -198,7 +198,8 @@ class MapBoard(tk.Frame):
         for f in os.listdir(dirpath):
             if os.path.splitext(f)[1].lower() == ".xml":
                 try:
-                    desc = MapDescriptor.parseXml(os.path.join(dirpath, f))
+                    desc = MapDescriptor()
+                    desc.read(os.path.join(dirpath, f))
                     map_descs.append(desc)
                 except Exception as ex:
                     logging.error("parse file '%s' error: %s" % (f, str(ex)))

@@ -448,7 +448,8 @@ class MemoryCache:
             return self.__get(id)
 
 
-class FileDiskCache(DiskCache):
+# Base DiskCache
+class FileDiskCache():
     def __init__(self, cache_dir, map_desc):
         self.__cache_dir = os.path.join(cache_dir, map_desc.map_id)  # create subfolder
         self.__map_desc = map_desc
@@ -477,7 +478,8 @@ class FileDiskCache(DiskCache):
                 return file.read()
         return None
 
-class DBDiskCache(DiskCache):
+# Base DiskCache
+class DBDiskCache():
     @property
     def map_id(self):
         return self.__map_desc.map_id

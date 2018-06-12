@@ -84,6 +84,7 @@ struct MapDescriptor{
     tile_format: String,
     #[prop(clone_get, set)]
     url_template: String,
+    #[prop(clone_get, set)]
     server_parts: Vec<String>,
     #[prop(get, set)]
     invert_y: bool,
@@ -137,8 +138,10 @@ impl MapDescriptor{
         let normal_value = std::cmp::min(24, std::cmp::max(0, value));
         if normal_value > self.max_zoom {
             self.min_zoom = self.max_zoom;
+            self.max_zoom = normal_value;
+        } else {
+            self.min_zoom = normal_value;
         }
-        self.max_zoom = normal_value;
         Ok(())
     }
 
@@ -147,8 +150,10 @@ impl MapDescriptor{
         let normal_value = std::cmp::min(24, std::cmp::max(0, value));
         if normal_value < self.min_zoom{
             self.max_zoom = self.min_zoom;
+            self.min_zoom = normal_value;
+        } else {
+            self.max_zoom = normal_value;
         }
-        self.min_zoom = normal_value;
         Ok(())
     }
 
@@ -186,15 +191,11 @@ impl MapDescriptor{
                 ))
     }
 
-    fn read(&mut self, file_path: Option<String>, xml_str: Option<String>, map_id: Option<String>) -> PyResult<()>{
-        match map_id {
-            Some(id) => { self.map_id = "id".to_string(); },
-            None => { self.map_id = Path::new(&file_path.clone().unwrap()).file_stem().unwrap().to_str().unwrap().to_string(); }
-        }
+    fn read(&mut self, file_path: Option<String>) -> PyResult<()>{
         let mut file = File::open(file_path.unwrap())?;
         let mut xml_content = String::new();
         file.read_to_string(&mut xml_content)?;
-        _map_descriptor_read(&xml_content, &mut self.min_zoom, &mut self.max_zoom, &mut self.tile_format, &mut self.url_template, 
+        _map_descriptor_read(&xml_content, &mut self.map_id, &mut self.min_zoom, &mut self.max_zoom, &mut self.tile_format, &mut self.url_template, 
                              &mut self.server_parts, &mut self.invert_y, &mut self.coord_sys, &mut self.lower_corner.0, 
                              &mut self.lower_corner.1, &mut self.upper_corner.0, &mut self.upper_corner.1, &mut self.expire_sec);
         Ok(())
@@ -203,9 +204,9 @@ impl MapDescriptor{
     // CamelStyle is not suitable for python
     // This function may deprecated
     // please call read method
-    fn parseXml(&mut self, file_path: Option<String>, xml_str: Option<String>, map_id: Option<String>) -> PyResult<()>{
-        println!("mal nameing function: parseXml is some day");
-        self.read(file_path, xml_str, map_id)
+    fn parseXml(&mut self, file_path: Option<String>) -> PyResult<()>{
+        println!("mal nameing function: parseXml is removed some day");
+        self.read(file_path)
     }
 
     // XXX: not sure clone is nessary
@@ -230,9 +231,116 @@ impl MapDescriptor{
 //         desc.enabled = self.enabled
 //         return desc
 }
-fn _map_descriptor_read(xml_content: &String, min_zoom: &mut u8, max_zoom: &mut u8, 
-                        tile_type: &mut str, url: &mut str, server_parts: &mut Vec<String>, invert_y: &mut bool, coordinatesystem: &mut str, 
+fn _map_descriptor_read(xml_content: &String, map_id: &mut String, min_zoom: &mut u8, max_zoom: &mut u8, 
+                        tile_type: &mut String, url: &mut String, server_parts: &mut Vec<String>, invert_y: &mut bool, coordinatesystem: &mut String, 
                         lower_corner_x: &mut f32, lower_corner_y: &mut f32, upper_corner_x: &mut f32, upper_corner_y: &mut f32, expire_sec: &mut u64) {
+    let mut reader = Reader::from_str(xml_content);
+    reader.trim_text(true);
+
+    let mut buf = Vec::new();
+    let mut field = MapDescriptorField::None;
+
+    loop {
+        match reader.read_event(&mut buf) {
+            Ok(Event::Start(ref e)) if e.name()  == b"name" => { 
+                field = MapDescriptorField::Name;
+            },
+            Ok(Event::Start(ref e)) if e.name()  == b"minZoom" => { 
+                field = MapDescriptorField::MinZoom;
+            },
+            Ok(Event::Start(ref e)) if e.name()  == b"maxZoom" => { 
+                field = MapDescriptorField::MaxZoom;
+            },
+            Ok(Event::Start(ref e)) if e.name()  == b"tileType" => { 
+                field = MapDescriptorField::TileType;
+            },
+            Ok(Event::Start(ref e)) if e.name()  == b"url" => { 
+                field = MapDescriptorField::Url;
+            },
+            Ok(Event::Start(ref e)) if e.name()  == b"serverParts" => { 
+                field = MapDescriptorField::ServerParts;
+            },
+            Ok(Event::Start(ref e)) if e.name()  == b"invertYCoordinate" => { 
+                field = MapDescriptorField::InvertYCoordinate;
+            },
+            Ok(Event::Start(ref e)) if e.name()  == b"coordinatesystem" => { 
+                field = MapDescriptorField::Coordinatesystem;
+            },
+            Ok(Event::Start(ref e)) if e.name()  == b"lowerCorner" => { 
+                field = MapDescriptorField::LowerCorner;
+            },
+            Ok(Event::Start(ref e)) if e.name()  == b"upperCorner" => { 
+                field = MapDescriptorField::UpperCorner;
+            },
+            Ok(Event::Start(ref e)) if e.name()  == b"expireDays" => { 
+                field = MapDescriptorField::ExpireDays;
+            },
+            // Ok(Event::Text(e)) => txt.push(e.unescape_and_decode(&reader).unwrap()),
+            Ok(Event::Text(e)) => {
+                match field {
+                    MapDescriptorField::Name => {
+                        *map_id = e.unescape_and_decode(&reader).unwrap();
+                    },
+                    MapDescriptorField::MinZoom => {
+                        let normal_value = std::cmp::min(24, std::cmp::max(0, e.unescape_and_decode(&reader).unwrap().parse::<u8>().unwrap()));
+                        if normal_value > *max_zoom {
+                            *min_zoom = *max_zoom;
+                            *max_zoom = normal_value;
+                        } else {
+                            *min_zoom = normal_value;
+                        }
+                    },
+                    MapDescriptorField::MaxZoom => {
+                        let normal_value = std::cmp::min(24, std::cmp::max(0, e.unescape_and_decode(&reader).unwrap().parse::<u8>().unwrap()));
+                        if normal_value > *min_zoom {
+                            *max_zoom = *min_zoom;
+                            *min_zoom = normal_value;
+                        } else {
+                            *max_zoom = normal_value;
+                        }
+                    },
+                    MapDescriptorField::TileType => {
+                        *tile_type = e.unescape_and_decode(&reader).unwrap();
+                    },
+                    MapDescriptorField::Url => {
+                        *url = e.unescape_and_decode(&reader).unwrap();
+                    },
+                    MapDescriptorField::ServerParts => {
+                        *server_parts = Vec::new();
+                        for part in e.unescape_and_decode(&reader).unwrap().split_whitespace(){
+                            server_parts.push(part.to_string());
+                        }
+                    },
+                    MapDescriptorField::InvertYCoordinate => {
+                        *invert_y = e.unescape_and_decode(&reader).unwrap().find("true").is_some();
+                    },
+                    MapDescriptorField::Coordinatesystem => {
+                        *coordinatesystem = e.unescape_and_decode(&reader).unwrap();
+                    },
+                    MapDescriptorField::LowerCorner => {
+                        let content = e.unescape_and_decode(&reader).unwrap();
+                        let mut iter = content.split_whitespace();
+                        *lower_corner_x = iter.next().unwrap().parse::<f32>().unwrap();
+                        *lower_corner_y = iter.next().unwrap().parse::<f32>().unwrap();
+                    },
+                    MapDescriptorField::UpperCorner => {
+                        let content = e.unescape_and_decode(&reader).unwrap();
+                        let mut iter = content.split_whitespace();
+                        *upper_corner_x = iter.next().unwrap().parse::<f32>().unwrap();
+                        *upper_corner_y = iter.next().unwrap().parse::<f32>().unwrap();
+                    },
+                    MapDescriptorField::ExpireDays => {
+                        *expire_sec = e.unescape_and_decode(&reader).unwrap().parse::<u64>().unwrap() * 86400;
+                    },
+                    _ => {}
+                }
+            },
+            Ok(Event::Eof) => break, 
+            Err(e) => panic!("Error at position {}: {:?}", reader.buffer_position(), e),
+            _ => (), 
+        }
+        buf.clear();
+    }
 }
 
 fn _map_descriptor_save(output_folder: &str, file_name: &str, map_title: &str, min_zoom: &u8, max_zoom: &u8, 
@@ -262,7 +370,6 @@ fn _map_descriptor_save(output_folder: &str, file_name: &str, map_title: &str, m
     let mut field = MapDescriptorField::None;
     loop {
         match reader.read_event(&mut buf) {
-            // XXX 
             Ok(Event::Start(ref e)) if e.name()  == b"name" => { 
                 field = MapDescriptorField::Name;
                 writer.write_event(Event::Start(BytesStart::owned(b"name".to_vec(), "name".len())));
