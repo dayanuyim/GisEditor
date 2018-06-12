@@ -52,7 +52,23 @@ impl DiskCache{
     }
 }
 
-//
+enum MapDescriptorField{
+    None,
+    Name,
+    MinZoom,
+    MaxZoom,
+    TileType,
+    TileUpdate,
+    Url,
+	ServerParts,
+    InvertYCoordinate,
+    Coordinatesystem,
+    LowerCorner,
+    UpperCorner,
+    ExpireDays,
+    BackgroundColor
+}
+
 #[pyclass]
 struct MapDescriptor{
     #[prop(get, set)]
@@ -217,7 +233,6 @@ impl MapDescriptor{
 fn _map_descriptor_read(xml_content: &String, min_zoom: &mut u8, max_zoom: &mut u8, 
                         tile_type: &mut str, url: &mut str, server_parts: &mut Vec<String>, invert_y: &mut bool, coordinatesystem: &mut str, 
                         lower_corner_x: &mut f32, lower_corner_y: &mut f32, upper_corner_x: &mut f32, upper_corner_y: &mut f32, expire_sec: &mut u64) {
-    // TODO: implement the reader
 }
 
 fn _map_descriptor_save(output_folder: &str, file_name: &str, map_title: &str, min_zoom: &u8, max_zoom: &u8, 
@@ -235,6 +250,7 @@ fn _map_descriptor_save(output_folder: &str, file_name: &str, map_title: &str, m
     <invertYCoordinate></invertYCoordinate>
     <coordinatesystem></coordinatesystem>
     <lowerCorner></lowerCorner>
+    <upperCorner></upperCorner>
     <expireDays></expireDays>
     <backgroundColor></backgroundColor>
 </customMapSource>
@@ -243,97 +259,97 @@ fn _map_descriptor_save(output_folder: &str, file_name: &str, map_title: &str, m
     reader.trim_text(true);
     let mut writer = Writer::new(Cursor::new(Vec::new()));
     let mut buf = Vec::new();
-    let mut field = String::new();
+    let mut field = MapDescriptorField::None;
     loop {
         match reader.read_event(&mut buf) {
             // XXX 
             Ok(Event::Start(ref e)) if e.name()  == b"name" => { 
-                field = std::str::from_utf8(e.name()).unwrap().to_string();
+                field = MapDescriptorField::Name;
                 writer.write_event(Event::Start(BytesStart::owned(b"name".to_vec(), "name".len())));
             },
             Ok(Event::Start(ref e)) if e.name()  == b"minZoom" => { 
-                field = std::str::from_utf8(e.name()).unwrap().to_string();
+                field = MapDescriptorField::MinZoom;
                 writer.write_event(Event::Start(BytesStart::owned(b"minZoom".to_vec(), "minZoom".len())));
             },
             Ok(Event::Start(ref e)) if e.name()  == b"maxZoom" => { 
-                field = std::str::from_utf8(e.name()).unwrap().to_string();
+                field = MapDescriptorField::MaxZoom;
                 writer.write_event(Event::Start(BytesStart::owned(b"maxZoom".to_vec(), "maxZoom".len())));
             },
             Ok(Event::Start(ref e)) if e.name()  == b"tileType" => { 
-                field = std::str::from_utf8(e.name()).unwrap().to_string();
+                field = MapDescriptorField::TileType;
                 writer.write_event(Event::Start(BytesStart::owned(b"tileType".to_vec(), "tileType".len())));
             },
             Ok(Event::Start(ref e)) if e.name()  == b"url" => { 
-                field = std::str::from_utf8(e.name()).unwrap().to_string();
+                field = MapDescriptorField::Url;
                 writer.write_event(Event::Start(BytesStart::owned(b"url".to_vec(), "url".len())));
             },
             Ok(Event::Start(ref e)) if e.name()  == b"serverParts" => { 
-                field = std::str::from_utf8(e.name()).unwrap().to_string();
+                field = MapDescriptorField::ServerParts;
                 writer.write_event(Event::Start(BytesStart::owned(b"serverParts".to_vec(), "serverParts".len())));
             },
             Ok(Event::Start(ref e)) if e.name()  == b"invertYCoordinate" => { 
-                field = std::str::from_utf8(e.name()).unwrap().to_string();
+                field = MapDescriptorField::InvertYCoordinate;
                 writer.write_event(Event::Start(BytesStart::owned(b"invertYCoordinate".to_vec(), "invertYCoordinate".len())));
             },
             Ok(Event::Start(ref e)) if e.name()  == b"coordinatesystem" => { 
-                field = std::str::from_utf8(e.name()).unwrap().to_string();
+                field = MapDescriptorField::Coordinatesystem;
                 writer.write_event(Event::Start(BytesStart::owned(b"coordinatesystem".to_vec(), "coordinatesystem".len())));
             },
             Ok(Event::Start(ref e)) if e.name()  == b"lowerCorner" => { 
-                field = std::str::from_utf8(e.name()).unwrap().to_string();
+                field = MapDescriptorField::LowerCorner;
                 writer.write_event(Event::Start(BytesStart::owned(b"lowerCorner".to_vec(), "lowerCorner".len())));
             },
             Ok(Event::Start(ref e)) if e.name()  == b"upperCorner" => { 
-                field = std::str::from_utf8(e.name()).unwrap().to_string();
+                field = MapDescriptorField::UpperCorner;
                 writer.write_event(Event::Start(BytesStart::owned(b"upperCorner".to_vec(), "upperCorner".len())));
             },
             Ok(Event::Start(ref e)) if e.name()  == b"expireDays" => { 
-                field = std::str::from_utf8(e.name()).unwrap().to_string();
+                field = MapDescriptorField::ExpireDays;
                 writer.write_event(Event::Start(BytesStart::owned(b"expireDays".to_vec(), "expireDays".len())));
             },
             Ok(Event::Text(_)) => {
-                match &field as &str  {
-                    "name" => {
+                match field {
+                    MapDescriptorField::Name => {
                         writer.write_event(Event::Text(BytesText::from_plain_str(&map_title)));
                     },
-                    "minZoom" => {
+                    MapDescriptorField::MinZoom => {
                         writer.write_event(Event::Text(BytesText::from_plain_str(min_zoom.to_string().as_str())));
                     },
-                    "maxZoom" => {
+                    MapDescriptorField::MaxZoom => {
                         writer.write_event(Event::Text(BytesText::from_plain_str(max_zoom.to_string().as_str())));
                     },
-                    "tileType" => {
+                    MapDescriptorField::TileType => {
                         writer.write_event(Event::Text(BytesText::from_plain_str(&tile_type)));
                     },
-                    "url" => {
+                    MapDescriptorField::Url => {
                         writer.write_event(Event::Text(BytesText::from_plain_str(&url)));
                     },
-                    "serverParts" => {
+                    MapDescriptorField::ServerParts => {
                         writer.write_event(Event::Text(BytesText::from_plain_str(&server_parts)));
                     },
-                    "invertYCoordinate" => {
+                    MapDescriptorField::InvertYCoordinate => {
                         if *invert_y {
                             writer.write_event(Event::Text(BytesText::from_plain_str("true")));
                         } else {
                             writer.write_event(Event::Text(BytesText::from_plain_str("false")));
                         }
                     },
-                    "coordinatesystem" => {
+                    MapDescriptorField::Coordinatesystem => {
                         writer.write_event(Event::Text(BytesText::from_plain_str(&coordinatesystem)));
                     },
-                    "lowerCorner" => {
+                    MapDescriptorField::LowerCorner => {
                         writer.write_event(Event::Text(BytesText::from_plain_str(&format!("{} {}", &lower_corner_x, &lower_corner_y))));
                     },
-                    "upperCorner" => {
+                    MapDescriptorField::UpperCorner => {
                         writer.write_event(Event::Text(BytesText::from_plain_str(&format!("{} {}", &upper_corner_x, &upper_corner_y))));
                     },
-                    "expireDays" => {
+                    MapDescriptorField::ExpireDays => {
                         let day = expire_sec / 86400;
                         writer.write_event(Event::Text(BytesText::from_plain_str(day.to_string().as_str())));
                     },
                     _ => {}
                 }
-                field = String::new();
+                field = MapDescriptorField::None;
             },
             Ok(Event::Eof) => break,
             Ok(e) => assert!(writer.write_event(&e).is_ok()),
