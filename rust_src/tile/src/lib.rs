@@ -204,10 +204,9 @@ impl MapDescriptor{
     // CamelStyle is not suitable for python
     // This function may deprecated
     // please call read method
-    fn parseXml(&mut self, file_path: Option<String>) -> PyResult<()>{
-        println!("mal nameing function: parseXml is removed some day");
-        self.read(file_path)
-    }
+    // fn parseXml(&mut self, file_path: Option<String>) -> PyResult<()>{
+    //     self.read(file_path)
+    // }
 
     // XXX: not sure clone is nessary
     // fn clone(&self){
@@ -334,6 +333,7 @@ fn _map_descriptor_read(xml_content: &String, map_id: &mut String, min_zoom: &mu
                     },
                     _ => {}
                 }
+                field = MapDescriptorField::None;
             },
             Ok(Event::Eof) => break, 
             Err(e) => panic!("Error at position {}: {:?}", reader.buffer_position(), e),
