@@ -7,7 +7,7 @@ use std::path::Path;
 extern crate quick_xml;
 use quick_xml::Writer;
 use quick_xml::Reader;
-use quick_xml::events::{Event, BytesEnd, BytesStart, BytesText};
+use quick_xml::events::{Event, BytesStart, BytesText};
 use std::io::Cursor;
 use std::iter;
 
@@ -76,6 +76,8 @@ struct MapDescriptor{
     alpha: u8,     
     #[prop(clone_get, set)]
     map_id: String,
+    #[prop(clone_get, set)]
+    map_title: String,
     #[prop(get)]
     min_zoom: u8, // 0 ~ 24 
     #[prop(get)]
@@ -108,6 +110,7 @@ impl MapDescriptor{
             enabled: false, 
             alpha: 255, 
             map_id: String::new(),
+            map_title: String::new(),
             min_zoom: 0, 
             max_zoom: 0,
             tile_format: String::new(),
@@ -174,8 +177,8 @@ impl MapDescriptor{
     fn save(&self, output_folder: String, file_name: String) -> PyResult<()> {
         Ok(_map_descriptor_save(
                 output_folder.as_str(),
-                file_name.as_str(),
-                self.map_id.as_str(),
+                file_name.as_str(), // ?self.map_id.as_str(),
+                self.map_title.as_str(),
                 &self.min_zoom,
                 &self.max_zoom,
                 self.tile_format.as_str(),
@@ -192,10 +195,12 @@ impl MapDescriptor{
     }
 
     fn read(&mut self, file_path: Option<String>) -> PyResult<()>{
+        self.map_id = Path::new(&file_path.clone().unwrap()).file_stem().unwrap().to_str().unwrap().to_string();
+
         let mut file = File::open(file_path.unwrap())?;
         let mut xml_content = String::new();
         file.read_to_string(&mut xml_content)?;
-        _map_descriptor_read(&xml_content, &mut self.map_id, &mut self.min_zoom, &mut self.max_zoom, &mut self.tile_format, &mut self.url_template, 
+        _map_descriptor_read(&xml_content, &mut self.map_title, &mut self.min_zoom, &mut self.max_zoom, &mut self.tile_format, &mut self.url_template, 
                              &mut self.server_parts, &mut self.invert_y, &mut self.coord_sys, &mut self.lower_corner.0, 
                              &mut self.lower_corner.1, &mut self.upper_corner.0, &mut self.upper_corner.1, &mut self.expire_sec);
         Ok(())
@@ -230,7 +235,7 @@ impl MapDescriptor{
 //         desc.enabled = self.enabled
 //         return desc
 }
-fn _map_descriptor_read(xml_content: &String, map_id: &mut String, min_zoom: &mut u8, max_zoom: &mut u8, 
+fn _map_descriptor_read(xml_content: &String, map_title: &mut String, min_zoom: &mut u8, max_zoom: &mut u8, 
                         tile_type: &mut String, url: &mut String, server_parts: &mut Vec<String>, invert_y: &mut bool, coordinatesystem: &mut String, 
                         lower_corner_x: &mut f32, lower_corner_y: &mut f32, upper_corner_x: &mut f32, upper_corner_y: &mut f32, expire_sec: &mut u64) {
     let mut reader = Reader::from_str(xml_content);
@@ -278,7 +283,7 @@ fn _map_descriptor_read(xml_content: &String, map_id: &mut String, min_zoom: &mu
             Ok(Event::Text(e)) => {
                 match field {
                     MapDescriptorField::Name => {
-                        *map_id = e.unescape_and_decode(&reader).unwrap();
+                        *map_title = e.unescape_and_decode(&reader).unwrap();
                     },
                     MapDescriptorField::MinZoom => {
                         let normal_value = std::cmp::min(24, std::cmp::max(0, e.unescape_and_decode(&reader).unwrap().parse::<u8>().unwrap()));

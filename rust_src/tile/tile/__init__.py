@@ -67,7 +67,9 @@ class TileAgent:
     def state(self): return self.__state
 
     def __init__(self, map_desc, cache_dir, auto_start=False):
-        self.__map_desc = map_desc.clone()
+        # XXX need to figure out
+        # self.__map_desc = map_desc.clone()
+        self.__map_desc = map_desc
 
         self.__state = self.ST_IDLE
 
