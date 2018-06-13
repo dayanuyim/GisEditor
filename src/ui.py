@@ -965,7 +965,7 @@ def testMapSelector():
     for f in os.listdir(mapcache):
         if os.path.splitext(f)[1].lower() == ".xml":
             try:
-                desc = MapDescriptor.parseXml(os.path.join(mapcache, f))
+                desc = MapDescriptor.read(os.path.join(mapcache, f))
                 if desc.map_id in ('TM25K_2001',  'JM25K_1921'):
                     desc.enabled = True
                     desc.alpha = 0.75

@@ -130,6 +130,11 @@
 
 [img_rightmenu]: https://github.com/dayanuyim/GisEditor/raw/dev/doc/pic/01_right_menu.png
 
+8. Use Rust libary
+
+    * install rust-nightly and cargo
+    * ./rust_build.sh
+
 
 <a name="mac_install"></a>
 手動安裝 (MAC)
