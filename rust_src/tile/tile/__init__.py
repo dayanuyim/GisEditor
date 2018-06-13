@@ -67,7 +67,24 @@ class TileAgent:
     def state(self): return self.__state
 
     def __init__(self, map_desc, cache_dir, auto_start=False):
-        self.__map_desc = map_desc.clone()
+        # XXX need to figure out
+        # clone in a dirty way
+        # self.__map_desc = map_desc.clone()
+        self.__map_desc = MapDescriptor()
+        self.__map_desc.map_id = map_desc.map_id
+        self.__map_desc.map_title = map_desc.map_title
+        self.__map_desc.level_min = map_desc.level_min
+        self.__map_desc.level_max = map_desc.level_max
+        self.__map_desc.tile_format = map_desc.tile_format
+        self.__map_desc.url_template = map_desc.url_template
+        self.__map_desc.server_parts = map_desc.server_parts
+        self.__map_desc.invert_y = map_desc.invert_y
+        self.__map_desc.coord_sys = map_desc.coord_sys
+        self.__map_desc.lower_corner = map_desc.lower_corner
+        self.__map_desc.upper_corner = map_desc.upper_corner
+        self.__map_desc.expire_sec = map_desc.expire_sec
+        self.__map_desc.alpha = map_desc.alpha
+        self.__map_desc.enabled = map_desc.enabled
 
         self.__state = self.ST_IDLE
 
@@ -281,8 +298,8 @@ class TileAgent:
         return None, None
 
     def __getTile(self, level, x, y, req_type=None, cb=None):
-        # check level
         if level > self.level_max or level < self.level_min:
+            logging.error("level:{} not in range ({},{})".format(level, level_max, level_min))
             raise ValueError("level is out of range")
 
         id = self.genTileId(level, x, y)

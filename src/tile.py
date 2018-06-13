@@ -212,7 +212,7 @@ class MapDescriptor:
         return desc
 
     @classmethod
-    def parseXml(cls, filepath=None, xmlstr=None, id=None):
+    def read(cls, filepath=None, xmlstr=None, id=None):
         if filepath is not None:
             xml_root = ET.parse(filepath).getroot()
             if not id:
@@ -973,6 +973,6 @@ class DBDiskCache(DiskCache):
             self.__close()
 
 if __name__ == '__main__':
-    desc = MapDescriptor.parseXml("mapcache/TM25K_2001.xml")
+    desc = MapDescriptor.read("mapcache/TM25K_2001.xml")
     desc.save("mapcache", id="TM25K_2001-2")
     desc.save(".")
