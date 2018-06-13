@@ -55,8 +55,8 @@ impl DiskCache{
 enum MapDescriptorField{
     None,
     Name,
-    MinZoom,
-    MaxZoom,
+    MinZoom, // also level_min
+    MaxZoom, // alse level_max
     TileType,
     TileUpdate,
     Url,
@@ -136,8 +136,14 @@ impl MapDescriptor{
         Ok(())
     }
 
+    #[getter]
+    fn get_level_min(&self) -> PyResult<(u8)> { Ok(self.min_zoom) }
+
+    #[getter]
+    fn get_level_max(&self) -> PyResult<(u8)> { Ok(self.max_zoom) }
+
     #[setter]
-    fn set_min_zoom(&mut self, value: u8) -> PyResult<()> {
+    fn set_level_min(&mut self, value: u8) -> PyResult<()> {
         let normal_value = std::cmp::min(24, std::cmp::max(0, value));
         if normal_value > self.max_zoom {
             self.min_zoom = self.max_zoom;
@@ -149,7 +155,7 @@ impl MapDescriptor{
     }
 
     #[setter]
-    fn set_max_zoom(&mut self, value: u8) -> PyResult<()> {
+    fn set_level_max(&mut self, value: u8) -> PyResult<()> {
         let normal_value = std::cmp::min(24, std::cmp::max(0, value));
         if normal_value < self.min_zoom{
             self.max_zoom = self.min_zoom;
@@ -159,6 +165,7 @@ impl MapDescriptor{
         }
         Ok(())
     }
+
 
     #[setter]
     fn set_lower_corner(&mut self, value: (f32, f32)) -> PyResult<()> {
@@ -296,7 +303,7 @@ fn _map_descriptor_read(xml_content: &String, map_title: &mut String, min_zoom: 
                     },
                     MapDescriptorField::MaxZoom => {
                         let normal_value = std::cmp::min(24, std::cmp::max(0, e.unescape_and_decode(&reader).unwrap().parse::<u8>().unwrap()));
-                        if normal_value > *min_zoom {
+                        if normal_value < *min_zoom {
                             *max_zoom = *min_zoom;
                             *min_zoom = normal_value;
                         } else {
