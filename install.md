@@ -177,9 +177,11 @@
 
     * open automaker.app (MAC-builtin)
     * select _create appliction_ -> _shell script_
+    * 傳遞輸入: 作為引數使用
     * put script
         ```
         /full/path/to/python3 /full/path/to/main.py "$@"
         ```
     * save to app
+    * change app icon: open Infomation Dialog, drag-n-put a ICNS file to the positon of icon.
     * move the app to Application Folder
