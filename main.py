@@ -2046,7 +2046,7 @@ class MapController:
             return
 
         # init GeoInfo
-        geo_info = GeoInfo(self.geo, self.level, coord_sys)
+        geo_info = GeoInfo(self.geo, attr.level, coord_sys)
 
         # xy to draw
         lines, texts, line5, line10, text10 = self.__getCoordValueXY(attr, geo_info, coord_density)
