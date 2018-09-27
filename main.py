@@ -104,7 +104,7 @@ def __toGpx(src_path, flag):
     (fname, ext) = os.path.splitext(src_path)
     if ext == '':
         raise ValueError("cannot identify gps format deu to no file extension")
-    input_fmt = conf.GPSBABEL_EXT_FMT.get(ext)
+    input_fmt = conf.GPSBABEL_EXT_FMT.get(ext.lower())
     if not input_fmt:
         raise ValueError("cannot identify gps format for the file extension: " + ext)
     if len(input_fmt) > 1:
