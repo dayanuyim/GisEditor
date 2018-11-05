@@ -1070,13 +1070,13 @@ class MapBoard(tk.Frame):
             messagebox.showwarning("Save Image Error", "No maps to save")
             return True
 
-        #get preferred coord system
-        map_coords = [desc.coord_sys for desc in self.__map_descs if desc.enabled and desc.coord_sys in SUPP_COORD_SYSTEMS]
-        coord_sys = map_coords[0] if map_coords else \
-                    enabled_maps[0].coord_sys
         try:
+            coord_sys, _ = self.__map_ctrl.getDisplayCoordSys()
+            if coord_sys is None:
+                coord_sys = 'virtual'
+
             #select area
-            geo_info = GeoInfo(self.__map_ctrl.geo, self.__map_ctrl.level, coord_sys)
+            geo_info = GeoInfo.get(coord_sys, self.__map_ctrl.geo, self.__map_ctrl.level)
 
             self.__canvas_sel_area = AreaSelector(self.disp_canvas, geo_info)
 
@@ -2022,31 +2022,33 @@ class MapController:
             raise ValueError("Unknown coord system '%s'" % (coord,))
         return geo.pixel(level)
 
+    def getDisplayCoordSys(self):
+        # enforced by options
+        if Options.coordLineSys:
+            return (Options.coordLineSys,
+                    Options.coordLineDensity)
+
+        # attr from maps
+        coord_syss = [desc.coord_sys for desc in self.__map_descs \
+                if desc.enabled and desc.coord_sys in SUPP_COORD_SYSTEMS]
+        if coord_syss:
+            return (coord_syss[0], COORD_TEXT)
+
+        # NA
+        return None, COORD_NONE
+
+
     def __drawCoordValue(self, map, attr):
 
         if attr.level <= 12:  #too crowded to show
             return
 
-        # get coordinate line system/density, prefer options to maps
-        coord_sys = None
-        coord_density = COORD_NONE
-
-        if Options.coordLineSys:
-            coord_sys = Options.coordLineSys
-            coord_density = Options.coordLineDensity
-        else:
-            map_coords = [desc.coord_sys for desc in self.__map_descs \
-                    if desc.enabled and desc.coord_sys in SUPP_COORD_SYSTEMS]
-            if map_coords:
-                coord_sys = map_coords[0]
-                coord_density = COORD_TEXT
-
-        # no coordinate system to be drawn
+        coord_sys, coord_density = self.getDisplayCoordSys()
         if coord_sys is None:
             return
 
         # init GeoInfo
-        geo_info = GeoInfo(self.geo, attr.level, coord_sys)
+        geo_info = GeoInfo.get(coord_sys, self.geo, attr.level)
 
         # xy to draw
         lines, texts, line5, line10, text10 = self.__getCoordValueXY(attr, geo_info, coord_density)
