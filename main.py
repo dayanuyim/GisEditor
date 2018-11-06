@@ -10,7 +10,6 @@ import time
 import logging
 import argparse
 import platform
-import re
 import pytz
 import types
 from os import path
@@ -31,9 +30,8 @@ from src.gpx import GpsDocument, WayPoint, TrackPoint
 from src.pic import PicDocument
 from src.util import GeoPoint, DrawGuard, imageIsTransparent, bindMenuCmdAccelerator, bindMenuCheckAccelerator
 from src.util import AreaSelector, AreaSizeTooLarge, GeoInfo  #should move to ui.py
-from src.util import getPtPosText, getPtEleText, getPtTimeText, getPtTimezone, getPtLocaltime
-from src.util import downloadAsTemp, drawTextBg
-from src.tool import *
+from src.util import downloadAsTemp, drawTextBg, subgroup, isValidFloat
+from src.common import fmtPtPosText, fmtPtEleText, fmtPtTimeText, fmtPtTimezone, fmtPtLocaltime, textToGeo
 from src.tile import TileAgent, MapDescriptor
 from src.sym import askSym, toSymbol
 from src.raw import *
@@ -162,7 +160,6 @@ def parsePathes(pathes):
     pic_path.sort()
     return gps_path, pic_path
 
-
 class MapBoard(tk.Frame):
     """The Main board to display the map"""
     MODE_NORMAL = 0
@@ -191,6 +188,10 @@ class MapBoard(tk.Frame):
     @title.setter
     def title(self, v):
         self.master.title(v)
+
+    @property
+    def ref_geo(self):
+        return self.__map_ctrl.geo
 
     @classmethod
     def __loadMapDescriptors(cls, dirpath):
@@ -700,62 +701,29 @@ class MapBoard(tk.Frame):
             #do Not show message box to user, which may be a 'temperary' key-in error
 
     def onPosSet(self, e):
-
-        def sixCoord(ref, val):
-            return max(0, round(ref - val, -5)) + val  # get closed hundred-kilimeter, then plus to val
-
-        #if val_txt is :
-        #   float: float with unit 'kilimeter'
-        # 3-digit: int with unit 'hundred-meter', need to prefix
-        #   digit: int with unit 'meter'
-        def __toTM2(val_txt, ref):
-            return int(float(val_txt)*1000) if not val_txt.isdigit() else \
-                   sixCoord(ref, int(val_txt)*100) if len(val_txt) == 3 else \
-                   int(val_txt)
-
-        def toTM2x(val_txt):
-            return __toTM2(val_txt, self.__map_ctrl.geo.twd67_x)
-
-        def toTM2y(val_txt):
-            return __toTM2(val_txt, self.__map_ctrl.geo.twd67_y)
-
-        def toDegree(val_txt):
-            return float(val_txt)
-
-        #get geo point
-        geo = None
-        try:
-            pos = e.widget.get().strip()
-            if len(pos) == 6 and pos.isdigit(): # six-digit-coord, without split
-                n1, n2 = pos[0:3], pos[3:6]
-            else:
-                n1, n2 = filter(None, re.split('[^\d\.]', pos)) #split by not 'digit' or '.'. Removing empty string.
-                n1, n2 = n1.strip(), n2.strip()
-
-            #make geo according to the coordinate
+        def coord_sys():
             if e.widget == self.__info_67tm2:
-                geo = GeoPoint(twd67_x=toTM2x(n1), twd67_y=toTM2y(n2))
+                return 'TWD67TM2'
+            if e.widget == self.__info_97tm2:
+                return 'TWD97TM2'
+            if e.widget == self.__info_97latlon:
+                return 'TWD97LatLon'
+            raise ValueError('Unknown position widget: %s' % str(e.widget))
 
-            elif e.widget == self.__info_97tm2:
-                geo = GeoPoint(twd97_x=toTM2x(n1), twd97_y=toTM2y(n2))
+        try:
+            #get geo point
+            geo = textToGeo(e.widget.get(), coord_sys(), self.__map_ctrl.geo)
 
-            elif e.widget == self.__info_97latlon:
-                geo = GeoPoint(lat=toDegree(n1), lon=toDegree(n2))
+            #focus geo on map
+            if self.__map_ctrl.mapContainsPt(geo):
+                self.__map_ctrl.addMark(geo)
+                self.__setMapInfo(geo)
+                self.resetMap(geo, force='wpt')
             else:
-                raise ValueError("Code flow error to set location") #should not happen
+                messagebox.showwarning('Invalid Location', "The location is out of range of map")
+
         except Exception as ex:
             messagebox.showwarning("Please use valid format: 2 decimals(KM), 2 integer(M), or 6 digits", "Get locatoin error: %s" % (str(ex),))
-            return
-
-        #check
-        if not self.__map_ctrl.mapContainsPt(geo):
-            messagebox.showwarning('Invalid Location', "The location is out of range of map")
-            return
-
-        #focus geo on map
-        self.__map_ctrl.addMark(geo)
-        self.__setMapInfo(geo)
-        self.resetMap(geo, force='wpt')
 
     #drag-n-drop events ===============================
 
@@ -1005,8 +973,8 @@ class MapBoard(tk.Frame):
 
     @staticmethod
     def trkDiffDay(pt1, pt2):
-        t1 = getPtLocaltime(pt1)
-        t2 = getPtLocaltime(pt2)
+        t1 = fmtPtLocaltime(pt1)
+        t2 = fmtPtLocaltime(pt2)
         return not (t1.year == t2.year and \
                     t1.month == t2.month and \
                     t1.day == t2.day)
@@ -2379,7 +2347,11 @@ class WptBoard(tk.Toplevel):
 
         #wpt name
         self._var_name = tk.StringVar()
-        self._var_name.trace('w', self.onNameChanged)
+        self._var_name.trace('w', self.__onNameChanged)
+
+        self._var_pos = tk.StringVar()
+        self._var_ele = tk.StringVar()
+        self._var_time = tk.StringVar()
 
         #set focus
         self.transient(self.master)
@@ -2437,7 +2409,13 @@ class WptBoard(tk.Toplevel):
         else:
             self.setCurrWpt(next_wpt)
 
-    def onNameChanged(self, *args):
+    def onFocusChanged(self, *args):
+        self.highlightWpt(self._curr_wpt)
+
+    def onEditSymRule(self):
+        sym.showRule(self)
+    
+    def __onNameChanged(self, *args):
         #print('change to', self._var_name.get())
         name = self._var_name.get()
         if self._curr_wpt.name != name:
@@ -2445,16 +2423,10 @@ class WptBoard(tk.Toplevel):
             self._curr_wpt.sym = toSymbol(name)
             self._is_changed = True
             self.showWptIcon(self._curr_wpt)
-
+            #main map
             self.onAltered('wpt')
             self.highlightWpt(self._curr_wpt)
 
-    def onFocusChanged(self, *args):
-        self.highlightWpt(self._curr_wpt)
-
-    def onEditSymRule(self):
-        sym.showRule(self)
-    
     def highlightWpt(self, wpt):
         #focus
         is_focus = self._var_focus.get()
@@ -2465,8 +2437,9 @@ class WptBoard(tk.Toplevel):
         self.master.highlightWpt(wpt)
 
         #save user setting
-        conf.WPT_SET_FOCUS = is_focus
-        conf.writeUserConf()
+        if conf.WPT_SET_FOCUS != is_focus:
+            conf.WPT_SET_FOCUS = is_focus
+            conf.writeUserConf()
 
     def unhighlightWpt(self, wpt):
         self.master.resetMap() if self.is_changed else self.master.restore()
@@ -2527,31 +2500,67 @@ class WptSingleBoard(WptBoard):
         self.__icon_label.bind('<Button-1>', self.onSymClick)
 
         #wpt name
-        name_entry = tk.Entry(frame, textvariable=self._var_name, font=font)
-        name_entry.bind('<Return>', lambda e: self.onWptPick(1))
+        name_entry = tk.Entry(frame, font=font, relief='flat', highlightcolor='lightblue', textvariable=self._var_name)
+        name_entry.bind('<Return>', lambda e: e.widget.master.focus())  #focus out
         name_entry.grid(row=row, column=2, sticky='w')
 
         row += 1
         #focus
         tk.Checkbutton(frame, text=self._title_focus, variable=self._var_focus).grid(row=row, column=0, sticky='w')
         #wpt positoin
-        tk.Label(frame, text=self._title_pos, font=bold_font).grid(row=row, column=1, sticky='e')
-        self._var_pos = tk.StringVar()
-        tk.Label(frame, font=font, textvariable=self._var_pos).grid(row=row, column=2, sticky='w')
+        pos_label = tk.Label(frame, font=bold_font, text=self._title_pos).grid(row=row, column=1, sticky='e')
+        pos_entry = tk.Entry(frame, font=font, relief='flat', highlightcolor='lightblue', textvariable=self._var_pos)
+        pos_entry.bind('<KeyRelease>', self.__onPosKeyRelease)
+        pos_entry.bind('<FocusOut>', lambda e: self._var_pos.set(fmtPtPosText(self._curr_wpt, '(%.3f, %.3f)')))  #view
+        pos_entry.bind('<FocusIn>',  lambda e: self._var_pos.set(fmtPtPosText(self._curr_wpt, '%.3f, %.3f')))    #edit
+        pos_entry.bind('<Return>',  lambda e: e.widget.master.focus())  #focus out
+        pos_entry.grid(row=row, column=2, sticky='w')
 
         row +=1
         #ele
-        tk.Label(frame, text=self._title_ele, font=bold_font).grid(row=row, column=1, sticky='e')
-        self._var_ele = tk.StringVar()
-        tk.Label(frame, font=font, textvariable=self._var_ele).grid(row=row, column=2, sticky='w')
+        ele_label = tk.Label(frame, font=bold_font, text=self._title_ele).grid(row=row, column=1, sticky='e')
+        ele_entry = tk.Entry(frame, font=font, relief='flat', highlightcolor='lightblue', textvariable=self._var_ele)
+        ele_entry.bind('<KeyRelease>', self.__onEleKeyRelease)
+        ele_entry.bind('<FocusOut>', lambda e: self._var_ele.set(fmtPtEleText(self._curr_wpt, '%.1f m')))  #view
+        ele_entry.bind('<FocusIn>',  lambda e: self._var_ele.set(fmtPtEleText(self._curr_wpt, '%.1f')))    #edit
+        ele_entry.bind('<Return>',  lambda e: e.widget.master.focus())  #focus out
+        ele_entry.grid(row=row, column=2, sticky='w')
 
         row +=1
         #time
-        tk.Label(frame, text=self._title_time, font=bold_font).grid(row=row, column=1, sticky='e')
-        self._var_time = tk.StringVar()
-        tk.Label(frame, textvariable=self._var_time, font=font).grid(row=row, column=2, sticky='w')
+        tk.Label(frame, font=bold_font, text=self._title_time).grid(row=row, column=1, sticky='e')
+        tk.Label(frame, font=font, textvariable=self._var_time).grid(row=row, column=2, sticky='w')
 
         return frame
+
+    def __onEleKeyRelease(self, e):
+        #print('on ele key-release %s' % self._var_ele.get())
+        try:
+            ele = float(self._var_ele.get())
+            e.widget['highlightcolor'] = 'lightblue'
+
+            if self._curr_wpt.ele != ele:
+                self._curr_wpt.ele = ele
+                self._is_changed = True
+                self.onAltered('wpt')
+        except:
+            e.widget['highlightcolor'] = 'pink'
+
+    def __onPosKeyRelease(self, e):
+        #print('on pos key-release %s' % self._var_pos.get())
+        try:
+            geo = textToGeo(self._var_pos.get(), 'TWD67TM2', self.master.ref_geo)
+            e.widget['highlightcolor'] = 'lightblue'
+
+            if self._curr_wpt.lat != geo.lat or \
+               self._curr_wpt.lon != geo.lon:
+                self._curr_wpt.resetPos(lat=geo.lat, lon=geo.lon)
+                self._is_changed = True
+                self.onAltered('wpt')
+                self.highlightWpt(self._curr_wpt)
+        except Exception as ex:
+            #print('on pos key-release error: %s' % ex)
+            e.widget['highlightcolor'] = 'pink'
 
     def onImageResize(self, e):
         if hasattr(self.__img_label, 'image'):
@@ -2621,9 +2630,9 @@ class WptSingleBoard(WptBoard):
         #info
         self.showWptIcon(wpt)
         self._var_name.set(wpt.name)   #this have side effect to set symbol icon
-        self._var_pos.set(getPtPosText(wpt))
-        self._var_ele.set(getPtEleText(wpt))
-        self._var_time.set(getPtTimeText(wpt))
+        self._var_pos.set(fmtPtPosText(wpt))
+        self._var_ele.set(fmtPtEleText(wpt))
+        self._var_time.set(fmtPtTimeText(wpt))
 
         #button state
         self.__left_btn['state'] = 'disabled' if idx == 0 else 'normal'
@@ -2678,14 +2687,14 @@ class WptListBoard(WptBoard):
             name_label = tk.Label(frame, text=w.name, font=font, anchor='w')
             self.initWidget(name_label, row, 1)
 
-            pos_txt = getPtPosText(w, fmt='%.3f\n%.3f')
+            pos_txt = fmtPtPosText(w, fmt='%.3f\n%.3f')
             pos_label = tk.Label(frame, text=pos_txt, font=font)
             self.initWidget(pos_label, row, 2)
 
-            ele_label = tk.Label(frame, text=getPtEleText(w), font=font)
+            ele_label = tk.Label(frame, text=fmtPtEleText(w), font=font)
             self.initWidget(ele_label, row, 3)
 
-            time_label = tk.Label(frame, text=getPtTimeText(w), font=font)
+            time_label = tk.Label(frame, text=fmtPtTimeText(w), font=font)
             self.initWidget(time_label, row, 4)
 
             #save
@@ -2989,9 +2998,9 @@ class TrkSingleBoard(tk.Toplevel):
         self.pt_list.delete(0, 'end')
         self.pt_list.data = trk
         if trk:
-            tz = getPtTimezone(trk[0])  #optimize, prevent calculation for each pt 
+            tz = fmtPtTimezone(trk[0])  #optimize, prevent calculation for each pt 
             for sn, pt in enumerate(trk, 1):
-                txt = "#%04d  %s: %s, %s" % ( sn, getPtTimeText(pt, tz), getPtPosText(pt), getPtEleText(pt))
+                txt = "#%04d  %s: %s, %s" % ( sn, fmtPtTimeText(pt, tz), fmtPtPosText(pt), fmtPtEleText(pt))
                 self.pt_list.insert('end', txt)
 
 
