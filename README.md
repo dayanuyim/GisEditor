@@ -66,7 +66,7 @@ Map Adapter to WMTS
       - FIX: 魯地圖存圖錯誤
 
   - v0.26
-      - 支援魯地圖
+      - 加入魯地圖
 
   - v0.25
       - TM2格線
