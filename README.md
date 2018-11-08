@@ -23,7 +23,9 @@ Map Adapter to WMTS
 
  *  Windows免安裝檔
 
-    [version 0.25 (latest)][giseditor-0.25]
+    [version 0.27 (latest)][giseditor-0.27]
+
+    _若啟動失敗，請先安裝`font`資料夾下之字型_
 
  *  預載地圖(可選)
 
@@ -47,6 +49,8 @@ Map Adapter to WMTS
  [giseditor-0.22-64]: https://drive.google.com/file/d/0B7ryOauZNjlbU2ZBQVkzd2dLbUE/view?usp=sharing
  [giseditor-0.23]: https://drive.google.com/file/d/0B7ryOauZNjlbVm8zRGZCemVPVGc/view?usp=sharing
  [giseditor-0.25]: https://drive.google.com/file/d/1S9pry2DPY2XI9wC80XC49-FgQeT6umwk/view?usp=sharing
+ [giseditor-0.27]: https://drive.google.com/file/d/19ImwLU-vfoaouA_xMbgxxk1g0mHoaIyh/view?usp=sharing
+
 
 
 操作說明
@@ -56,6 +60,14 @@ Map Adapter to WMTS
 
 更新歷史
 --------
+  - v0.27
+      - 支援電力座標
+      - 航點可編輯高度與位置
+      - FIX: 魯地圖存圖錯誤
+
+  - v0.26
+      - 支援魯地圖
+
   - v0.25
       - TM2格線
       - 支援六碼座標
