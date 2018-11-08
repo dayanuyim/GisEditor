@@ -2500,7 +2500,7 @@ class WptSingleBoard(WptBoard):
         self.__icon_label.bind('<Button-1>', self.onSymClick)
 
         #wpt name
-        name_entry = tk.Entry(frame, font=font, relief='flat', highlightcolor='lightblue', textvariable=self._var_name)
+        name_entry = tk.Entry(frame, font=font, relief='flat', bg=frame['bg'], highlightthickness=2, highlightcolor='lightblue', textvariable=self._var_name)
         name_entry.bind('<Return>', lambda e: e.widget.master.focus())  #focus out
         name_entry.grid(row=row, column=2, sticky='w')
 
@@ -2509,7 +2509,7 @@ class WptSingleBoard(WptBoard):
         tk.Checkbutton(frame, text=self._title_focus, variable=self._var_focus).grid(row=row, column=0, sticky='w')
         #wpt positoin
         pos_label = tk.Label(frame, font=bold_font, text=self._title_pos).grid(row=row, column=1, sticky='e')
-        pos_entry = tk.Entry(frame, font=font, relief='flat', highlightcolor='lightblue', textvariable=self._var_pos)
+        pos_entry = tk.Entry(frame, font=font, relief='flat', bg=frame['bg'], highlightthickness=2, highlightcolor='lightblue', textvariable=self._var_pos)
         pos_entry.bind('<KeyRelease>', self.__onPosKeyRelease)
         pos_entry.bind('<FocusOut>', lambda e: self._var_pos.set(fmtPtPosText(self._curr_wpt, '(%.3f, %.3f)')))  #view
         pos_entry.bind('<FocusIn>',  lambda e: self._var_pos.set(fmtPtPosText(self._curr_wpt, '%.3f, %.3f')))    #edit
@@ -2519,7 +2519,7 @@ class WptSingleBoard(WptBoard):
         row +=1
         #ele
         ele_label = tk.Label(frame, font=bold_font, text=self._title_ele).grid(row=row, column=1, sticky='e')
-        ele_entry = tk.Entry(frame, font=font, relief='flat', highlightcolor='lightblue', textvariable=self._var_ele)
+        ele_entry = tk.Entry(frame, font=font, relief='flat', bg=frame['bg'], highlightthickness=2, highlightcolor='lightblue', textvariable=self._var_ele)
         ele_entry.bind('<KeyRelease>', self.__onEleKeyRelease)
         ele_entry.bind('<FocusOut>', lambda e: self._var_ele.set(fmtPtEleText(self._curr_wpt, '%.1f m')))  #view
         ele_entry.bind('<FocusIn>',  lambda e: self._var_ele.set(fmtPtEleText(self._curr_wpt, '%.1f')))    #edit
