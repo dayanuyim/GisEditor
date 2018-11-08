@@ -3090,7 +3090,7 @@ def init_arguments():
 
 if __name__ == '__main__':
 
-    __version = '0.25'
+    __version = '0.27'
     args = init_arguments()
 
     if args.conf:
