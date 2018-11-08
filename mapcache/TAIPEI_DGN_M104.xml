@@ -1,0 +1,12 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<customMapSource>
+    <name>台北市104年版地形圖</name>
+    <minZoom>6</minZoom>
+    <maxZoom>22</maxZoom>
+    <tileType>png</tileType>
+    <tileUpdate>None</tileUpdate>
+    <url>http://www.historygis.udd.gov.taipei/arcgis/rest/services/TOPO/DGN_2015/MapServer/WMTS/tile/1.0.0/TOPO_DGN_2015/default/GoogleMapsCompatible/{$z}/{$y}/{$x}.png</url>
+    <backgroundColor>#000000</backgroundColor>
+    <expireDays>0</expireDays>
+</customMapSource>
+ 

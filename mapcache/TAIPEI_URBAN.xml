@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<customMapSource>
+    <name>臺北市電子地圖</name>
+    <minZoom>6</minZoom>
+    <maxZoom>22</maxZoom>
+    <tileType>png</tileType>
+    <tileUpdate>None</tileUpdate>
+    <url>http://www.historygis.udd.gov.taipei/arcgis/rest/services/Urban/EMap/MapServer/WMTS/tile/1.0.0/Urban_EMap/default/GoogleMapsCompatible/{$z}/{$y}/{$x}</url>
+    <backgroundColor>#000000</backgroundColor>
+    <expireDays>14</expireDays>
+</customMapSource>
+ 
