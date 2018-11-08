@@ -356,6 +356,45 @@ class CoordinateSystem:
         (x, y) = CoordinateSystem.TWD97_LatLonToTWD97_TM2(lat, lon)
         return CoordinateSystem.TWD97_TM2ToTWD67_TM2(x, y)
 
+    # the base of each area of electic coord
+    EW, EH = 80*1000, 50*1000
+    X0, Y0 = 250*1000, 2500*1000
+    EBASE = {
+                                     'A': (X0-EW, Y0+5*EH), 'B': (X0, Y0+5*EH), 'C': (X0+EW, Y0+5*EH),
+                                     'D': (X0-EW, Y0+4*EH), 'E': (X0, Y0+4*EH), 'F': (X0+EW, Y0+4*EH),
+                                     'G': (X0-EW, Y0+3*EH), 'H': (X0, Y0+3*EH),
+            'J': (X0-2*EW, Y0+2*EH), 'K': (X0-EW, Y0+2*EH), 'L': (X0, Y0+2*EH),
+            'M': (X0-2*EW, Y0+1*EH), 'N': (X0-EW, Y0+1*EH), 'O': (X0, Y0+1*EH),
+            'P': (X0-2*EW, Y0+0*EH), 'Q': (X0-EW, Y0+0*EH), 'R': (X0, Y0+0*EH),
+                                     'T': (X0-EW, Y0-1*EH), 'U': (X0, Y0-1*EH),
+                                     'V': (X0-EW, Y0-2*EH), 'W': (X0, Y0-2*EH),
+            }
+
+    @classmethod
+    def electricToTWD67_TM2(cls, elec):
+        #preprocess
+        if len(elec) != 9 and len(elec) != 11:
+            raise ValueError('Invalide electric coord: %s' % elec)
+        elec = elec.upper()
+        if len(elec) == 9:
+            elec += '55' #center of 10mx10m block
+
+        def diffA(n):
+            return ord(elec[n]) - ord('A') 
+
+        def toint(begin, end=None):
+            return int(elec[begin]) if end is None else \
+                   int(elec[begin:end])
+
+        # position at each level
+        pos = [ cls.EBASE[elec[0]],
+                (800*toint(1, 3), 500*toint(3,5)),
+                (100*diffA(5),    100*diffA(6)),
+                ( 10*toint(7),     10*toint(8)),
+                (    toint(9),        toint(10)) ]
+
+        return tuple(map(sum, zip(*pos)))
+
 class CoordinateSystem2:
 
     """This object provide method for converting lat/lon coordinate to TWD97
@@ -492,15 +531,7 @@ class CoordinateSystem2:
         return (x67, y67)
 
 
-
-def testLatLonToTm2(sample):
-    for (lat, lon, x, y) in sample:
-        (tm_x, tm_y) = CoordinateSystem.TWD97_LatLonToTWD97_TM2(lat, lon)
-        dx = tm_x - x
-        dy = tm_y - y
-        print( (lat, lon, x, y), "latlon to tm2=", (tm_x, tm_y), "diff=", (dx, dy))
-
-if __name__ == "__main__":
+def testLatLonToTm2():
     sample = (
         #    Latitude 	Longitude 	Easting 	Northing
         (70.57927709, 45.59941973, 1548706.792, 8451449.199),
@@ -514,4 +545,13 @@ if __name__ == "__main__":
         (32.21054315, 60.70584911, 6035557.239, 5791770.792),
         (79.1874509, 61.53238249, 1064553.126, 9417273.737))
 
-    testLatLonToTm2(sample)
+    for (lat, lon, x, y) in sample:
+        (tm_x, tm_y) = CoordinateSystem.TWD97_LatLonToTWD97_TM2(lat, lon)
+        dx = tm_x - x
+        dy = tm_y - y
+        print( (lat, lon, x, y), "latlon to tm2=", (tm_x, tm_y), "diff=", (dx, dy))
+
+if __name__ == "__main__":
+    #testLatLonToTm2()
+    print(CoordinateSystem.electricToTWD67_TM2('B8146CC58'))
+    print(CoordinateSystem.electricToTWD67_TM2('R1998EE7912'))

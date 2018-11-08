@@ -6,8 +6,8 @@ import platform
 import logging
 from PIL import ImageTk
 from tkinter import ttk, messagebox
-from src.tool import *
-from src.util import getPtPosText, getPtEleText, getPtTimeText
+from src.util import rotateLeft, rotateRight
+from src.common import fmtPtPosText, fmtPtEleText, fmtPtTimeText
 #from utile import MapDescriptor
 
 class Dialog(tk.Toplevel):
@@ -267,16 +267,16 @@ class EditBoard(Dialog):
             name_label.bind('<Motion>', on_motion)
             name_label.grid(row=row, column=1, sticky='news')
 
-            pos_txt = getPtPosText(w, fmt='%.3f\n%.3f')
+            pos_txt = fmtPtPosText(w, fmt='%.3f\n%.3f')
             pos_label = tk.Label(frame, text=pos_txt, font=font)
             pos_label.bind('<Motion>', on_motion)
             pos_label.grid(row=row, column=2, sticky='news')
 
-            ele_label = tk.Label(frame, text=getPtEleText(w), font=font)
+            ele_label = tk.Label(frame, text=fmtPtEleText(w), font=font)
             ele_label.bind('<Motion>', on_motion)
             ele_label.grid(row=row, column=3, sticky='news')
 
-            time_label = tk.Label(frame, text=getPtTimeText(w), font=font)
+            time_label = tk.Label(frame, text=fmtPtTimeText(w), font=font)
             time_label.bind('<Motion>', on_motion)
             time_label.grid(row=row, column=4, sticky='news')
 
@@ -342,16 +342,16 @@ class ListEditBoard(Dialog):
             name_label.bind('<Motion>', on_motion)
             name_label.grid(row=row, column=1, sticky='news')
 
-            pos_txt = getPtPosText(w, fmt='%.3f\n%.3f')
+            pos_txt = fmtPtPosText(w, fmt='%.3f\n%.3f')
             pos_label = tk.Label(frame, text=pos_txt, font=font)
             pos_label.bind('<Motion>', on_motion)
             pos_label.grid(row=row, column=2, sticky='news')
 
-            ele_label = tk.Label(frame, text=getPtEleText(w), font=font)
+            ele_label = tk.Label(frame, text=fmtPtEleText(w), font=font)
             ele_label.bind('<Motion>', on_motion)
             ele_label.grid(row=row, column=3, sticky='news')
 
-            time_label = tk.Label(frame, text=getPtTimeText(w), font=font)
+            time_label = tk.Label(frame, text=fmtPtTimeText(w), font=font)
             time_label.bind('<Motion>', on_motion)
             time_label.grid(row=row, column=4, sticky='news')
 
@@ -535,9 +535,9 @@ class SingleEditBoard(Dialog):
         #info
         self.showWptIcon(wpt)
         self._var_name.set(wpt.name)   #this have side effect to set symbol icon
-        self._var_pos.set(getPtPosText(wpt))
-        self._var_ele.set(getPtEleText(wpt))
-        self._var_time.set(getPtTimeText(wpt))
+        self._var_pos.set(fmtPtPosText(wpt))
+        self._var_ele.set(fmtPtEleText(wpt))
+        self._var_time.set(fmtPtTimeText(wpt))
 
         #button state
         if self._elems is not None:

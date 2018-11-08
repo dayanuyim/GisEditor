@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+'''
+Non business-logic utils
+'''
+
 import os
 import platform
 import tkinter as tk
@@ -20,6 +24,60 @@ from timezonefinder import TimezoneFinder
 import src.conf as conf
 from src.coord import TileSystem, CoordinateSystem
 
+def isValidFloat(txt):
+    try:
+        v = float(txt)
+        return True
+    except:
+        return False
+
+def subgroup(list, grp):
+    if not list: return None
+    list = sorted(list)
+
+    buckets = []
+    last = None
+
+    for curr in list:
+        if last is not None and grp(last, curr):  #careful if last = 0
+            bucket.append(curr)
+        else:
+            bucket = [curr]
+            buckets.append(bucket)
+        last = curr
+
+    return buckets
+
+def filterOutIndex(list, idxes):
+    idxes = set(idxes)
+    return [elem for i, elem in enumerate(list) if i not in idxes]
+
+def swaplist(list, i1, i2):
+    e1 = list[i1]
+    e2 = list[i2]
+    list[i1] = e2
+    list[i2] = e1
+
+def rotateLeft(list, first, last, step):
+    tmp = None
+    for i in range(first, last+1, step):
+        if tmp is None:
+            tmp = list[i]
+        else:
+            list[i-step] = list[i]
+
+    list[last] = tmp
+
+def rotateRight(list, first, last, step):
+    tmp =  None
+    for i in range(last, first-1, -step):
+        if tmp is None:
+            tmp = list[i];
+        else:
+            list[i+step] = list[i]
+
+    list[first] = tmp
+
 def getLocTimezone(lat, lon):
     tz_loc = TimezoneFinder().timezone_at(lat=lat, lng=lon)  #ex: Asia/Taipei
     return pytz.timezone(tz_loc)
@@ -33,39 +91,6 @@ def downloadAsTemp(url):
         tmp_file.write(response.read())
 
     return tmp_path
-
-# business utils ==========================
-def _getWptPos(wpt):
-    x_tm2_97, y_tm2_97 = CoordinateSystem.TWD97_LatLonToTWD97_TM2(wpt.lat, wpt.lon)
-    x_tm2_67, y_tm2_67 = CoordinateSystem.TWD97_TM2ToTWD67_TM2(x_tm2_97, y_tm2_97)
-    return (x_tm2_67, y_tm2_67)
-
-def getPtPosText(wpt, fmt='(%.3f, %.3f)'):
-    x, y = _getWptPos(wpt)
-    text = fmt % (x/1000, y/1000)
-    return text
-
-def getPtEleText(wpt):
-    if wpt is not None and wpt.ele is not None:
-        return "%.1f m" % (wpt.ele) 
-    return "N/A"
-
-def getPtTimezone(pt):
-    return getLocTimezone(lat=pt.lat, lon=pt.lon)
-
-def getPtLocaltime(pt, tz=None):
-    if tz is None:
-        tz = getLocTimezone(lat=pt.lat, lon=pt.lon)
-    if pt is not None and pt.time is not None:
-        #assume time is localized by pytz.utc
-        return pt.time.astimezone(tz)
-    return None
-
-def getPtTimeText(wpt, tz=None):
-    time = getPtLocaltime(wpt, tz)
-
-    return "N/A" if time is None else \
-            time.strftime("%Y-%m-%d %H:%M:%S")
 
 # PIL utils ===================================
 class DrawGuard:
@@ -377,69 +402,103 @@ class Dialog(tk.Toplevel):
         self.geometry('+%d+%d' % pos)
 
 class GeoInfo:
-    def __init__(self, ref_geo, level, coord_sys):
-        self.__ref_geo = ref_geo
-        self.__level = level
-        self.__coord_sys = coord_sys
+    @classmethod
+    def get(cls, coord_sys, ref_geo, level):
+        if coord_sys == TWD67:
+            return TWD67GeoInfo(ref_geo, level)
+        elif coord_sys == TWD97:
+            return TWD97GeoInfo(ref_geo, level)
+        elif coord_sys == 'virtual':
+            return VirtualGeoInfo(ref_geo, level)
+        else:
+            raise ValueError("Unknown coord system '%s'" % coord_sys)
+
+    def __init__(self, ref_geo, level):
+        raise ValueError("private ctor")
 
     def getNearbyGridPoint(self, pos, grid_sz=(1000,1000)):
-        if self.__coord_sys not in SUPP_COORD_SYSTEMS:
-            raise ValueError("Cannot get near by grid point for coordinate system '%s'" % (self.__coord_sys,))
+        pass
 
+    def toPixelLength(self, km):
+        pass
+
+    def getCoordByPixel(self, px, py):
+        pass
+
+    def getPixelByCoord(self, x, y):
+        pass
+
+class TWD67GeoInfo(GeoInfo):
+    def __init__(self, ref_geo, level):
+        self.__ref_geo = ref_geo
+        self.__level = level
+
+    def getNearbyGridPoint(self, pos, grid_sz=(1000,1000)):
         geo = self.__ref_geo.addPixel(pos[0], pos[1], self.__level)
         grid_x, grid_y = grid_sz
 
-        grid_geo = None
-        if self.__coord_sys == TWD67:
-            x = round(geo.twd67_x/grid_x) * grid_x
-            y = round(geo.twd67_y/grid_y) * grid_y
-            grid_geo = GeoPoint(twd67_x=x, twd67_y=y)
-        elif self.__coord_sys == TWD97:
-            x = round(geo.twd97_x/grid_x) * grid_x
-            y = round(geo.twd97_y/grid_y) * grid_y
-            grid_geo = GeoPoint(twd97_x=x, twd97_y=y)
-        else:
-            raise ValueError("Unknown coord system '%s'" % (self.__coord_sys,))
-
+        x = round(geo.twd67_x/grid_x) * grid_x
+        y = round(geo.twd67_y/grid_y) * grid_y
+        grid_geo = GeoPoint(twd67_x=x, twd67_y=y)
         return grid_geo.diffPixel(self.__ref_geo, self.__level)
 
     def toPixelLength(self, km):
-        geo2 = None
-        if self.__coord_sys == TWD67:
-            x = self.__ref_geo.twd67_x + km*1000
-            y = self.__ref_geo.twd67_y
-            geo2 = GeoPoint(twd67_x=x, twd67_y=y)
-        elif self.__coord_sys == TWD97:
-            x = self.__ref_geo.twd97_x + km*1000
-            y = self.__ref_geo.twd97_y
-            geo2 = GeoPoint(twd97_x=x, twd97_y=y)
-        else:
-            raise ValueError("Unknown coord system '%s'" % (self.__coord_sys,))
-
-        return geo2.diffPixel(self.__ref_geo, self.__level)[0]
+        x = self.__ref_geo.twd67_x + km*1000
+        y = self.__ref_geo.twd67_y
+        geo = GeoPoint(twd67_x=x, twd67_y=y)
+        return geo.diffPixel(self.__ref_geo, self.__level)[0]
 
     def getCoordByPixel(self, px, py):
         geo = GeoPoint(px=px, py=py, level=self.__level)
-        if self.__coord_sys == TWD67:
-            return (geo.twd67_x, geo.twd67_y)
-        if self.__coord_sys == TWD97:
-            return (geo.twd97_x, geo.twd97_y)
-        else:
-            raise ValueError("Unknown coord system '%s'" % (self.__coord_sys,))
+        return (geo.twd67_x, geo.twd67_y)
 
     def getPixelByCoord(self, x, y):
-        geo = None
-        if self.__coord_sys == TWD67:
-            geo = GeoPoint(twd67_x=x, twd67_y=y)
-        elif self.__coord_sys == TWD97:
-            geo = GeoPoint(twd97_x=x, twd97_y=y)
-        else:
-            raise ValueError("Unknown coord system '%s'" % (self.__coord_sys,))
+        geo = GeoPoint(twd67_x=x, twd67_y=y)
         return geo.pixel(self.__level)
+
+class TWD97GeoInfo(GeoInfo):
+    def __init__(self, ref_geo, level):
+        self.__ref_geo = ref_geo
+        self.__level = level
+
+    def getNearbyGridPoint(self, pos, grid_sz=(1000,1000)):
+        geo = self.__ref_geo.addPixel(pos[0], pos[1], self.__level)
+        grid_x, grid_y = grid_sz
+
+        x = round(geo.twd97_x/grid_x) * grid_x
+        y = round(geo.twd97_y/grid_y) * grid_y
+        grid_geo = GeoPoint(twd97_x=x, twd97_y=y)
+        return grid_geo.diffPixel(self.__ref_geo, self.__level)
+
+    def toPixelLength(self, km):
+        x = self.__ref_geo.twd97_x + km*1000
+        y = self.__ref_geo.twd97_y
+        geo = GeoPoint(twd97_x=x, twd97_y=y)
+        return geo.diffPixel(self.__ref_geo, self.__level)[0]
+
+    def getCoordByPixel(self, px, py):
+        geo = GeoPoint(px=px, py=py, level=self.__level)
+        return (geo.twd97_x, geo.twd97_y)
+
+    def getPixelByCoord(self, x, y):
+        geo = GeoPoint(twd97_x=x, twd97_y=y)
+        return geo.pixel(self.__level)
+
+# The special case, only support km length convertion.
+class VirtualGeoInfo(GeoInfo):
+    def __init__(self, ref_geo, level):
+        self.__ref_geo = ref_geo
+        self.__level = level
+
+    def toPixelLength(self, km):
+        x = self.__ref_geo.twd67_x + km*1000
+        y = self.__ref_geo.twd67_y
+        geo = GeoPoint(twd67_x=x, twd67_y=y)
+        return geo.diffPixel(self.__ref_geo, self.__level)[0]
 
 #The UI of settings to access conf
 class AreaSelectorSettings(Dialog):
-    def __init__(self, master):
+    def __init__(self, master, disableds=[]):
         super().__init__(master)
 
         self.__size_widgets = []
@@ -463,7 +522,8 @@ class AreaSelectorSettings(Dialog):
         row += 1
         f = tk.Frame(self)
         f.grid(row=row, column=0, sticky='w')
-        tk.Checkbutton(f, text='Align grid', variable=self.var_align)\
+        tk.Checkbutton(f, text='Align grid', variable=self.var_align,
+                     state='disabled' if 'align' in disableds else 'normal') \
                 .pack(side='left', expand=1, fill='both')
 
         #fixed
@@ -496,7 +556,7 @@ class AreaSelectorSettings(Dialog):
     #override
     def exit(self):
         if self.isModified():
-            self.modify()
+            self.saveSettings()
             self._result = 'OK'
         else:
             self._result = 'Cancel'
@@ -509,7 +569,7 @@ class AreaSelectorSettings(Dialog):
                conf.SELECT_AREA_X != self.var_w.get() or\
                conf.SELECT_AREA_Y != self.var_h.get()
 
-    def modify(self):
+    def saveSettings(self):
         conf.SELECT_AREA_LEVEL = self.var_level.get()
         conf.SELECT_AREA_ALIGN = self.var_align.get()
         conf.SELECT_AREA_FIXED = self.var_fixed.get()
@@ -532,7 +592,7 @@ class AreaSelector:
         else:
             return self.__getpos()
 
-    def __init__(self, canvas, geo_info=None):
+    def __init__(self, canvas, geo_info):
         self.__canvas = canvas
         self.__geo_info = geo_info
         self.__button_side = 20
@@ -724,12 +784,14 @@ class AreaSelector:
         self.__canvas.tag_raise('resizer')
 
     def adjustPos(self):
-        if conf.SELECT_AREA_ALIGN and self.__geo_info is not None:
+        if conf.SELECT_AREA_ALIGN:
             try:
-                grid_x, grid_y = self.__geo_info.getNearbyGridPoint(self.pos)
-                dx = grid_x - self.pos[0]
-                dy = grid_y - self.pos[1]
-                self.move(dx, dy)
+                grid_pt = self.__geo_info.getNearbyGridPoint(self.pos)
+                if grid_pt is not None:
+                    grid_x, grid_y = grid_pt
+                    dx = grid_x - self.pos[0]
+                    dy = grid_y - self.pos[1]
+                    self.move(dx, dy)
             except Exception as ex:
                 messagebox.showwarning("Adjust pos error", str(ex))
 
@@ -751,7 +813,7 @@ class AreaSelector:
             self.resize(sz, pos)
 
     def getFixedSize(self):
-        if conf.SELECT_AREA_FIXED and self.__geo_info is not None:
+        if conf.SELECT_AREA_FIXED:
             w = self.__geo_info.toPixelLength(conf.SELECT_AREA_X)
             h = self.__geo_info.toPixelLength(conf.SELECT_AREA_Y)
             return w, h
@@ -801,7 +863,11 @@ class AreaSelector:
         self.exit()
 
     def onSettingClick(self, e):
-        setting = AreaSelectorSettings(self.__canvas)
+        def isAlignSupport():
+            return self.__geo_info.getNearbyGridPoint((0,0)) is not None
+
+        setting = AreaSelectorSettings(self.__canvas, disableds=['align']) if not isAlignSupport() else \
+                  AreaSelectorSettings(self.__canvas)
         if setting.show((e.x_root, e.y_root)) == 'OK':
             try:
                 self.applySettings()
@@ -844,26 +910,36 @@ class GeoPoint:
 
     def __init__(self, lat=None, lon=None, px=None, py=None, level=None, twd67_x=None, twd67_y=None, twd97_x=None, twd97_y=None):
         if lat is not None and lon is not None:
-            self.__initFields(lat=lat, lon=lon)
+            self.resetPos(lat=lat, lon=lon)
         elif px is not None and py is not None and level is not None:
-            self.__initFields(px=px, py=py, level=level)
+            self.resetPos(px=px, py=py, level=level)
         elif twd67_x is not None and twd67_y is not None:
-            self.__initFields(twd67_x=twd67_x, twd67_y=twd67_y)
+            self.resetPos(twd67_x=twd67_x, twd67_y=twd67_y)
         elif twd97_x is not None and twd97_y is not None:
-            self.__initFields(twd97_x=twd97_x, twd97_y=twd97_y)
+            self.resetPos(twd97_x=twd97_x, twd97_y=twd97_y)
         else:
             raise ValueError("Not propriate init")
 
     # Fileds init ===================
-    def __initFields(self, lat=None, lon=None, px=None, py=None, level=None, twd67_x=None, twd67_y=None, twd97_x=None, twd97_y=None):
-        self.__lat = lat
-        self.__lon = lon
-        self.__px = None if px is None else px << (self.MAX_LEVEL - level)  #px of max level
-        self.__py = None if py is None else py << (self.MAX_LEVEL - level)  #py of max level
-        self.__twd67_x = twd67_x
-        self.__twd67_y = twd67_y
-        self.__twd97_x = twd97_x
-        self.__twd97_y = twd97_y
+    def resetPos(self, lat=None, lon=None, px=None, py=None, level=None, twd67_x=None, twd67_y=None, twd97_x=None, twd97_y=None, geo=None):
+        if geo is not None:
+            self.__lat = geo.__lat
+            self.__lon = geo.__lon
+            self.__px = geo.__px
+            self.__py = geo.__py
+            self.__twd67_x = geo.__twd67_x
+            self.__twd67_y = geo.__twd67_y
+            self.__twd97_x = geo.__twd97_x
+            self.__twd97_y = geo.__twd97_y
+        else:
+            self.__lat = lat
+            self.__lon = lon
+            self.__px = None if px is None else px << (self.MAX_LEVEL - level)  #px of max level
+            self.__py = None if py is None else py << (self.MAX_LEVEL - level)  #py of max level
+            self.__twd67_x = twd67_x
+            self.__twd67_y = twd67_y
+            self.__twd97_x = twd97_x
+            self.__twd97_y = twd97_y
 
     # convert: All->WGS84/LatLon
     def __checkWGS84Latlon(self):
