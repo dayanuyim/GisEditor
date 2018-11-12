@@ -1,5 +1,30 @@
 #!/usr/bin/python3
 
+__version = '0.27'
+
+import argparse
+import logging
+
+def init_arguments():
+    parser = argparse.ArgumentParser(prog='GisEditor', description='ref https://github.com/dayanuyim/GisEditor')
+    parser.add_argument("-V", "--version", action="version", version=__version)
+    parser.add_argument("-v", "--verbose", action="count", default=0, help="show detail information")
+    parser.add_argument("-q", "--quiet", action="count", default=0, help="decrese detail information")
+    parser.add_argument("-c", "--conf", default="", help="load the config file in specific folder")
+    parser.add_argument('files', nargs='*', help="Gps or photo files to parse")
+    return parser.parse_args()
+
+def set_logging(verbose=0):
+    log_level = logging.DEBUG   if verbose >= 2 else \
+                logging.INFO    if verbose == 1 else \
+                logging.WARNING if verbose == 0 else \
+                logging.ERROR
+    logging.basicConfig(level=log_level,
+            format="%(asctime)s.%(msecs)03d [%(levelname)s] [%(module)s] %(message)s", datefmt="%H:%M:%S")
+
+__args = init_arguments()
+set_logging(__args.verbose - __args.quiet)
+
 import os
 import subprocess
 import tkinter as tk
@@ -7,8 +32,6 @@ import Pmw as pmw
 import shutil
 import tempfile
 import time
-import logging
-import argparse
 import platform
 import pytz
 import types
@@ -3081,28 +3104,12 @@ def getTitleText(files):
     return txt + "GisEditor"
 
 
-def init_arguments():
-    parser = argparse.ArgumentParser(description='ref https://github.com/dayanuyim/GisEditor')
-    parser.add_argument("-v", "--verbose", help="show detail information", action="count", default=0)
-    parser.add_argument("-c", "--conf", help="load the config file in specific folder", default="")
-    parser.add_argument('files', nargs='*', help="Gps or photo files to parse")
-    return parser.parse_args()
-
 if __name__ == '__main__':
-
-    __version = '0.27'
-    args = init_arguments()
-
-    if args.conf:
-        conf.change_conf_dir(args.conf)
-        logging.info('Change configure folder to ' + args.conf)
-
-    #init logging
-    log_level = logging.DEBUG if args.verbose >= 2 else logging.INFO if args.verbose == 1 else logging.WARNING
-    logging.basicConfig(level=log_level,
-            format="%(asctime)s.%(msecs)03d [%(levelname)s] [%(module)s] %(message)s", datefmt="%H:%M:%S")
-
     logging.info("Initialize GisEditor version " + __version);
+
+    if __args.conf:
+        conf.change_conf_dir(__args.conf)
+        logging.info('Change configure folder to ' + __args.conf)
 
     try:
         #create root
@@ -3114,7 +3121,7 @@ if __name__ == '__main__':
             #icon = ImageTk.PhotoImage(conf.EXE_ICON)
             #root.tk.call('wm', 'iconphoto', root._w, icon)
 
-        root.title(getTitleText(args.files))
+        root.title(getTitleText(__args.files))
         root.geometry('952x700+200+0')
         #root.geometry('256x256+500+500') #@@!
 
@@ -3126,7 +3133,7 @@ if __name__ == '__main__':
         root.protocol('WM_DELETE_WINDOW', lambda: onExit(root, disp_board))
 
         #add files
-        disp_board.addFiles(args.files)
+        disp_board.addFiles(__args.files)
 
         #show
         root.update()
