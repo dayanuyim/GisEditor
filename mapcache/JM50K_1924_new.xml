@@ -1,0 +1,10 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<customMapSource>
+    <name>1924-日治地形圖(陸地測量部)-1:50,000</name>
+    <minZoom>5</minZoom>
+    <maxZoom>16</maxZoom>
+    <tileType>png</tileType>
+    <tileUpdate>Academia Sinica WMTS</tileUpdate>
+    <url>http://gis.sinica.edu.tw/tileserver/file-exists.php?img=JM50K_1924_new-png-{$z}-{$x}-{$y}</url>
+    <backgroundColor>#000000</backgroundColor>
+</customMapSource>

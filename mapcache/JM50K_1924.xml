@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="UTF-8"?>
 <customMapSource>
-    <name>1924-日治地形圖(陸地測量部)-1:50,000</name>
+    <name>1924-old-日治地形圖(陸地測量部)-1:50,000</name>
     <minZoom>5</minZoom>
     <maxZoom>16</maxZoom>
     <tileType>jpg</tileType>

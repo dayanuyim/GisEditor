@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="UTF-8"?>
 <customMapSource>
-    <name>台北市104年版地形圖</name>
+    <name>臺北市地形圖2015</name>
     <minZoom>6</minZoom>
     <maxZoom>22</maxZoom>
     <tileType>png</tileType>
