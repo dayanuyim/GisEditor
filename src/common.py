@@ -34,6 +34,13 @@ def fmtPtTimeText(pt, tz=None):
     return "N/A" if time is None else \
             time.strftime("%Y-%m-%d %H:%M:%S")
 
+def __is_float(s):
+    try:
+        float(s)
+        return True
+    except:
+        return False
+
 __electric_pattern = re.compile('^[A-HJ-Z]\d{4}[A-H][A-E]\d{2}(\d{2})?$')
 
 # @ref_geo for 6-code coord
@@ -74,7 +81,7 @@ def textToGeo(txt, coord_sys, ref_geo=None):
     if len(pos) == 6 and pos.isdigit(): # six-digit-coord, without split
         n1, n2 = pos[0:3], pos[3:6]
     else:
-        n1, n2 = filter(None, re.split('[^\d\.]', pos)) #split by not 'digit' or '.'. Removing empty string.
+        n1, n2 = filter(__is_float, re.split('[^-\d\.]', pos)) #split by un-number chars, remove un-float literal
         n1, n2 = n1.strip(), n2.strip()
 
     #make geo according to the coordinate
