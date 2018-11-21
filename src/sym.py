@@ -89,7 +89,7 @@ class SymBoard(tk.Toplevel):
             self.selectSymWidget(None)
         else:
             val = conf._tosymkey(val)
-            w = self.__widgets.get(val)
+            w = self.__sym_widgets.get(val)
             self.selectSymWidget(w)
 
     @property
@@ -109,10 +109,9 @@ class SymBoard(tk.Toplevel):
         self.__bg_color = self.cget('bg')
         self.__ext_bg_color = 'gray'
         self.__hl_bg_color = 'lightblue'
-        self.__filter_bg_color = 'red'
         self.__sym = None
         self.__curr_widget = None
-        self.__widgets = {}
+        self.__sym_widgets = {}
         self.__pos = (0, 0)
 
         #board
@@ -125,6 +124,9 @@ class SymBoard(tk.Toplevel):
         all_syms = getSymNames()
         self.__app_syms = conf.APP_SYMS;
         self.__ext_syms = util.listdiff(all_syms, self.__app_syms)
+
+        self.__filter_frame = tk.Frame(self)
+        self.__filter_frame.pack(side="top", fill="both", expand=True)
 
         sn = 0
         for sym in self.__app_syms:
@@ -141,7 +143,7 @@ class SymBoard(tk.Toplevel):
         self.__var_filter = tk.StringVar()
         self.__var_filter.trace('w', self.onFilterSym)
         filter_entry = tk.Entry(self, textvariable=self.__var_filter)
-        filter_entry.grid(row=row, column=col+self.__col_sz-span, columnspan=span, sticky='news')
+        filter_entry.grid(in_=self.__filter_frame, row=row, column=col+self.__col_sz-span, columnspan=span, sticky='news')
 
         #hidden
         self.withdraw()  #for silent update
@@ -188,13 +190,13 @@ class SymBoard(tk.Toplevel):
         disp.image=icon
 
         row, col = self.toRowCol(sn)
-        disp.grid(row=row, column=col, sticky='we')
+        disp.grid(in_=self.__filter_frame, row=row, column=col, sticky='we')
         disp.bind('<Motion>', self.onMotion)
         disp.bind('<Button-1>', self.onClick)
 
         #save
         disp.sym = sym
-        self.__widgets[sym] = disp
+        self.__sym_widgets[sym] = disp
 
     def onMotion(self, e):
         self.selectSymWidget(e.widget)
@@ -203,11 +205,12 @@ class SymBoard(tk.Toplevel):
         #reet 
         self.sym = None
 
-        f = self.__var_filter.get().lower()
-        for w in self.children.values():
-            if hasattr(w, 'sym'):
-                sym = w.sym.lower()
-                w['bg'] = self.__filter_bg_color if f and f in sym else self.getWidgetsBgColor(w)
+        keyword = self.__var_filter.get().lower()
+        for sym, w in self.__sym_widgets.items():
+            if keyword in sym.lower():
+                w.lift(self.__filter_frame)
+            else:
+                w.lower(self.__filter_frame)
 
     def getWidgetsBgColor(self, widget):
         return self.__bg_color if widget.sym in self.__app_syms else self.__ext_bg_color
@@ -221,22 +224,19 @@ class SymBoard(tk.Toplevel):
 
     def unhighlight(self, widget):
         if widget is not None:
-            if widget['bg'] != self.__filter_bg_color:
-                widget['bg'] = self.getWidgetsBgColor(widget)
+            widget['bg'] = self.getWidgetsBgColor(widget)
 
     def highlight(self, widget):
-        if widget is not None:
-            if widget['bg'] != self.__filter_bg_color:
-                widget['bg'] = self.__hl_bg_color
-            desc = "中文"
-            author = getAuthor(widget.sym)
-
-            title = widget.sym
-            #if desc: title = "%s [%s]" % (title, desc)
-            if author: title = "%s - by %s" % (title, author)
-            self.title(title)
-        else:
+        if widget is None:
             self.title("")
+        else:
+            widget['bg'] = self.__hl_bg_color
+
+            #desc = "中文"
+            author = getAuthor(widget.sym)
+            title = "%s - by %s" % (widget.sym, author) if author else \
+                    widget.sym
+            self.title(title)
 
     def onClick(self, e):
         self.__sym = e.widget.sym
