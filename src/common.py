@@ -7,10 +7,25 @@ import re
 from src.util import GeoPoint
 from src.util import getLocTimezone
 from src.coord import CoordinateSystem
+import src.conf as conf
 
-def fmtPtPosText(pt, fmt='(%.3f, %.3f)'):
-    text = fmt % (pt.twd67_x/1000, pt.twd67_y/1000)
+def __fmtPtPosText(pt, coord, digits):
+    x, y = (pt.twd67_x/1000.0, pt.twd67_y/1000.0) if coord == 'twd67' else \
+           (pt.twd97_x/1000.0, pt.twd97_y/1000.0) if coord == 'twd97' else \
+           (pt.lat, pt.lon)
+    text = '{0:.{2}f}, {1:.{2}f}'.format(x, y, digits)
     return text
+
+def fmtPtPosText(pt):
+    return __fmtPtPosText(pt, conf.FMT_PT_POS_COORD, conf.FMT_PT_POS_DIGITS)
+
+def fmtPtPosCoord():
+    if conf.FMT_PT_POS_COORD == 'twd67':
+        return 'TWD67/TM2'
+    elif conf.FMT_PT_POS_COORD == 'twd97':
+        return 'TWD97/TM2'
+    else:
+        return 'Lat/Lon'
 
 def fmtPtEleText(pt, fmt="%.1f m"):
     if pt is not None and pt.ele is not None:

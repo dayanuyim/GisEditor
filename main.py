@@ -54,7 +54,7 @@ from src.pic import PicDocument
 from src.util import GeoPoint, DrawGuard, imageIsTransparent, bindMenuCmdAccelerator, bindMenuCheckAccelerator
 from src.util import AreaSelector, AreaSizeTooLarge, GeoInfo  #should move to ui.py
 from src.util import downloadAsTemp, drawTextBg, subgroup, isValidFloat
-from src.common import fmtPtPosText, fmtPtEleText, fmtPtTimeText, fmtPtTimezone, fmtPtLocaltime, textToGeo
+from src.common import fmtPtPosCoord, fmtPtPosText, fmtPtEleText, fmtPtTimeText, fmtPtTimezone, fmtPtLocaltime, textToGeo
 from src.tile import TileAgent, MapDescriptor
 from src.sym import askSym, toSymbol
 from src.raw import *
@@ -2347,7 +2347,7 @@ class WptBoard(tk.Toplevel):
         self._font = 'Arialuni 12'
         self._bold_font = 'Arialuni 12 bold'
         self._title_name = "Name"
-        self._title_pos = "TWD67/TM2"
+        self._title_pos = fmtPtPosCoord()
         self._title_ele = "Elevation"
         self._title_time = "Time"
         self._title_focus = "Focus"
@@ -2534,8 +2534,8 @@ class WptSingleBoard(WptBoard):
         pos_label = tk.Label(frame, font=bold_font, text=self._title_pos).grid(row=row, column=1, sticky='e')
         pos_entry = tk.Entry(frame, font=font, relief='flat', bg=frame['bg'], highlightthickness=2, highlightcolor='lightblue', textvariable=self._var_pos)
         pos_entry.bind('<KeyRelease>', self.__onPosKeyRelease)
-        pos_entry.bind('<FocusOut>', lambda e: self._var_pos.set(fmtPtPosText(self._curr_wpt, '(%.3f, %.3f)')))  #view
-        pos_entry.bind('<FocusIn>',  lambda e: self._var_pos.set(fmtPtPosText(self._curr_wpt, '%.3f, %.3f')))    #edit
+        pos_entry.bind('<FocusOut>', lambda e: self._var_pos.set("(%s)" % fmtPtPosText(self._curr_wpt)))  #view
+        pos_entry.bind('<FocusIn>',  lambda e: self._var_pos.set(fmtPtPosText(self._curr_wpt)))    #edit
         pos_entry.bind('<Return>',  lambda e: e.widget.master.focus())  #focus out
         pos_entry.grid(row=row, column=2, sticky='w')
 
@@ -2710,7 +2710,7 @@ class WptListBoard(WptBoard):
             name_label = tk.Label(frame, text=w.name, font=font, anchor='w')
             self.initWidget(name_label, row, 1)
 
-            pos_txt = fmtPtPosText(w, fmt='%.3f\n%.3f')
+            pos_txt = fmtPtPosText(w)
             pos_label = tk.Label(frame, text=pos_txt, font=font)
             self.initWidget(pos_label, row, 2)
 
@@ -2825,7 +2825,7 @@ class TrkSingleBoard(tk.Toplevel):
         pt_scroll = tk.Scrollbar(self, orient='vertical')
         pt_scroll.config(command=self.pt_list.yview)
         pt_scroll.pack(side='right', fill='y')
-        self.pt_list.config(selectmode='extended', yscrollcommand=pt_scroll.set, width=50, height=30)
+        self.pt_list.config(selectmode='extended', yscrollcommand=pt_scroll.set, width=52, height=30)
         self.pt_list.pack(side='bottom', anchor='nw', expand=1, fill='both')
         self.pt_list.bind('<ButtonRelease-1>', self.onTrkptSelected)
         self.pt_list.bind('<KeyRelease-Up>', self.onTrkptSelected)
@@ -3023,8 +3023,10 @@ class TrkSingleBoard(tk.Toplevel):
         if trk:
             tz = fmtPtTimezone(trk[0])  #optimize, prevent calculation for each pt 
             for sn, pt in enumerate(trk, 1):
-                txt = "#%04d  %s: %s, %s" % ( sn, fmtPtTimeText(pt, tz), fmtPtPosText(pt), fmtPtEleText(pt))
+                #0011 | 2015-11-03 11:22:33 | 257.122, 2691.081 | 1075.1m
+                txt = "#%04d | %s | %s | %s" % ( sn, fmtPtTimeText(pt, tz), fmtPtPosText(pt), fmtPtEleText(pt))
                 self.pt_list.insert('end', txt)
+
 
 
 def getAspectResize(img, size):

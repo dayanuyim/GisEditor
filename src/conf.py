@@ -221,6 +221,9 @@ TRK_WIDTH = __user_conf.getint('settings', 'trk_width', fallback=3)
 TRK_SET_FOCUS = __user_conf.getboolean('settings', 'trk_set_focus', fallback=True)
 WPT_SET_FOCUS = __user_conf.getboolean('settings', 'wpt_set_focus', fallback=True)
 
+FMT_PT_POS_COORD = __user_conf.get('settings', 'fmt_pt_pos_coord', fallback='twd67')
+FMT_PT_POS_DIGITS = __user_conf.getint('settings', 'fmt_pt_pos_digits', fallback=3)
+
 SELECT_AREA_X = __user_conf.getfloat('image', 'select_area_x', fallback=7.0)
 SELECT_AREA_Y = __user_conf.getfloat('image', 'select_area_y', fallback=5.0)
 SELECT_AREA_ALIGN = __user_conf.getboolean('image', 'select_area_align', fallback=True)
@@ -243,6 +246,8 @@ def writeUserConf():
     __user_conf["settings"]["trk_width"]      = "%d" % (TRK_WIDTH,)
     __user_conf["settings"]["trk_set_focus"]  = "%s" % ('True' if TRK_SET_FOCUS else 'False',)
     __user_conf["settings"]["wpt_set_focus"]  = "%s" % ('True' if WPT_SET_FOCUS else 'False',)
+    __user_conf["settings"]['fmt_pt_pos_coord'] = FMT_PT_POS_COORD
+    __user_conf["settings"]['fmt_pt_pos_digits'] = '%d' % FMT_PT_POS_DIGITS
 
     #image
     __user_conf["image"] = OrderedDict()

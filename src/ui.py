@@ -267,7 +267,7 @@ class EditBoard(Dialog):
             name_label.bind('<Motion>', on_motion)
             name_label.grid(row=row, column=1, sticky='news')
 
-            pos_txt = fmtPtPosText(w, fmt='%.3f\n%.3f')
+            pos_txt = fmtPtPosText(w)
             pos_label = tk.Label(frame, text=pos_txt, font=font)
             pos_label.bind('<Motion>', on_motion)
             pos_label.grid(row=row, column=2, sticky='news')
@@ -342,7 +342,7 @@ class ListEditBoard(Dialog):
             name_label.bind('<Motion>', on_motion)
             name_label.grid(row=row, column=1, sticky='news')
 
-            pos_txt = fmtPtPosText(w, fmt='%.3f\n%.3f')
+            pos_txt = fmtPtPosText(w)
             pos_label = tk.Label(frame, text=pos_txt, font=font)
             pos_label.bind('<Motion>', on_motion)
             pos_label.grid(row=row, column=2, sticky='news')
