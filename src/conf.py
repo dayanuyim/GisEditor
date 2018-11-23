@@ -104,6 +104,7 @@ def __defaultImgFont():
 
 
 def abspath(path, related_home):
+    path = os.path.expanduser(path)
     return path if os.path.isabs(path) else os.path.join(related_home, path)
 
 
