@@ -412,7 +412,7 @@ class SymRuleBoard(tk.Toplevel):
 
     @pos.setter
     def pos(self, val):
-        val = (0,0) if not val else getPrefCornerPos(self, val)
+        val = (0,0) if not val else util.getPrefCornerPos(self, val)
         self.geometry('+%d+%d' % val)
         self.__pos = val
 

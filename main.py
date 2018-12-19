@@ -48,16 +48,15 @@ import src.conf as conf
 import src.sym as sym
 import src.coord as coord
 import src.util as util
-from src.ui import MapSelectFrame
-from src.gpx import GpsDocument, WayPoint, TrackPoint
-from src.pic import PicDocument
-from src.util import GeoPoint, DrawGuard, imageIsTransparent, bindMenuCmdAccelerator, bindMenuCheckAccelerator
-from src.util import AreaSelector, AreaSizeTooLarge, GeoInfo  #should move to ui.py
+from src.raw import *
+from src.util import GeoPoint, GeoInfo, DrawGuard, imageIsTransparent, bindMenuCmdAccelerator, bindMenuCheckAccelerator
 from src.util import downloadAsTemp, drawTextBg, subgroup, isValidFloat
 from src.common import fmtPtPosCoord, fmtPtPosText, fmtPtEleText, fmtPtTimeText, fmtPtTimezone, fmtPtLocaltime, textToGeo
+from src.ui import MapSelectFrame, AreaSelector, AreaSizeTooLarge
+from src.gpx import GpsDocument, WayPoint, TrackPoint
+from src.pic import PicDocument
 from src.tile import TileAgent, MapDescriptor
 from src.sym import askSym, toSymbol
-from src.raw import *
 
 to_pixel = coord.TileSystem.getPixcelXYByTileXY
 to_tile = coord.TileSystem.getTileXYByPixcelXY

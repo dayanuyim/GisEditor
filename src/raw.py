@@ -80,7 +80,7 @@ gpsbabel_ext_fmt = {
     }
 
 app_syms = (
-    'Unknown',
+        'Unknown',
 	'Water Source',
 	'Waterfowl',
 	'Upland Game',
