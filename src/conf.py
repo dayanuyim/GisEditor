@@ -12,6 +12,7 @@ from collections import OrderedDict
 from matplotlib import font_manager
 
 import src.raw as raw  # default raw data
+from src.util import GeoPoint, textToGeo
 
 #constance util
 def _tosymkey(sym):
@@ -224,6 +225,8 @@ WPT_SET_FOCUS = __user_conf.getboolean('settings', 'wpt_set_focus', fallback=Tru
 FMT_PT_POS_COORD = __user_conf.get('settings', 'fmt_pt_pos_coord', fallback='twd67')
 FMT_PT_POS_DIGITS = __user_conf.getint('settings', 'fmt_pt_pos_digits', fallback=3)
 
+STARTUP_LOC = textToGeo(__user_conf.get('settings', 'startup_loc', fallback='(24.987969, 121.334754)'), 'TWD97LatLon')
+
 SELECT_AREA_X = __user_conf.getfloat('image', 'select_area_x', fallback=7.0)
 SELECT_AREA_Y = __user_conf.getfloat('image', 'select_area_y', fallback=5.0)
 SELECT_AREA_ALIGN = __user_conf.getboolean('image', 'select_area_align', fallback=True)
@@ -248,6 +251,7 @@ def writeUserConf():
     __user_conf["settings"]["wpt_set_focus"]  = "%s" % ('True' if WPT_SET_FOCUS else 'False',)
     __user_conf["settings"]['fmt_pt_pos_coord'] = FMT_PT_POS_COORD
     __user_conf["settings"]['fmt_pt_pos_digits'] = '%d' % FMT_PT_POS_DIGITS
+    __user_conf["settings"]['startup_loc'] = '(%f, %f)' % (STARTUP_LOC.lat, STARTUP_LOC.lon)
 
     #image
     __user_conf["image"] = OrderedDict()

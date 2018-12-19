@@ -49,9 +49,10 @@ import src.sym as sym
 import src.coord as coord
 import src.util as util
 from src.raw import *
-from src.util import GeoPoint, GeoInfo, DrawGuard, imageIsTransparent, bindMenuCmdAccelerator, bindMenuCheckAccelerator
-from src.util import downloadAsTemp, drawTextBg, subgroup, isValidFloat
-from src.common import fmtPtPosCoord, fmtPtPosText, fmtPtEleText, fmtPtTimeText, fmtPtTimezone, fmtPtLocaltime, textToGeo
+from src.util import GeoPoint, GeoInfo, textToGeo, DrawGuard, imageIsTransparent
+from src.util import bindMenuCmdAccelerator, bindMenuCheckAccelerator
+from src.util import downloadAsTemp, drawTextBg, subgroup
+from src.common import fmtPtPosCoord, fmtPtPosText, fmtPtEleText, fmtPtTimeText, fmtPtTimezone, fmtPtLocaltime
 from src.ui import MapSelectFrame, AreaSelector, AreaSizeTooLarge
 from src.gpx import GpsDocument, WayPoint, TrackPoint
 from src.pic import PicDocument
@@ -281,7 +282,6 @@ class MapBoard(tk.Frame):
         self.__alter_time = None
         self.__pref_dir = None
         self.__pref_geo = None
-        self.__some_geo = GeoPoint(lon=121.334754, lat=24.987969)
         self.__draw_trk_id = None
         self.__orig_title = None
         self.__left_click_pos = None
@@ -1214,7 +1214,7 @@ class MapBoard(tk.Frame):
         if e.widget == disp:
             if not hasattr(disp, 'image'):  #init
                 self.__pref_geo = self.__getPrefGeoPt()
-                geo = self.__pref_geo if self.__pref_geo is not None else self.__some_geo
+                geo = self.__pref_geo if self.__pref_geo is not None else conf.STARTUP_LOC
                 self.__setMapInfo(geo)
                 self.resetMap(geo)
             elif e.width != disp.image.width() or e.height != disp.image.height():
@@ -2979,11 +2979,9 @@ class TrkSingleBoard(tk.Toplevel):
             return
 
         #deleting sequential indexes, doing it one-by-one will take time!!
-        idx_groups = subgroup(idxes, lambda x,y: abs(x-y) <= 1)
-        idx_groups.reverse()
-        for grp in idx_groups:
-            first = grp[0]
-            last = grp[-1]
+        idx_groups = subgroup(sorted(idxes), lambda x,y: abs(x-y) <= 1)
+        for grp in reversed(idx_groups):
+            first, last = grp[0], grp[-1]
             logging.debug("delete trk points [%d,%d]" % (first, last))
             self.pt_list.delete(first, last)        #view
             del self._curr_trk[first : last + 1]    #data
