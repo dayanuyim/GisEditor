@@ -7,9 +7,9 @@ from PIL import Image, ExifTags
 from datetime import datetime
 import pytz
 #my
-from src.util import getLocTimezone
-from src.gpx import WayPoint
-import src.sym as sym
+from util import getLocTimezone
+from gpx import WayPoint
+import sym
 
 class PicDocument(WayPoint):
     @property

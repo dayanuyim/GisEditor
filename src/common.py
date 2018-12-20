@@ -3,9 +3,8 @@
 business-logic tools
 '''
 
-from src.util import GeoPoint
-from src.util import getLocTimezone
-import src.conf as conf
+from util import GeoPoint, getLocTimezone
+import conf
 
 def __fmtPtPosText(pt, coord, digits):
     x, y = (pt.twd67_x/1000.0, pt.twd67_y/1000.0) if coord == 'twd67' else \

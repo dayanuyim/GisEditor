@@ -20,8 +20,8 @@ import pytz
 from timezonefinder import TimezoneFinder
 
 #my modules
-from src.raw import *
-from src.coord import TileSystem, CoordinateSystem
+from raw import *
+from coord import TileSystem, CoordinateSystem
 
 def isValidFloat(txt):
     try:

@@ -22,10 +22,9 @@ from math import tan, sin, cos, radians, degrees
 from collections import OrderedDict
 from io import BytesIO
 
-import src.coord as coord
-import src.conf as conf
-import src.util as util
-from src.util import mkdirSafely, saveXml
+from util import mkdirSafely, saveXml
+import coord
+import conf
 
 to_pixel = coord.TileSystem.getPixcelXYByTileXY
 to_tile = coord.TileSystem.getTileXYByPixcelXY
@@ -91,7 +90,7 @@ class MapDescriptor:
         #write to file
         filename = id if id else self.map_id
         filepath = os.path.join(dirpath, filename) + ".xml"
-        util.saveXml(root, filepath)
+        saveXml(root, filepath)
 
     def clone(self):
         desc = MapDescriptor()

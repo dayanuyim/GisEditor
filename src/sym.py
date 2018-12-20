@@ -9,8 +9,8 @@ import Pmw as pmw
 from PIL import Image, ImageTk
 from math import ceil
 #my
-import src.conf as conf
-import src.util as util
+import util
+import conf
 
 # symbol icon ======================================
 def __splitSymFilename(fname):

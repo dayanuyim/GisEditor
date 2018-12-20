@@ -9,6 +9,17 @@ COORD_TEXT = 1
 COORD_KM = 2
 COORD_100M = 3
 
+class CoordSys:
+	TWD67 = 'TWD67'
+	TWD97 = 'TWD97'
+	Supporteds = [TWD67, TWD97]
+
+class CoordLine:
+	NONE = 0
+	TEXT = 1
+	KM = 2
+	TENTH_KM = 3
+
 trk_colors = ('White', 'Cyan', 'Magenta', 'Blue', 'Yellow', 'Green', 'Red',
                 'DarkGray', 'LightGray', 'DarkCyan', 'DarkMagenta', 'DarkBlue', 'DarkGreen', 'DarkRed', 'Black')
 

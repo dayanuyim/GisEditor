@@ -7,9 +7,9 @@ import logging
 from PIL import Image, ImageTk, ImageColor
 from tkinter import ttk, messagebox
 
-import src.conf as conf
-from src.util import rotateLeft, rotateRight, screentone, getPrefCornerPos
-from src.common import fmtPtPosText, fmtPtEleText, fmtPtTimeText
+from util import rotateLeft, rotateRight, screentone, getPrefCornerPos
+import conf
+from common import fmtPtPosText, fmtPtEleText, fmtPtTimeText
 
 class Dialog(tk.Toplevel):
     FOCUSOUT_NOOP = 0
