@@ -1,10 +1,9 @@
 #!/usr/bin/python3
 
-__version__ = '0.27'
-
 import os
 import sys
 import logging
+import traceback
 import subprocess
 import tkinter as tk
 import Pmw as pmw
@@ -23,7 +22,6 @@ from threading import Lock, Thread
 from collections import OrderedDict
 
 #my modules
-sys.path.append(os.path.dirname(__file__))
 import conf
 import sym
 import coord
@@ -32,6 +30,7 @@ from raw import *
 from util import GeoPoint, GeoInfo, textToGeo, DrawGuard, imageIsTransparent
 from util import bindMenuCmdAccelerator, bindMenuCheckAccelerator
 from util import downloadAsTemp, drawTextBg, subgroup
+from conf import CoordSys, CoordLine
 from common import fmtPtPosCoord, fmtPtPosText, fmtPtEleText, fmtPtTimeText, fmtPtTimezone, fmtPtLocaltime
 from ui import MapSelectFrame, AreaSelector, AreaSizeTooLarge
 from gpx import GpsDocument, WayPoint, TrackPoint
@@ -45,7 +44,7 @@ to_tile = coord.TileSystem.getTileXYByPixcelXY
 # TODO init from conf
 Options = types.SimpleNamespace(
     coordLineSys = None,
-    coordLineDensity = COORD_NONE,
+    coordLineDensity = CoordLine.NONE,
 )
 
 def showmsg(msg):
@@ -302,77 +301,88 @@ class MapBoard(tk.Frame):
 
         self.disp_canvas.bind('<Motion>', self.onMotion)
         self.disp_canvas.bind("<Button-1>", lambda e: self.onClickDown(e, 'left'))
-        self.disp_canvas.bind("<Button-2>" if platform.system() == "Darwin" else "<Button-3>",
-                lambda e: self.onClickDown(e, 'right'))
+
+        rclick = 2 if platform.system() == "Darwin" else 3
+        self.disp_canvas.bind("<Button-%d>" % rclick, lambda e: self.onClickDown(e, 'right'))
+        self.disp_canvas.bind("<Shift-Button-%d>" % rclick, lambda e: self.onClickDown(e, 'shift-right'))
 
         self.disp_canvas.bind("<Button1-Motion>", lambda e: self.onClickMotion(e, 'left'))
         self.disp_canvas.bind("<Button1-ButtonRelease>", lambda e: self.onClickUp(e, 'left'))
-        self.disp_canvas.bind("<Button3-ButtonRelease>", lambda e: self.onClickUp(e, 'right'))
         self.disp_canvas.bind("<Configure>", self.onResize)
 
         #right-click menu
-        self.__rclick_menu = tk.Menu(self.disp_canvas, tearoff=0)
-        self.__rclick_menu.add_command(label='Add Files', underline=0, command=self.onAddFiles)
-        self.__rclick_menu.add_separator()
-        self.__rclick_menu.add_command(label='Add wpt', command=self.onWptAdd)
-        '''
-        edit_wpt_menu = tk.Menu(self.__rclick_menu, tearoff=0)
-        edit_wpt_menu.add_command(label='Edit 1-by-1', underline=5, command=lambda:self.onEditWpt(mode='single'))
-        edit_wpt_menu.add_command(label='Edit in list', underline=5, command=lambda:self.onEditWpt(mode='list'))
-        self.__rclick_menu.add_cascade(label='Edit waypoints...', menu=edit_wpt_menu)
-        '''
-        bindMenuCmdAccelerator(self.master, '<Control-w>', self.__rclick_menu, 'Edit waypoints', lambda:self.onEditWpt(mode='single'))
-        self.__rclick_menu.add_command(label='Show waypoints list', underline=0, command=lambda:self.onEditWpt(mode='list'))
-
-        num_wpt_menu = tk.Menu(self.__rclick_menu, tearoff=0)
-        num_wpt_menu.add_command(label='By time order', command=lambda:self.onNumberWpt(time=1))
-        num_wpt_menu.add_command(label='By name order', command=lambda:self.onNumberWpt(name=1))
-        self.__rclick_menu.add_cascade(label='Numbering wpt...', menu=num_wpt_menu)
-        self.__rclick_menu.add_command(label='UnNumbering wpt', underline=0, command=self.onUnnumberWpt)
-        self.__rclick_menu.add_command(label='Toggle wpt name', underline=0, command=self.onToggleWptNmae)
-        self.__rclick_menu.add_command(label='Apply symbol rules', underline=0, command=self.onApplySymbolRule)
-        self.__rclick_menu.add_separator()
-        '''
-        edit_trk_menu = tk.Menu(self.__rclick_menu, tearoff=0)
-        edit_trk_menu.add_command(label='Edit 1-by-1', underline=5, command=lambda:self.onEditTrk(mode='single'))
-        edit_trk_menu.add_command(label='Edit in list', underline=5, command=lambda:self.onEditTrk(mode='list'))
-        self.__rclick_menu.add_cascade(label='Edit tracks...', menu=edit_trk_menu)
-        '''
-        bindMenuCmdAccelerator(self.master, '<Control-t>',
-                self.__rclick_menu, 'Edit tracks',
-                lambda:self.onEditTrk(mode='single'))
-
-        split_trk_menu = tk.Menu(self.__rclick_menu, tearoff=0)
-        split_trk_menu.add_command(label='By day', command=lambda:self.onSplitTrk(self.trkDiffDay))
-        split_trk_menu.add_command(label='By time gap', command=lambda:self.onSplitTrk(self.trkTimeGap))
-        split_trk_menu.add_command(label='By distance', command=lambda:self.onSplitTrk(self.trkDistGap))
-        self.__rclick_menu.add_cascade(label='Split tracks...', menu=split_trk_menu)
+        self.__rclick_menu = self.createRclickMenu()
+        self.__rclick_compl_menu = self.createRclickMenu(isComplete=True)
 
         # coordintate lines
-        self.master.bind("<Control-6>", lambda e: self.onCoordLine(TWD67))
-        self.master.bind("<Control-9>", lambda e: self.onCoordLine(TWD97))
-
-        # mode to draw trk
-        ck_var = bindMenuCheckAccelerator(self.master, '<F' + str(self.MODE_DRAW_TRK) + '>',
-                self.__rclick_menu, 'Draw tracks...',
-                lambda checked:self.__changeMode(self.MODE_DRAW_TRK if checked else self.MODE_NORMAL))
-        self.__menu_ck_vars.append(ck_var)
-
-        self.__rclick_menu.add_separator()
-
-        # mode to save image
-        bindMenuCmdAccelerator(self.master, '<F' + str(self.MODE_SAVE_IMG) + '>',
-                self.__rclick_menu, 'Save to image...',
-                lambda:self.__changeMode(self.MODE_SAVE_IMG))
-
-        # mode to save gpx
-        bindMenuCmdAccelerator(self.master, '<Control-s>',
-                self.__rclick_menu, 'Save to gpx...',
-                command=self.onGpxSave)
+        self.master.bind("<Control-6>", lambda e: self.onCoordLine(CoordSys.TWD67))
+        self.master.bind("<Control-9>", lambda e: self.onCoordLine(CoordSys.TWD97))
 
         #wpt menu
         self.__wpt_rclick_menu = tk.Menu(self.disp_canvas, tearoff=0)
         self.__wpt_rclick_menu.add_command(label='Delete Wpt', underline=0, command=self.onWptDeleted)
+    
+    def createRclickMenu(self, isComplete=False):
+        rclick_menu = tk.Menu(self.disp_canvas, tearoff=0)
+        rclick_menu.add_command(label='Add Files', underline=0, command=self.onAddFiles)
+        rclick_menu.add_separator()
+        rclick_menu.add_command(label='Add wpt', command=self.onWptAdd)
+        '''
+        edit_wpt_menu = tk.Menu(rclick_menu, tearoff=0)
+        edit_wpt_menu.add_command(label='Edit 1-by-1', underline=5, command=lambda:self.onEditWpt(mode='single'))
+        edit_wpt_menu.add_command(label='Edit in list', underline=5, command=lambda:self.onEditWpt(mode='list'))
+        rclick_menu.add_cascade(label='Edit waypoints...', menu=edit_wpt_menu)
+        '''
+        bindMenuCmdAccelerator(self.master, '<Control-w>', rclick_menu, 'Edit waypoints', lambda:self.onEditWpt(mode='single'))
+        rclick_menu.add_command(label='Show waypoints list', underline=0, command=lambda:self.onEditWpt(mode='list'))
+
+        num_wpt_menu = tk.Menu(rclick_menu, tearoff=0)
+        num_wpt_menu.add_command(label='By time order', command=lambda:self.onNumberWpt(time=1))
+        num_wpt_menu.add_command(label='By name order', command=lambda:self.onNumberWpt(name=1))
+        rclick_menu.add_cascade(label='Numbering wpt...', menu=num_wpt_menu)
+        rclick_menu.add_command(label='UnNumbering wpt', underline=0, command=self.onUnnumberWpt)
+        rclick_menu.add_command(label='Toggle wpt name', underline=0, command=self.onToggleWptNmae)
+        rclick_menu.add_command(label='Apply symbol rules', underline=0, command=self.onApplySymbolRule)
+        rclick_menu.add_separator()
+        '''
+        edit_trk_menu = tk.Menu(rclick_menu, tearoff=0)
+        edit_trk_menu.add_command(label='Edit 1-by-1', underline=5, command=lambda:self.onEditTrk(mode='single'))
+        edit_trk_menu.add_command(label='Edit in list', underline=5, command=lambda:self.onEditTrk(mode='list'))
+        rclick_menu.add_cascade(label='Edit tracks...', menu=edit_trk_menu)
+        '''
+        bindMenuCmdAccelerator(self.master, '<Control-t>',
+                rclick_menu, 'Edit tracks',
+                lambda:self.onEditTrk(mode='single'))
+
+        split_trk_menu = tk.Menu(rclick_menu, tearoff=0)
+        split_trk_menu.add_command(label='By day', command=lambda:self.onSplitTrk(self.trkDiffDay))
+        split_trk_menu.add_command(label='By time gap', command=lambda:self.onSplitTrk(self.trkTimeGap))
+        split_trk_menu.add_command(label='By distance', command=lambda:self.onSplitTrk(self.trkDistGap))
+        rclick_menu.add_cascade(label='Split tracks...', menu=split_trk_menu)
+
+        # mode to draw trk
+        ck_var = bindMenuCheckAccelerator(self.master, '<F%d>' % self.MODE_DRAW_TRK,
+                rclick_menu, 'Draw tracks...',
+                lambda checked:self.__changeMode(self.MODE_DRAW_TRK if checked else self.MODE_NORMAL))
+        self.__menu_ck_vars.append(ck_var)
+
+        rclick_menu.add_separator()
+
+        # mode to save image
+        bindMenuCmdAccelerator(self.master, '<F%d>' % self.MODE_SAVE_IMG,
+                rclick_menu, 'Save to image...',
+                lambda:self.__changeMode(self.MODE_SAVE_IMG))
+
+        # mode to save gpx
+        bindMenuCmdAccelerator(self.master, '<Control-s>',
+                rclick_menu, 'Save to gpx...',
+                command=self.onGpxSave)
+        
+        if isComplete:
+            rclick_menu.add_separator()
+            rclick_menu.add_command(label='Set Startup Location Here', underline=0, command=self.onStartupLocSet)
+
+        return rclick_menu
 
     def initMapInfo(self):
         font = 'Arialuni 12'
@@ -451,10 +461,14 @@ class MapBoard(tk.Frame):
         return frame
 
     # mode framework  =================================================
+    def __unpostMenus(self):
+        self.__rclick_menu.unpost()
+        self.__rclick_compl_menu.unpost()
+        self.__wpt_rclick_menu.unpost()
+
     def __leaveMode(self, mode):
         if mode == self.MODE_NORMAL:
-            self.__rclick_menu.unpost()
-            self.__wpt_rclick_menu.unpost()
+            self.__unpostMenus()
 
         elif mode == self.MODE_SAVE_IMG:
             if self.__canvas_sel_area is not None:
@@ -473,7 +487,7 @@ class MapBoard(tk.Frame):
 
     def __enterMode(self, mode):
         self.__orig_title = self.title
-        self.__mode = mode;
+        self.__mode = mode
 
         if mode == self.MODE_NORMAL:
             pass
@@ -488,7 +502,7 @@ class MapBoard(tk.Frame):
             self.master['cursor'] = 'pencil'
 
         else:
-            logging.critical("set to unknown mode '" + mdoe + "'")
+            logging.critical("set to unknown mode '" + mode + "'")
 
     def __changeMode(self, mode):
         if self.__mode != mode:
@@ -800,34 +814,33 @@ class MapBoard(tk.Frame):
 
     # click-related events ======================================
     def onClickDown(self, e, flag):
+        assert flag in { 'left', 'right', 'shift-left', 'shift-right' }
+
         #to grap key events
         e.widget.focus_set()
 
-        #bookkeeper
+        #pos/geo info
         pos = (e.x, e.y)
-        if flag == 'left':
-            self.__left_click_pos = pos
-        elif flag == 'right':
-            self.__right_click_pos = pos
-
-        #geo info
         geo = self.getGeoPointAt(e.x, e.y)
         self.__setMapInfo(geo)
 
-        if flag == 'right':
-            if self.__mode != self.MODE_SAVE_IMG:
+        if 'right' in flag:
+            self.__right_click_pos = pos  #bookkeeper
+
+            if self.__mode in {self.MODE_NORMAL, self.MODE_DRAW_TRK}:
                 wpt = self.__map_ctrl.getWptAround(geo)
                 if wpt is not None:
                     self.__wpt_rclick_menu.post(e.x_root, e.y_root)  #right menu for wpt
+                elif 'shift' in flag:
+                    self.__rclick_compl_menu.post(e.x_root, e.y_root)  #compete right menu
                 else:
                     self.__rclick_menu.post(e.x_root, e.y_root)  #right menu
+        else:
+            self.__left_click_pos = pos  #bookkeeper
+            self.__unpostMenus()         #clear right menu, anyway
 
-        elif flag == 'left':
-            #clear right menu, if any
-            self.__rclick_menu.unpost()
-            self.__wpt_rclick_menu.unpost()
             #if click on a wpt?
-            if self.__mode != self.MODE_SAVE_IMG:
+            if self.__mode == self.MODE_NORMAL:
                 wpt = self.__map_ctrl.getWptAround(geo)
                 if wpt is not None:
                     self.onEditWpt(mode='single', wpt=wpt)
@@ -847,7 +860,6 @@ class MapBoard(tk.Frame):
 
     def onClickUp(self, e, flag):
         # !not unset click pos, it may be used by later method, ex: onWptAdd()
-
         if flag == 'left':
             self.__onDragEnd()
 
@@ -888,13 +900,20 @@ class MapBoard(tk.Frame):
             showmsg('Add Files Error: %s' % (str(ex),))
 
     def onWptAdd(self):
-        if not self.__right_click_pos:
+        if self.__right_click_pos is None:
             showmsg('Create Wpt Error: Cannot get right click position')
             return
 
         wpt = self.genWpt(self.__right_click_pos)
         self.addWpt(wpt)
         self.setAlter('wpt')
+
+    def onStartupLocSet(self):
+        if self.__right_click_pos is None:
+            showmsg('Set Startup Location Error: Cannot get right click position')
+            return
+        conf.STARTUP_LOC = self.getGeoPointAt(*self.__right_click_pos)
+        conf.writeUserConf()
 
     def onTrkDelete(self, trk):
         self.deleteTrk(trk)
@@ -956,20 +975,20 @@ class MapBoard(tk.Frame):
     def onCoordLine(self, coord_sys):
         #the next coordline resolution
         def _next(density):
-            if density == COORD_NONE: return COORD_KM
-            if density == COORD_KM: return COORD_100M
-            if density == COORD_100M: return COORD_NONE
-            return COORD_NONE
+            if density == CoordLine.NONE: return CoordLine.KM
+            if density == CoordLine.KM: return CoordLine.TENTH_KM
+            if density == CoordLine.TENTH_KM: return CoordLine.NONE
+            return CoordLine.NONE
 
         # the same coordinate system with the next density
         if Options.coordLineSys == coord_sys:
             Options.coordLineDensity = _next(Options.coordLineDensity)
-            if Options.coordLineDensity == COORD_NONE:   #also disable coordinate system
+            if Options.coordLineDensity == CoordLine.NONE:   #also disable coordinate system
                 Options.coordLineSys = None
         # reset to new coordintate system
         else:
             Options.coordLineSys = coord_sys
-            Options.coordLineDensity = _next(COORD_NONE)
+            Options.coordLineDensity = _next(CoordLine.NONE)
 
         self.resetMap()
 
@@ -1273,7 +1292,7 @@ class MapBoard(tk.Frame):
         self.__setMap(self.__map)
 
         #debug
-        _end = datetime.now();
+        _end = datetime.now()
         _elapse = _end - _begin
         _elapse = _elapse.seconds + _elapse.microseconds/1000000
         logging.debug("RESET MAP [END], elapse: %.6fs. %s" % (_elapse, "*" * int(_elapse/0.2)))
@@ -1621,7 +1640,7 @@ class MapController:
         return None
 
     def getMap(self, width, height, force=None, geo=None, level=None, req_type="async", cb=None):
-        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: begin")
+        #logging.critical("[GenMap] begin")
         if geo is None: geo = self.geo
         if level is None: level = self.level
         px, py = geo.px(level), geo.py(level)
@@ -1630,12 +1649,12 @@ class MapController:
         req_attr = MapAttr(level, (px, py), (width, height), 0)
         map, attr = self.__genGpsMap(req_attr, force, req_type, cb)
 
-        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  crop map")
+        #logging.critical("[GenMap]   crop map")
         map = self.__genCropMap(map, attr, req_attr)
-        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  draw coord")
+        #logging.critical("[GenMap]   draw coord")
         self.__drawCoordValue(map, req_attr)
 
-        #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "gen map: done")
+        #logging.critical("[GenMap]   done")
         req_attr.fail_tiles = attr.fail_tiles
         return map, req_attr
 
@@ -1811,7 +1830,7 @@ class MapController:
 
     def __genGpsMap(self, req_attr, force=None, req_type="async", cb=None):
         if force not in ('all', 'gps', 'trk', 'wpt') and self.__isCacheValid(self.__cache_gpsmap, req_attr):
-            #print(datetime.strftime(datetime.now(), '%H:%M:%S.%f'), "  get gps map from cache")
+            #logging.critical("[GenMap]   get gps map from cache")
             return (self.__cache_gpsmap, self.__cache_attr)
 
         basemap, attr = self.__genBaseMap(req_attr, req_type, cb)
@@ -1966,10 +1985,8 @@ class MapController:
         bottom = top + dst_area.height
 
         bbox = (left, top, right, bottom)
-        if bbox == (0, 0) + map.size:
-            return map
-        else:
-            return map.crop(bbox)
+        # Notice: Anyway we need to return a copy whether croping or not.
+        return map.crop(bbox) #if (bbox != (0, 0) + map.size) else map
 
     @classmethod
     def __getCoordByPixel(cls, px, py, level, coord_sys):
@@ -2000,12 +2017,12 @@ class MapController:
 
         # attr from maps
         coord_syss = [desc.coord_sys for desc in self.__map_descs \
-                if desc.enabled and desc.coord_sys in SUPP_COORD_SYSTEMS]
+                if desc.enabled and desc.coord_sys in CoordSys.SUPPORTS]
         if coord_syss:
-            return (coord_syss[0], COORD_TEXT)
+            return (coord_syss[0], CoordLine.TEXT)
 
         # NA
-        return None, COORD_NONE
+        return None, CoordLine.NONE
 
 
     def __drawCoordValue(self, map, attr):
@@ -2052,11 +2069,11 @@ class MapController:
         left_x, up_y = geo_info.getCoordByPixel(attr.left_px, attr.up_py)
         right_x, low_y = geo_info.getCoordByPixel(attr.right_px, attr.low_py)
 
-        scale = 100 #if coord_density >= COORD_100M else 1000
+        scale = 100 #if coord_density >= CoordLine.TENTH_KM else 1000
 
         # xy for text
-        def toTxt10XY(px, py): return (px + 5, py - 20)
-        def toTxtXY(px, py):   return (px + 5, py - 20 + 4)
+        def toTxt10XY(px, py): return (px + 5, py - 21)
+        def toTxtXY(px, py):   return (px + 5, py - 16)
 
         # the functions depends on x or y
         def getPx(px, py): return px
@@ -2076,11 +2093,11 @@ class MapController:
                 py -= attr.up_py
                 p = pxl_fun(px, py) # selecting px or py by pxl_fun
 
-                if coord_density >= COORD_TEXT and pos % 10 == 0:
+                if coord_density >= CoordLine.TEXT and pos % 10 == 0:
                     text10.append( (toTxt10XY(px,py), str(int(pos/10))) )
-                if coord_density >= COORD_KM and pos % 10 == 0:
+                if coord_density >= CoordLine.KM and pos % 10 == 0:
                     line10.append(line_fun(p))
-                if coord_density >= COORD_100M:
+                if coord_density >= CoordLine.TENTH_KM:
                     if pos % 5 == 0:
                         line5.append(line_fun(p))
                     else:
@@ -3082,9 +3099,9 @@ def getTitleText(files):
         txt += "- "
     return txt + "GisEditor"
 
-
+# Entry Point ========================================
 def appMain(args):
-    logging.info("Initialize GisEditor version " + __version__)
+    logging.info("Initialize GisEditor version " + args.version)
 
     if args.conf:
         conf.change_conf_dir(args.conf)
@@ -3107,7 +3124,7 @@ def appMain(args):
         #create display board
         pad_ = 2
         disp_board = MapBoard(root)
-        disp_board.version = __version__
+        disp_board.version = args.version
         disp_board.pack(side='right', anchor='se', expand=1, fill='both', padx=pad_, pady=pad_)
         root.protocol('WM_DELETE_WINDOW', lambda: onExit(root, disp_board))
 
@@ -3119,6 +3136,6 @@ def appMain(args):
         root.deiconify()
         root.mainloop()
     except Exception as ex:
-        logging.error("Startup failed: %s" % str(ex,))
+        logging.error("Startup failed: %s" % traceback.format_exc())
         messagebox.showwarning('Startup failed', str(ex))
 

@@ -140,7 +140,7 @@ DEF_COLOR = "DarkMagenta"
 class CoordSys:
 	TWD67 = 'TWD67'
 	TWD97 = 'TWD97'
-	Supporteds = [TWD67, TWD97]
+	SUPPORTS = {TWD67, TWD97}
 
 class CoordLine:
 	NONE = 0

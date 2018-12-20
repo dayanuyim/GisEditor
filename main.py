@@ -12,7 +12,9 @@ def init_arguments():
     parser.add_argument("-q", "--quiet", action="count", default=0, help="decrese detail information")
     parser.add_argument("-c", "--conf", default="", help="load the config file in specific folder")
     parser.add_argument('files', nargs='*', help="Gps or photo files to parse")
-    return parser.parse_args()
+    args = parser.parse_args()
+    args.version = __version__  #set by manual
+    return args
 
 def set_logging(verbose=0):
     log_level = logging.DEBUG   if verbose >= 2 else \

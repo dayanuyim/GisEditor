@@ -148,21 +148,21 @@ def screentone(img):
     return img
 
 # Notice: 'accelerator string' may not a perfect guess, need more heuristic improvement
-def __guessAccelerator(event):
-    return event.strip('<>').replace('Control', 'Ctrl').replace('-', '+')
+def __inferAccelerator(hotkey):
+    return hotkey.strip('<>').replace('Control', 'Ctrl').replace('-', '+')
 
 # Bind widget's event and menu's accelerator
-def bindMenuCmdAccelerator(widget, event, menu, label, command):
-    widget.bind(event, lambda e: command())
-    menu.add_command(label=label, command=command, accelerator=__guessAccelerator(event))
+def bindMenuCmdAccelerator(widget, hotkey, menu, label, command):
+    widget.bind(hotkey, lambda e: command())
+    menu.add_command(label=label, command=command, accelerator=__inferAccelerator(hotkey))
 
 # @command: a function accept a boolean argument
 # @return: return the check variable
-def bindMenuCheckAccelerator(widget, event, menu, label, command):
+def bindMenuCheckAccelerator(widget, hotkey, menu, label, command):
     var = tk.BooleanVar()
 
     #keep variable
-    attrname = "accelerator_" + event
+    attrname = "accelerator_" + hotkey
     setattr(widget, attrname, var)
 
     def event_cb(e):
@@ -172,8 +172,8 @@ def bindMenuCheckAccelerator(widget, event, menu, label, command):
     def menu_cb():
         command(var.get())
 
-    widget.bind(event, event_cb)
-    menu.add_checkbutton(label=label, command=menu_cb, accelerator=__guessAccelerator(event),
+    widget.bind(hotkey, event_cb)
+    menu.add_checkbutton(label=label, command=menu_cb, accelerator=__inferAccelerator(hotkey),
             onvalue=True, offvalue=False, variable=var)
 
     return var
