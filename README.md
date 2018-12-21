@@ -1,3 +1,6 @@
+[![License: LGPL v3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)](http://www.gnu.org/licenses/lgpl-3.0)
+[![GitHub release](https://img.shields.io/github/release/dayanuyim/GisEditor.svg)](https://github.com/dayanuyim/GisEditor/releases)
+
 Map Adapter to WMTS
 ===================
 
@@ -5,13 +8,13 @@ Map Adapter to WMTS
 ----
 
 本軟體目的是在 Desktop (Windows/Linux) 上實作如 Anroid 上的 [OruxMaps][] 之地圖瀏覽軟體，可支援 [WMTS][wmts_wiki]用以瀏覽[經建三版地圖等其它台灣地圖][Sinica-WMTS]；並支援圖層功能，如[中研院線上百年地圖][Sinica-100y]。計有以下目標：
-  -  支援 WMTS (線上圖磚服務)
-  -  PC使用，至少支援 Windows 和 Linux
-  -  至少支援 GPX、GDB、圖檔(內嵌地理資訊之相片)等格式
-  -  簡易航點、航跡編輯
-  -  自動化功能：自動選擇航點圖示、分割航跡
-  -  航跡檔輸出 (GPX 格式)
-  -  地圖截圖輸出
+  -  [x] 支援 WMTS (線上圖磚服務)
+  -  [x] PC使用，至少支援 Windows 和 Linux
+  -  [x] 至少支援 GPX、GDB、圖檔(內嵌地理資訊之相片)等格式
+  -  [x] 簡易航點、航跡編輯
+  -  [x] 自動化功能：自動選擇航點圖示、分割航跡
+  -  [x] 航跡檔輸出 (GPX 格式)
+  -  [x] 地圖截圖輸出
 
 [wmts_wiki]: https://en.wikipedia.org/wiki/Web_Map_Tile_Service
 [OruxMaps]: http://www.oruxmaps.com/index.html
@@ -50,7 +53,6 @@ Map Adapter to WMTS
  [giseditor-0.23]: https://drive.google.com/file/d/0B7ryOauZNjlbVm8zRGZCemVPVGc/view?usp=sharing
  [giseditor-0.25]: https://drive.google.com/file/d/1S9pry2DPY2XI9wC80XC49-FgQeT6umwk/view?usp=sharing
  [giseditor-0.27]: https://drive.google.com/file/d/19ImwLU-vfoaouA_xMbgxxk1g0mHoaIyh/view?usp=sharing
-
 
 
 操作說明

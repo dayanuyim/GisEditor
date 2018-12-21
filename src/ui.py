@@ -4,11 +4,12 @@ import tkinter as tk
 import Pmw as pmw
 import platform
 import logging
-from PIL import ImageTk
+from PIL import Image, ImageTk, ImageColor
 from tkinter import ttk, messagebox
-from src.util import rotateLeft, rotateRight
-from src.common import fmtPtPosText, fmtPtEleText, fmtPtTimeText
-#from utile import MapDescriptor
+
+from util import rotateLeft, rotateRight, screentone, getPrefCornerPos
+import conf
+from common import fmtPtPosText, fmtPtEleText, fmtPtTimeText
 
 class Dialog(tk.Toplevel):
     FOCUSOUT_NOOP = 0
@@ -855,102 +856,6 @@ class MapSelectFrame(pmw.ScrolledFrame):
             self.__dst_splitor = dst_w
             self.__dst_splitor['bg'] = self.__dst_bg
 
-'''
-class MapSelectFrame(pmw.ScrolledFrame):
-    @property
-    def map_descriptors(self):
-        descs = []
-        for row in self.__rows:
-            descs.append(row.map_desc)
-        return descs
-
-    def __init__(self, master, map_descriptors):
-        super().__init__(master, usehullsize=1, hull_width=450, hull_height=600)
-
-        #event handlers
-        self.__on_enable_changed_handler = None
-        self.__on_alpha_changed_handler = None
-
-        #enabled maps are put at head
-        map_descriptors = sorted(map_descriptors, key=lambda desc:desc.enabled, reverse=True)
-
-        #create widgets
-        self.__rows = []
-        for desc in map_descriptors:
-            row = MapRow(self.interior(), desc, self.__onAlphaChanged, self.__onEnableChanged)
-            self.__rows.append(row)
-
-        self.__splitor = tk.Frame(self.interior(), bg='darkgray', height=10, border=1)
-
-        #show
-        self.__pack()
-
-    def setAlphaHandler(self, h):
-        self.__on_alpha_changed_handler = h
-
-    def setEnableHandler(self, h):
-        self.__on_enable_changed_handler = h
-
-    def __pack(self):
-        show_once = False
-
-        for row in self.__rows:
-            if not show_once and not row.map_desc.enabled:
-                self.__splitor.pack(side='top', anchor='nw', expand=1, fill='x')
-                show_once = True
-
-            row.pack(side='top', anchor='nw', expand=1, fill='x')
-
-    def __unpack(self):
-        self.__splitor.pack_forget()
-        for row in self.__rows:
-            row.pack_forget()
-
-    def __getFirstDisabledRow(self):
-        for row in self.__rows:
-            if not row.map_desc.enabled:
-                return row
-        return None
-
-    def __onEnableChanged(self, row, old_val):
-        #reorder
-        self.__rows.remove(row)
-        dst_row = self.__getFirstDisabledRow()
-        dst_idx = self.__rows.index(dst_row) if dst_row is not None else len(self.__rows)
-        self.__rows.insert(dst_idx, row)
-
-        #pack again
-        self.__unpack()
-        self.__pack()
-
-        if self.__on_enable_changed_handler is not None:
-            self.__on_enable_changed_handler(row.map_desc, old_val)
-
-    def __onAlphaChanged(self, row, old_val):
-        if self.__on_alpha_changed_handler is not None:
-            self.__on_alpha_changed_handler(row.map_desc, old_val)
-'''
-
-#Deprecated
-class MapSelectDialog(Dialog):
-
-    @property
-    def map_descriptors(self):
-        return self.__map_sel_frame.map_descriptors
-
-    def __init__(self, master, descs):
-        super().__init__(master)
-
-        self.__map_sel_frame = MapSelectFrame(self, descs)
-        self.__map_sel_frame.pack(side='top', anchor='nw', expand=0)
-
-    def setEnableHandler(self, h):
-        self.__map_sel_frame = enable_handler = h
-
-    def setAlphaHandler(self, h):
-        self.__map_sel_frame = alpha_handler = h
-        
-
 def testMapSelector():
     import os
     import sys
@@ -984,6 +889,530 @@ def testMapSelector():
         print(desc.map_id, desc.alpha, desc.enabled)
 
     root.mainloop()
+
+# Map Selector ==================================================
+
+# Why I have 2 Dialog classes ?!
+class Dialog2(tk.Toplevel):
+    def __init__(self, master):
+        super().__init__(master)
+        self._result = 'Unknown' #need subclass to set
+
+        self.title('')
+        self.resizable(0, 0)
+        self.bind('<Escape>', lambda e: self.exit())
+        self.protocol('WM_DELETE_WINDOW', self.exit)
+
+        self.withdraw()  #for silent update
+        self.visible = tk.BooleanVar(value=False)
+
+        #update window size
+        self.update()
+
+    def exit(self):
+        self.master.focus_set()
+        self.grab_release()
+        self.destroy()
+        self.visible.set(False)
+
+    def show(self, pos=None):
+        self.setPos(pos)
+
+        #UI
+        self.transient(self.master)  #remove max/min buttons
+        self.focus_set()  #prevent key-press sent back to parent
+
+        self.deiconify() #show
+        self.visible.set(True)
+
+        self.grab_set()   #disalbe interact of parent
+        self.master.wait_variable(self.visible)
+
+        return self._result
+
+    def setPos(self, pos):
+        pos = (0,0) if pos is None else getPrefCornerPos(self, pos)
+        self.geometry('+%d+%d' % pos)
+
+
+class AreaSelectorSettings(Dialog2):
+    def __init__(self, master, disableds=[]):
+        super().__init__(master)
+
+        self.__size_widgets = []
+
+        #settings by conf
+        self.var_level = tk.IntVar(value=conf.SELECT_AREA_LEVEL)
+        self.var_align = tk.BooleanVar(value=conf.SELECT_AREA_ALIGN)
+        self.var_fixed = tk.BooleanVar(value=conf.SELECT_AREA_FIXED)
+        self.var_w = tk.DoubleVar(value=conf.SELECT_AREA_X)
+        self.var_h = tk.DoubleVar(value=conf.SELECT_AREA_Y)
+
+        #level
+        row = 0
+        f = tk.Frame(self)
+        f.grid(row=row, column=0, sticky='w')
+        tk.Label(f, text='precision: level', anchor='e').pack(side='left', expand=1, fill='both')
+        tk.Spinbox(f, from_=conf.MIN_SUPP_LEVEL, to=conf.MAX_SUPP_LEVEL, width=2, textvariable=self.var_level)\
+                .pack(side='left', expand=1, fill='both')
+
+        #align
+        row += 1
+        f = tk.Frame(self)
+        f.grid(row=row, column=0, sticky='w')
+        tk.Checkbutton(f, text='Align grid', variable=self.var_align,
+                     state='disabled' if 'align' in disableds else 'normal') \
+                .pack(side='left', expand=1, fill='both')
+
+        #fixed
+        row += 1
+        def checkSizeWidgets():
+            for w in self.__size_widgets:
+                s = 'normal' if self.var_fixed.get() else 'disabled'
+                w.config(state=s)
+        f = tk.Frame(self)
+        f.grid(row=row, column=0, sticky='w')
+        tk.Checkbutton(f, text='Fixed size (KM)', variable=self.var_fixed, command=checkSizeWidgets)\
+                .pack(side='left', expand=1, fill='both')
+
+        #size
+        w = tk.Entry(f, textvariable=self.var_w, width=5)
+        w.pack(side='left', expand=1, fill='both')
+        self.__size_widgets.append(w)
+
+        w = tk.Label(f, text='X')
+        w.pack(side='left', expand=1, fill='both')
+        self.__size_widgets.append(w)
+
+        w = tk.Entry(f, textvariable=self.var_h, width=5)
+        w.pack(side='left', expand=1, fill='both')
+        self.__size_widgets.append(w)
+
+        #init run
+        checkSizeWidgets()
+
+    #override
+    def exit(self):
+        if self.isModified():
+            self.saveSettings()
+            self._result = 'OK'
+        else:
+            self._result = 'Cancel'
+        super().exit()
+
+    def isModified(self):
+        return conf.SELECT_AREA_LEVEL != self.var_level.get() or\
+               conf.SELECT_AREA_ALIGN != self.var_align.get() or\
+               conf.SELECT_AREA_FIXED != self.var_fixed.get() or\
+               conf.SELECT_AREA_X != self.var_w.get() or\
+               conf.SELECT_AREA_Y != self.var_h.get()
+
+    def saveSettings(self):
+        conf.SELECT_AREA_LEVEL = self.var_level.get()
+        conf.SELECT_AREA_ALIGN = self.var_align.get()
+        conf.SELECT_AREA_FIXED = self.var_fixed.get()
+        conf.SELECT_AREA_X = self.var_w.get()
+        conf.SELECT_AREA_Y = self.var_h.get()
+        conf.writeUserConf()
+
+def bindCanvasDragEvents(canvas, item, cb, cursor='', enter_cb=None, leave_cb=None, release_cb=None):
+    def setCursor(c):
+        canvas['cursor'] = c
+    def onClick(e):
+        canvas.__canvas_mpos = (e.x, e.y)
+    def onClickRelease(e):
+        canvas.__canvas_mpos = None
+        if release_cb:
+            release_cb(e)
+    def onClickMotion(e):
+        x, y = canvas.__canvas_mpos
+        dx, dy = e.x-x, e.y-y
+        canvas.__canvas_mpos = (e.x, e.y)
+        cb(e, dx, dy)
+
+    if enter_cb is None: enter_cb = lambda e: setCursor(cursor)
+    if leave_cb is None: leave_cb = lambda e: setCursor('')
+
+    canvas.tag_bind(item, "<Enter>", enter_cb)
+    canvas.tag_bind(item, "<Leave>", leave_cb)
+    canvas.tag_bind(item, "<Button-1>", onClick)
+    canvas.tag_bind(item, "<Button1-ButtonRelease>", onClickRelease)
+    canvas.tag_bind(item, "<Button1-Motion>", onClickMotion)
+
+def unbindCanvasDragEvents(canvas, item):
+    canvas.tag_unbind(item, "<Enter>")
+    canvas.tag_unbind(item, "<Leave>")
+    canvas.tag_unbind(item, "<Button-1>")
+    canvas.tag_unbind(item, "<Button1-ButtonRelease>")
+    canvas.tag_unbind(item, "<Button1-Motion>")
+
+#if 'autorepeat' is enabled, KeyRelease will be triggered even if the key is NOT physically released.
+#using timer to trigger the release event only if we think the key is actually released.
+def bindWidgetKeyMoveEvents(w, cb=None, ctrl_cb=None, shift_cb=None, release_cb=None, release_delay=0.3):
+    def onKeyPress(cb_, e, dx, dy):
+        if release_cb:
+            #cancel the recent release event, if press time is closed to relase time
+            if w.__move_key_release_timer and (e.time - w.__move_key_release_time)/1000 < release_delay:
+                w.__move_key_release_timer.cancel()
+
+        cb_(e, dx, dy)
+
+    def onKeyRelease(e):
+        w.__move_key_release_time = e.time
+        w.__move_key_release_timer = Timer(release_delay, release_cb, (e,))
+        w.__move_key_release_timer.start()
+
+    if cb:
+        w.bind('<Up>', lambda e: onKeyPress(cb, e, 0, -1))
+        w.bind('<Down>', lambda e: onKeyPress(cb, e, 0, 1))
+        w.bind('<Left>', lambda e: onKeyPress(cb, e, -1, 0))
+        w.bind('<Right>', lambda e: onKeyPress(cb, e, 1, 0))
+
+    if ctrl_cb:
+        w.bind('<Control-Up>', lambda e: onKeyPress(ctrl_cb, e, 0, -1))
+        w.bind('<Control-Down>', lambda e: onKeyPress(ctrl_cb, e, 0, 1))
+        w.bind('<Control-Left>', lambda e: onKeyPress(ctrl_cb, e, -1, 0))
+        w.bind('<Control-Right>', lambda e: onKeyPress(ctrl_cb, e, 1, 0))
+
+    if shift_cb:
+        w.bind('<Shift-Up>', lambda e: onKeyPress(shift_cb, e, 0, -1))
+        w.bind('<Shift-Down>', lambda e: onKeyPress(shift_cb, e, 0, 1))
+        w.bind('<Shift-Left>', lambda e: onKeyPress(shift_cb, e, -1, 0))
+        w.bind('<Shift-Right>', lambda e: onKeyPress(shift_cb, e, 1, 0))
+
+    if release_cb:
+        w.__move_key_release_timer = None
+        w.__move_key_release_time = 0
+        w.bind('<KeyRelease-Up>', onKeyRelease)
+        w.bind('<KeyRelease-Down>', onKeyRelease)
+        w.bind('<KeyRelease-Left>', onKeyRelease)
+        w.bind('<KeyRelease-Right>', onKeyRelease)
+
+class AreaSizeTooLarge(Exception):
+    pass
+
+class AreaSelector:
+    @property
+    def size(self):
+        return self.__cv_panel_img.width(), self.__cv_panel_img.height()
+
+    @property
+    def pos(self):
+        if self.__done.get():
+            return self.__last_pos
+        else:
+            return self.__getpos()
+
+    def __init__(self, canvas, geo_info):
+        self.__canvas = canvas
+        self.__geo_info = geo_info
+        self.__button_side = 20
+        self.__resizer_side = 15
+        self.__done = tk.BooleanVar(value=False)
+        self.__state = None
+        self.__last_pos = None
+        self.__except = None
+        self.__panel_color = 'yellow'
+
+        canvas_w = canvas.winfo_width()
+        canvas_h = canvas.winfo_height()
+
+        #size
+        size = self.getFixedSize()
+        if size is None:
+            size = (round(canvas_w/2), round(canvas_h/2))
+        w, h = size
+        #pos
+        pos = (round((canvas_w-w)/2), round((canvas_h-h)/2))
+
+        #ceate items
+        self.makeAreaPanel(pos, size)
+        self.makeAreaBorders(pos, size)
+        self.genOKButton()
+        self.genCancelButton()
+        self.genSettingButton()
+
+        #apply
+        try:
+            self.applySettings()
+        except AreaSizeTooLarge as ex:
+            self.exit()
+            raise ex
+
+    #{{ interface
+    def wait(self, parent):
+        parent.wait_variable(self.__done)
+        if self.__except:
+            raise self.__except
+        return self.__state
+
+    def exit(self):
+        if self.__done.get():
+            return
+        #rec the last pos
+        self.__last_pos = self.__getpos()
+        #delete item
+        self.__canvas.delete('AS')  #delete objects of 'AreaSelector'
+        self.__canvas['cursor'] = ''
+        self.__done.set(True)
+
+    #}} interface
+
+
+    #{{ canvas items
+    def makeAreaPanel(self, pos, size):
+        self.__makeAreaPanel('panel', pos, size)
+
+    def __makeAreaPanel(self, name, pos, size):
+        #if exist and the same
+        item = self.__canvas.find_withtag(name)
+        if item and self.size == size:
+            dx = pos[0] - self.pos[0]
+            dy = pos[1] - self.pos[1]
+            self.__canvas.move(name, dx, dy)
+            return
+        self.__canvas.delete(name)
+        self.__genPanel(name, pos, size)
+
+
+    def __genPanel(self, name, pos, size):
+        #area img
+        w = max(1, size[0])
+        h = max(1, size[1])
+
+        if platform.system() == "Darwin":
+            img = Image.new('RGBA', (w,h), self.__panel_color)
+            img = screentone(img)  # experimental: workaround for drawing alpha on MAC
+        else:
+            color = ImageColor.getrgb(self.__panel_color) + (96,) #transparent
+            img = Image.new('RGBA', (w,h), color)
+        img = ImageTk.PhotoImage(img) #to photo image
+
+        #area item
+        item = self.__canvas.create_image(pos, image=img, anchor='nw', tag=('AS',name))
+        #bind
+        bindCanvasDragEvents(self.__canvas, item, self.onMove, cursor='hand2',
+            release_cb=lambda e: self.adjustPos())
+        bindWidgetKeyMoveEvents(self.__canvas, self.onMove,
+            lambda e, dx, dy: self.onResize('ctrl-arrow', e, dx, dy),
+            lambda e, dx, dy: self.onResize('shift-arrow', e, dx, dy),
+            lambda e: self.adjustPos())
+        #side effect to keep ref
+        self.__cv_panel_img = img
+
+    def makeAreaBorders(self, pos, size):
+        gpname = 'border'
+        x, y = pos
+        w, h = size
+        #gen
+        self.__makeBorder(gpname, 'top',    (x,y,x+w,y))
+        self.__makeBorder(gpname, 'bottom', (x,y+h,x+w,y+h))
+        self.__makeBorder(gpname, 'left',   (x,y,x,y+h))
+        self.__makeBorder(gpname, 'right',  (x+w,y,x+w,y+h))
+
+    def __makeBorder(self, gpname, name, coords):
+        #if exist and the same
+        item = self.__canvas.find_withtag(name)
+        if item:
+            orig_coords = self.__canvas.coords(item)
+            if equalsLine(orig_coords, coords):
+                #print("resizing border '%s' by moving" % (name,))
+                dx = coords[0] - orig_coords[0]
+                dy = coords[1] - orig_coords[1]
+                self.__canvas.move(item, dx, dy) #just move
+                return
+
+        self.__canvas.delete(name)   #delete old
+        self.__genBorder(gpname, name, coords)  #gen new
+
+    def __genBorder(self, gpname, name, coords):
+        color = self.__panel_color
+        cursor = name + '_side'
+
+        def onBorderEnter(e):
+            if not conf.SELECT_AREA_FIXED:
+                self.__canvas['cursor'] = cursor
+
+        def onBorderLeave(e):
+            if not conf.SELECT_AREA_FIXED:
+                self.__canvas['cursor'] = ''
+
+        border = self.__canvas.create_line(coords, width=2, fill=color, tag=('AS', gpname, name))
+        bindCanvasDragEvents(self.__canvas, border,
+            lambda e, dx, dy: self.onResize(name, e, dx, dy),
+            enter_cb=onBorderEnter,
+            leave_cb=onBorderLeave,
+            release_cb=lambda e: self.adjustPos())
+
+    def genOKButton(self, order=1):
+        n = self.__button_side
+        x = self.pos[0] + self.size[0] - self.__button_side*order #x of upper-left
+        y = self.pos[1]  #y of upper-left
+        item = self.__canvas.create_oval(x, y, x+n, y+n, fill='green', activefill='lime green', tag=('AS','button', 'ok'))
+        self.__canvas.tag_bind(item, "<Button-1>", self.onOkClick)
+
+    def genCancelButton(self, order=2):
+        n = int(self.__button_side/4)
+        x = self.pos[0] + self.size[0] - self.__button_side*order + 2*n  #x of center
+        y = self.pos[1] + 2*n #y of center
+        cross = ((0,n), (n,2*n), (2*n,n), (n,0), (2*n,-n), (n,-2*n), (0,-n), (-n,-2*n), (-2*n,-n), (-n,0), (-2*n,n), (-n, 2*n))
+        cancel_cross = []
+        for pt in cross:
+            cancel_cross.append((pt[0]+x, pt[1]+y))
+        item = self.__canvas.create_polygon(cancel_cross, fill='red3', activefill='red', tag=('AS','button', 'cancel'))
+        self.__canvas.tag_bind(item, "<Button-1>", self.onCancelClick)
+
+    def genSettingButton(self, order=3):
+        n = int(self.__button_side/2)
+        x = self.pos[0] + self.size[0] - self.__button_side*order + n  #x of center
+        y = self.pos[1] + n #y of center
+        item = self.__canvas.create_text(x, y, text='S', font= 'Arialuni 16 bold', fill='gray25', activefill='gray40',
+                tag=('AS','button', 'setting'))
+        self.__canvas.tag_bind(item, "<Button-1>", self.onSettingClick)
+
+    def genResizer(self):
+        n = self.__resizer_side
+        x = self.pos[0] + self.size[0]
+        y = self.pos[1] + self.size[1]
+        rect_triangle = (x, y, x-n, y, x, y-n)
+        resizer = self.__canvas.create_polygon(rect_triangle, fill='green', activefill='lime', tag=('AS','resizer'))
+
+        on_resize = lambda e, dx, dy: self.onResize('resizer', e, dx, dy)
+        bindCanvasDragEvents(self.__canvas, resizer, on_resize, 'bottom_right_corner')
+    #}}
+
+    #{{ internal operations
+    def __getpos(self):
+        panel = self.__canvas.find_withtag('panel')
+        x, y = self.__canvas.coords(panel)
+        return int(x), int(y)
+
+    def move(self, dx, dy):
+        self.__canvas.move('AS', dx, dy)
+
+    def lift(self):
+        self.__canvas.tag_raise('button')
+        self.__canvas.tag_raise('resizer')
+
+    def adjustPos(self):
+        if conf.SELECT_AREA_ALIGN:
+            try:
+                grid_pt = self.__geo_info.getNearbyGridPoint(self.pos)
+                if grid_pt is not None:
+                    grid_x, grid_y = grid_pt
+                    dx = grid_x - self.pos[0]
+                    dy = grid_y - self.pos[1]
+                    self.move(dx, dy)
+            except Exception as ex:
+                messagebox.showwarning("Adjust pos error", str(ex))
+
+    def applySettings(self):
+        self.scaleGeo()
+        self.adjustPos()
+        self.checkResizer()
+
+    def scaleGeo(self):
+        sz = self.getFixedSize()
+        if sz is not None:
+            #chck size
+            w, h = sz
+            if w > self.__canvas.winfo_width() and h > self.__canvas.winfo_height():
+                raise AreaSizeTooLarge("The specified size is too large")
+            #pos
+            pos = max(0, self.pos[0]), max(0, self.pos[1]) #avoid no seeing after resize
+            #resize
+            self.resize(sz, pos)
+
+    def getFixedSize(self):
+        if conf.SELECT_AREA_FIXED:
+            w = self.__geo_info.toPixelLength(conf.SELECT_AREA_X)
+            h = self.__geo_info.toPixelLength(conf.SELECT_AREA_Y)
+            return w, h
+        return None
+
+    def resize(self, size, pos=None):
+        if self.size == size or \
+           size[0] <= self.__button_side*len(self.__canvas.find_withtag('button')) or \
+           size[1] <= self.__button_side+self.__resizer_side:
+            return
+        #bookkeeper
+        orig_pos = self.pos
+        orig_size = self.size
+        if pos is None:
+            pos = orig_pos
+        dx = pos[0]-orig_pos[0]
+        dy = pos[1]-orig_pos[1]
+        dw = size[0]-orig_size[0]
+        dh = size[1]-orig_size[1]
+        #resize panel/borders
+        self.makeAreaPanel(pos, size)
+        self.makeAreaBorders(pos, size)
+        #re-locate others
+        self.__canvas.move('button', dx+dw, dy)
+        self.__canvas.move('resizer', dx+dw, dy+dh)
+        self.lift()
+
+    def checkResizer(self):
+        resizer = self.__canvas.find_withtag('resizer')
+        if conf.SELECT_AREA_FIXED:
+            if resizer:
+                self.__canvas.delete(resizer)
+        else:
+            if not resizer:
+                self.genResizer()
+
+
+    #}} general operations
+
+    #{{ events
+    def onOkClick(self, e=None):
+        self.__state = 'OK'
+        self.exit()
+
+    def onCancelClick(self, e=None):
+        self.__state = 'Cancel'
+        self.exit()
+
+    def onSettingClick(self, e):
+        def isAlignSupport():
+            return self.__geo_info.getNearbyGridPoint((0,0)) is not None
+
+        setting = AreaSelectorSettings(self.__canvas, disableds=['align']) if not isAlignSupport() else \
+                  AreaSelectorSettings(self.__canvas)
+        if setting.show((e.x_root, e.y_root)) == 'OK':
+            try:
+                self.applySettings()
+            except AreaSizeTooLarge as ex:
+                self.__except = ex
+                self.exit()
+
+    def onMove(self, e, dx, dy):
+        self.move(dx, dy)
+
+    def onResize(self, name, e, dx, dy):
+        if not conf.SELECT_AREA_FIXED:
+            SHIFT, CTRL = 1, 4
+
+            x, y = self.pos
+            w, h = self.size
+            if e.state & SHIFT:  #reverse direction
+                dx, dy = -dx, -dy
+
+            if name == 'top' or e.keysym == 'Up':
+                self.resize((w,h-dy), (x,y+dy))
+            elif name == 'bottom' or e.keysym == 'Down':
+                self.resize((w,h+dy))
+            elif name == 'left' or e.keysym == 'Left':
+                self.resize((w-dx,h), (x+dx,y))
+            elif name == 'right' or e.keysym == 'Right':
+                self.resize((w+dx,h))
+            elif name == 'resizer':
+                self.resize((w+dx,h+dy))
+            else:
+                raise ValueError("Unknown border '%s' to resize" % (name_,))
+
+    #}}
+
 
 if __name__ == '__main__':
 

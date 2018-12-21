@@ -1,9 +1,9 @@
-# coord system
+# TODO Deprecated - Move to conf
 TWD67 = 'TWD67'
 TWD97 = 'TWD97'
 SUPP_COORD_SYSTEMS = [TWD67, TWD97]
 
-# TODO enum class
+# TODO Deprecated - Move to conf
 COORD_NONE = 0
 COORD_TEXT = 1
 COORD_KM = 2
@@ -81,7 +81,7 @@ gpsbabel_ext_fmt = {
 
 app_syms = (
     'Unknown',
-	'Water Source',
+   	'Water Source',
 	'Waterfowl',
 	'Upland Game',
 	'Truck',

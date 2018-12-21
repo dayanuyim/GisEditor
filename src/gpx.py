@@ -4,14 +4,13 @@
 
 import os
 import logging
-import src.util as util
 import pytz
 from xml.etree import ElementTree as ET
 from datetime import datetime
 from PIL import Image
 import xml.dom.minidom
-from src.coord import TileSystem
-from src.util import GeoPoint
+from util import GeoPoint, saveXml
+from coord import TileSystem
 
 class GpsDocument:
     @property
@@ -211,7 +210,7 @@ class GpsDocument:
         self.subWptElement(gpx)
         self.subTrkElement(gpx)
 
-        util.saveXml(gpx, path)
+        saveXml(gpx, path)
 
     def genRootElement(self):
         gpx = ET.Element('gpx')

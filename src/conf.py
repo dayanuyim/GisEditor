@@ -11,7 +11,8 @@ from configparser import ConfigParser
 from collections import OrderedDict
 from matplotlib import font_manager
 
-import src.raw as raw  # default raw data
+import raw  # default raw data
+from util import GeoPoint
 
 #constance util
 def _tosymkey(sym):
@@ -138,12 +139,25 @@ MAP_UPDATE_PERIOD = timedelta(seconds=1)
 
 DEF_COLOR = "DarkMagenta"
 
-def __dup_conf_file(from_conf, to_dir):
-    dup_conf = os.path.join(to_dir, os.path.basename(from_conf))
+class CoordSys:
+	TWD67 = 'TWD67'
+	TWD97 = 'TWD97'
+	SUPPORTS = {TWD67, TWD97}
 
-    if os.path.exists(from_conf) and not os.path.exists(dup_conf):
-        shutil.copyfile(from_conf, dup_conf)
+class CoordLine:
+	NONE = 0
+	TEXT = 1
+	KM = 2
+	TENTH_KM = 3
 
+# Relocate conf ###########################################
+
+def __relocate_conf(conf, new_dir):
+    os.makedirs(new_dir, exist_ok=True)
+
+    dup_conf = os.path.join(new_dir, os.path.basename(conf))
+    if os.path.exists(conf) and not os.path.exists(dup_conf):
+        shutil.copyfile(conf, dup_conf)
     return dup_conf
 
 #make local conf by system conf
@@ -154,19 +168,12 @@ def change_conf_dir(conf_dir):
     global __USER_CONF
     global SYM_RULE_CONF
 
-    os.makedirs(conf_dir, exist_ok=True)
-
-    #copy 
-    app_conf = __dup_conf_file(__APP_CONF, conf_dir)
-    user_conf = __dup_conf_file(__USER_CONF, conf_dir)
-    sym_rule_conf = __dup_conf_file(SYM_RULE_CONF, conf_dir)
-
-    #assign after copy is ok
+    __APP_CONF = __relocate_conf(__APP_CONF, conf_dir)
+    __USER_CONF = __relocate_conf(__USER_CONF, conf_dir)
+    SYM_RULE_CONF = __relocate_conf(SYM_RULE_CONF, conf_dir)
     __CONF_DIR = conf_dir
-    __APP_CONF = app_conf
-    __USER_CONF = user_conf
-    SYM_RULE_CONF = sym_rule_conf
 
+# TODO Is it OK to put the policy code HERE?
 change_conf_dir(os.path.expanduser('~/.config/giseditor'))
 
 # App conf ###########################################
@@ -226,6 +233,8 @@ WPT_SET_FOCUS = __user_conf.getboolean('settings', 'wpt_set_focus', fallback=Tru
 FMT_PT_POS_COORD = __user_conf.get('settings', 'fmt_pt_pos_coord', fallback='twd67')
 FMT_PT_POS_DIGITS = __user_conf.getint('settings', 'fmt_pt_pos_digits', fallback=3)
 
+STARTUP_LOC = GeoPoint(**eval(__user_conf.get('settings', 'startup_loc', fallback='{"lat":24.987969, "lon":121.334754}')))
+
 SELECT_AREA_X = __user_conf.getfloat('image', 'select_area_x', fallback=7.0)
 SELECT_AREA_Y = __user_conf.getfloat('image', 'select_area_y', fallback=5.0)
 SELECT_AREA_ALIGN = __user_conf.getboolean('image', 'select_area_align', fallback=True)
@@ -250,6 +259,7 @@ def writeUserConf():
     __user_conf["settings"]["wpt_set_focus"]  = "%s" % ('True' if WPT_SET_FOCUS else 'False',)
     __user_conf["settings"]['fmt_pt_pos_coord'] = FMT_PT_POS_COORD
     __user_conf["settings"]['fmt_pt_pos_digits'] = '%d' % FMT_PT_POS_DIGITS
+    __user_conf["settings"]['startup_loc'] = str({'lat':STARTUP_LOC.lat, 'lon':STARTUP_LOC.lon})
 
     #image
     __user_conf["image"] = OrderedDict()

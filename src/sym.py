@@ -9,8 +9,8 @@ import Pmw as pmw
 from PIL import Image, ImageTk
 from math import ceil
 #my
-import src.conf as conf
-import src.util as util
+import util
+import conf
 
 # symbol icon ======================================
 def __splitSymFilename(fname):
@@ -412,7 +412,7 @@ class SymRuleBoard(tk.Toplevel):
 
     @pos.setter
     def pos(self, val):
-        val = (0,0) if not val else getPrefCornerPos(self, val)
+        val = (0,0) if not val else util.getPrefCornerPos(self, val)
         self.geometry('+%d+%d' % val)
         self.__pos = val
 
