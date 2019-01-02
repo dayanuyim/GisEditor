@@ -1,0 +1,10 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<customMapSource>
+    <name>1924-old-日治地形圖(陸地測量部)-1:50,000</name>
+    <minZoom>5</minZoom>
+    <maxZoom>16</maxZoom>
+    <tileType>jpg</tileType>
+    <tileUpdate>Academia Sinica WMTS</tileUpdate>
+    <url>http://gis.sinica.edu.tw/tileserver/wmts?SERVICE=WMTS&amp;REQUEST=GetTile&amp;VERSION=1.0.0&amp;LAYER=JM50K_1924&amp;STYLE=_null&amp;TILEMATRIXSET=GoogleMapsCompatible&amp;TILEMATRIX={$z}&amp;TILEROW={$y}&amp;TILECOL={$x}&amp;FORMAT=image/jpeg</url>
+    <backgroundColor>#000000</backgroundColor>
+</customMapSource>

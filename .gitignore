@@ -1,6 +1,9 @@
 ### APP ###
 *.mbtiles
 
+giseditor.exe
+giseditor.exe.config
+
 # TODO untack symrule.conf, and ignore whole conf/
 conf/giseditor.conf
 conf/giseditor.user.conf
