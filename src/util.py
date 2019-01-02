@@ -507,68 +507,95 @@ class GeoPoint:
         return self.__twd97_y
 
 
-__electric_pattern = re.compile('^[A-HJ-Z]\d{4}[A-H][A-E]\d{2}(\d{2})?$')
+class GeoParser:
+    @staticmethod
+    def get(coord_sys):
+        valid_coords = ['TWD67TM2', 'TWD97TM2', 'TWD97LatLon']
+        if coord_sys not in valid_coords:
+            raise ValueError('the valid coord_sys should in %s' % valid_coords)
 
-def __is_float(s):
-    try:
-        float(s)
-        return True
-    except:
-        return False
+        if coord_sys == 'TWD67TM2': return TWD67TM2GeoParser()
+        if coord_sys == 'TWD97TM2': return TWD97TM2GeoParser()
+        if coord_sys == 'TWD97LatLon': return LatLonGeoParser()
+        raise ValueError("Code flow error to set location") #should not happen
 
-# @ref_geo for 6-code coord
-def textToGeo(txt, coord_sys, ref_geo=None):
-    valid_coords = ['TWD67TM2', 'TWD97TM2', 'TWD97LatLon']
-    if coord_sys not in valid_coords:
-        raise ValueError('the valid coord_sys should in %s' % valid_coords)
+    @classmethod
+    def _isFloat(cls, txt):
+        try:
+            float(txt)
+            return True
+        except:
+            return False
 
-    def sixCoord(val, flag):
-        if ref_geo is None:
+    @classmethod
+    def _toNumbers(cls, txt):
+        return tuple(filter(cls._isFloat, re.split('[^-\d\.]', txt)))
+
+    def __init__(self):
+        self._ref_geo = None
+
+    def ref(self, ref_geo):
+        self._ref_geo = ref_geo
+        return self
+
+    def parse(self, txt):
+        pass
+
+class LatLonGeoParser(GeoParser):
+    def _digitize(self, d, m, s):
+        return d + m / 60.0 + s / 3600.0;
+
+    def _textToCoords(self, txt):
+        nums = [float(n) for n in self._toNumbers(txt)]
+        if len(nums) == 6:
+            return [ self._digitize(*dms) for dms in (nums[0:3], nums[3:6]) ]
+        else:
+            return nums
+
+    def parse(self, txt):
+        x, y = self._textToCoords(txt)
+        return GeoPoint(lat=x, lon=y)
+
+class TM2GeoParser(GeoParser):
+    # @val_txt: int with unit 'hundred-meter'
+    def _sixCoord(self, val_txt, attr):
+        if self._ref_geo is None:
             raise ValueError('ref-geo is necessary to infer for six-code coord')
+        ref_val = getattr(self._ref_geo, attr)
+        val = int(val_txt) * 100
+        return max(0, round(ref_val - val, -5)) + val  # get the most closed hundred-KM, then plus @val
 
-        ref = ref_geo.twd67_x if coord_sys == 'TWD67TM2' and flag == 'x' else \
-              ref_geo.twd67_y if coord_sys == 'TWD67TM2' and flag == 'y' else \
-              ref_geo.twd97_x if coord_sys == 'TWD97TM2' and flag == 'x' else \
-              ref_geo.twd97_y if coord_sys == 'TWD97TM2' and flag == 'y' else \
-              None
-
-        return max(0, round(ref - val, -5)) + val  # get the most closed hundred-KM, then plus @val
-
-    #if val_txt is :
+    # @val_txt
     #   float: float with unit 'kilimeter'
-    # 3-digit: int with unit 'hundred-meter', need to prefix
     #   digit: int with unit 'meter'
-    def toTM2(val_txt, flag):
-        return int(float(val_txt)*1000) if not val_txt.isdigit() else \
-               sixCoord(int(val_txt)*100, flag) if len(val_txt) == 3 else \
-               int(val_txt)
+    def _tm2(self, val_txt):
+        return int(val_txt) if val_txt.isdigit() else \
+               int(float(val_txt)*1000) 
 
-    pos = txt.strip()
+    def _textToCoords(self, txt, attrs):
+        txt = txt.strip()
+        if len(txt) == 6 and txt.isdigit(): # six-digit-coord, without split
+            nums = (txt[0:3], txt[3:6])
+            return [ self._sixCoord(n, attr) for n, attr in zip(nums, attrs) ]
+        else:
+            return [ self._tm2(n) for n in self._toNumbers(txt) ]
+        
+class TWD97TM2GeoParser(TM2GeoParser):
+    def parse(self, txt):
+        x, y = self._textToCoords(txt, ('twd97_x', 'twd97_y'))
+        return GeoPoint(twd97_x=x, twd97_y=y)
 
-    # electric coord
-    if coord_sys == 'TWD67TM2' and __electric_pattern.match(pos):
-        x, y = CoordinateSystem.electricToTWD67_TM2(pos)
+class TWD67TM2GeoParser(TM2GeoParser):
+    __taipower_pattern = re.compile('^[A-HJ-Z]\d{4}[A-H][A-E]\d{2}(\d{2})?$')
+
+    def parse(self, txt):
+        # Taipower coordintate
+        if TWD67TM2GeoParser.__taipower_pattern.match(txt):
+            x, y = CoordinateSystem.electricToTWD67_TM2(txt)
+            return GeoPoint(twd67_x=x, twd67_y=y)
+
+        x, y = self._textToCoords(txt, ('twd67_x', 'twd67_y'))
         return GeoPoint(twd67_x=x, twd67_y=y)
-
-    #split number
-    if len(pos) == 6 and pos.isdigit(): # six-digit-coord, without split
-        n1, n2 = pos[0:3], pos[3:6]
-    else:
-        n1, n2 = filter(__is_float, re.split('[^-\d\.]', pos)) #split by un-number chars, remove un-float literal
-        n1, n2 = n1.strip(), n2.strip()
-
-    #make geo according to the coordinate
-    if coord_sys == 'TWD67TM2':
-        return GeoPoint(twd67_x=toTM2(n1, 'x'), twd67_y=toTM2(n2, 'y'))
-
-    if coord_sys == 'TWD97TM2':
-        return GeoPoint(twd97_x=toTM2(n1, 'x'), twd97_y=toTM2(n2, 'y'))
-
-    elif coord_sys == 'TWD97LatLon':
-        return GeoPoint(lat=float(n1), lon=float(n2))
-
-    raise ValueError("Code flow error to set location") #should not happen
-
 
 def test_subgroup():
     eql = lambda x, y: x == y
@@ -578,10 +605,73 @@ def test_subgroup():
     print(subgroup([1, 1], eql) == [[1, 1]])
     print(subgroup([1, 1, 2, 3, 4, 4], eql) == [[1, 1], [2], [3], [4, 4]])
 
+def test_drawguard():
+    img = Image.new('RGBA', (400,300), (255, 255, 255, 96))  #transparent
+    with DrawGuard(img) as draw:
+        print('...processing')
+
+def test_twd97tm2_int():
+    geo = GeoParser.get('TWD97TM2').parse('293648 2776379')
+    assert geo.twd97_x == 293648 and geo.twd97_y == 2776379
+
+def test_twd97tm2_float():
+    geo = GeoParser.get('TWD97TM2').parse('293.648 2776.379')
+    assert geo.twd97_x == 293648 and geo.twd97_y == 2776379
+
+def test_twd97tm2_sixcoord():
+    ref = GeoPoint(twd97_x=293648, twd97_y=2776379)
+    geo = GeoParser.get('TWD97TM2').ref(ref).parse('111666')
+    assert geo.twd97_x == 311100 and geo.twd97_y == 2766600
+
+def test_twd97tm2_sixcoord_no_ref_error():
+    geo = GeoParser.get('TWD97TM2').parse('111666')
+
+def test_twd67tm2_int():
+    geo = GeoParser.get('TWD67TM2').parse('293648 2776379')
+    assert geo.twd67_x == 293648 and geo.twd67_y == 2776379
+
+def test_twd67tm2_float():
+    geo = GeoParser.get('TWD67TM2').parse('293.648 2776.379')
+    assert geo.twd67_x == 293648 and geo.twd67_y == 2776379
+
+def test_twd67tm2_sixcoord():
+    ref = GeoPoint(twd67_x=293648, twd67_y=2776379)
+    geo = GeoParser.get('TWD67TM2').ref(ref).parse('111666')
+    assert geo.twd67_x == 311100 and geo.twd67_y == 2766600
+
+def test_twd67tm2_sixcoord_no_ref_error():
+    geo = GeoParser.get('TWD67TM2').parse('111666')
+
+def test_twd67tm2_taipower():
+    geo = GeoParser.get('TWD67TM2').parse('B8146CC5834')
+    assert geo.twd67_x == 315053 and geo.twd67_y == 2773284
+
+def test_latlon_number():
+    geo = GeoParser.get('TWD67TM2').parse('24.987969, 121.334754')
+    assert geo.twd67_x == 315053 and geo.twd67_y == 2773284
+
+def test_latlon_number():
+    from math import isclose
+    geo = GeoParser.get('TWD97LatLon').parse('23.592444444, 120.977055556')
+    assert isclose(geo.lat, 23.592444444) and isclose(geo.lon, 120.977055556)
+
+def test_latlon_degree():
+    from math import isclose
+    geo = GeoParser.get('TWD97LatLon').parse('N23 35 32.8 E120 58 37.4')
+    assert isclose(geo.lat, 23.592444444) and isclose(geo.lon, 120.977055556)
+
 if __name__ == '__main__':
-    #img = Image.new('RGBA', (400,300), (255, 255, 255, 96))  #transparent
-    #with DrawGuard(img) as draw:
-    #    print('...processing')
-    test_subgroup()
+    test_twd97tm2_int()
+    test_twd97tm2_float()
+    test_twd97tm2_sixcoord()
+    #test_twd97tm2_sixcoord_no_ref_error()
+    test_twd67tm2_int()
+    test_twd67tm2_float()
+    test_twd67tm2_sixcoord()
+    #test_twd67tm2_sixcoord_no_ref_error()
+    test_twd67tm2_taipower()
+    test_latlon_number()
+    test_latlon_degree()
+    pass
 
 
