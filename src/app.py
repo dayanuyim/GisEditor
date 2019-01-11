@@ -27,7 +27,7 @@ import sym
 import coord
 import util
 from raw import *
-from util import GeoPoint, GeoInfo, textToGeo, DrawGuard, imageIsTransparent
+from util import GeoPoint, GeoInfo, GeoParser, DrawGuard, imageIsTransparent
 from util import bindMenuCmdAccelerator, bindMenuCheckAccelerator
 from util import downloadAsTemp, drawTextBg, subgroup
 from conf import CoordSys, CoordLine
@@ -728,7 +728,7 @@ class MapBoard(tk.Frame):
 
         try:
             #get geo point
-            geo = textToGeo(e.widget.get(), coord_sys(), self.__map_ctrl.geo)
+            geo = GeoParser.get(coord_sys()).ref(self.__map_ctrl.geo).parse(e.widget.get())
 
             #focus geo on map
             if self.__map_ctrl.mapContainsPt(geo):
@@ -2567,7 +2567,7 @@ class WptSingleBoard(WptBoard):
     def __onPosKeyRelease(self, e):
         #print('on pos key-release %s' % self._var_pos.get())
         try:
-            geo = textToGeo(self._var_pos.get(), 'TWD67TM2', self.master.ref_geo)
+            geo = GeoParser.get('TWD67TM2').ref(self.master.ref_geo).parse(self._var_pos.get())
             e.widget['highlightcolor'] = 'lightblue'
 
             if self._curr_wpt.lat != geo.lat or \
