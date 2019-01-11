@@ -15,13 +15,25 @@ from xml.etree import ElementTree as ET
 from threading import Timer
 from PIL import Image, ImageDraw
 from uuid import uuid4
-
 import pytz
 from timezonefinder import TimezoneFinder
 
 #my modules
 from raw import *
 from coord import TileSystem, CoordinateSystem
+
+# Workaround before python3.8 to provide condition assignment
+class DataHolder:
+    def __init__(self, value=None):
+        self.value = value
+
+    def set(self, value):
+        self.value = value
+        return value
+
+    def get(self):
+        return self.value
+
 
 def isValidFloat(txt):
     try:

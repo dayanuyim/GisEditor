@@ -828,13 +828,12 @@ class MapBoard(tk.Frame):
             self.__right_click_pos = pos  #bookkeeper
 
             if self.__mode in {self.MODE_NORMAL, self.MODE_DRAW_TRK}:
-                wpt = self.__map_ctrl.getWptAround(geo)
-                if wpt is not None:
-                    self.__wpt_rclick_menu.post(e.x_root, e.y_root)  #right menu for wpt
-                elif 'shift' in flag:
-                    self.__rclick_compl_menu.post(e.x_root, e.y_root)  #compete right menu
+                if 'shift' in flag:
+                    self.__rclick_compl_menu.post(e.x_root, e.y_root)  # complete right menu
+                elif self.__map_ctrl.getWptAround(geo):
+                    self.__wpt_rclick_menu.post(e.x_root, e.y_root)    # wpt menu
                 else:
-                    self.__rclick_menu.post(e.x_root, e.y_root)  #right menu
+                    self.__rclick_menu.post(e.x_root, e.y_root)        # normal right menu
         else:
             self.__left_click_pos = pos  #bookkeeper
             self.__unpostMenus()         #clear right menu, anyway
