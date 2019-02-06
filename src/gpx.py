@@ -12,6 +12,9 @@ import xml.dom.minidom
 from util import GeoPoint, saveXml
 from coord import TileSystem
 
+def hasText(elem):
+    return elem is not None and elem.text
+
 class GpsDocument:
     @property
     def maxlon(self): return self.__maxlon
@@ -98,22 +101,22 @@ class GpsDocument:
 
             #read info from child elements, if any
             elem = wpt_elem.find("./gpx:ele", self.ns)
-            wpt.ele = float(elem.text) if elem is not None and elem.text else 0.0
+            wpt.ele = float(elem.text) if hasText(elem) else 0.0
 
             elem = wpt_elem.find("./gpx:time", self.ns)
-            wpt.time = self.__toUTCTime(elem.text) if elem is not None and elem.text else None
+            wpt.time = self.__toUTCTime(elem.text) if hasText(elem) else None
 
             elem = wpt_elem.find("./gpx:name", self.ns)
-            wpt.name = elem.text if elem is not None and elem.text is not None else ""
+            wpt.name = elem.text if hasText(elem) else ""
 
             elem = wpt_elem.find("./gpx:sym", self.ns)
-            wpt.sym = elem.text if elem is not None and elem.text else ""
+            wpt.sym = elem.text if hasText(elem) else ""
 
             elem = wpt_elem.find("./gpx:cmt", self.ns)
-            wpt.cmt = elem.text if elem is not None and elem.text else ""
+            wpt.cmt = elem.text if hasText(elem) else ""
 
             elem = wpt_elem.find("./gpx:desc", self.ns)
-            wpt.desc = elem.text if elem is not None and elem.text else ""
+            wpt.desc = elem.text if hasText(elem) else ""
 
             self.addWpt(wpt)
 
@@ -124,10 +127,10 @@ class GpsDocument:
 
         for trk_elem in trk_elems:
             elem = trk_elem.find("./gpx:name", self.ns)
-            name = elem.text if elem is not None else "(No Title)"
+            name = elem.text if hasText(elem) else "(No Title)"
 
             elem = trk_elem.find("./gpx:extensions/gpxx:TrackExtension/gpxx:DisplayColor", self.ns)
-            color = elem.text if elem is not None else "DarkMagenta"
+            color = elem.text if hasText(elem) else "DarkMagenta"
 
             trk_idx = self.genTrk(name, color)
 
@@ -146,10 +149,10 @@ class GpsDocument:
             pt = TrackPoint(float(trkpt_elem.attrib["lat"]), float(trkpt_elem.attrib["lon"]))
 
             elem = trkpt_elem.find("./gpx:ele", self.ns)
-            pt.ele = None if elem is None else float(elem.text)
+            pt.ele = float(elem.text) if hasText(elem) else None
 
             elem = trkpt_elem.find("./gpx:time", self.ns)
-            pt.time = None if elem is None else self.__toUTCTime(elem.text)
+            pt.time = self.__toUTCTime(elem.text) if hasText(elem) else None
 
             self.addTrkpt(trk_idx, pt)
 

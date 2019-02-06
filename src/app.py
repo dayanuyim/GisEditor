@@ -88,6 +88,7 @@ def getGpsDocument(path):
         return gps
     except Exception as ex:
         showmsg("Error to open '%s': %s" % (path, str(ex)))
+        logging.error("Error to open '%s': %s" % (path, traceback.format_exc()))
         return None
 
 def getPicDocument(path):
