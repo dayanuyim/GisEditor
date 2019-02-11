@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<customMapSource>
+    <!-- https://maps.gsi.go.jp/development/ichiran.html -->
+    <!-- https://maps.gsi.go.jp/ -->
+    <name>日本地理院(標準)</name>
+    <minZoom>5</minZoom>
+    <maxZoom>18</maxZoom>
+    <tileType>png</tileType>
+    <tileUpdate>None</tileUpdate>
+    <url>https://cyberjapandata.gsi.go.jp/xyz/std/{$z}/{$x}/{$y}.png</url> 
+    <backgroundColor>#000000</backgroundColor>
+    <expireDays>14</expireDays>
+</customMapSource>
