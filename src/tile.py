@@ -618,13 +618,15 @@ class MemoryCache:
         self.timestamp = timestamp
     '''
 
+    REPO_MAX=1000
+
     @property
     def is_concurrency(self):
         return self.__repo_lock is not None
 
     def __init__(self, init_status, is_concurrency=False):
         self.__init_status = init_status
-        self.__repo = {}
+        self.__repo = OrderedDict()
         self.__repo_lock = Lock() if is_concurrency else None
 
     def __set(self, id, status, data):
@@ -633,6 +635,10 @@ class MemoryCache:
             if item is not None:
                 data = item[0]
         self.__repo[id] = (data, status, time.time())
+
+        if len(self.__repo) > MemoryCache.REPO_MAX:
+            self.__repo.popitem(last=False) #FIFO
+        logging.info("memory cache repo size: %d" % len(self.__repo))
 
     def __get(self, id):
         item = self.__repo.get(id)
