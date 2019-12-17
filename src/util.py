@@ -42,6 +42,14 @@ def isValidFloat(txt):
     except:
         return False
 
+############################################################################
+# List Utils
+############################################################################
+
+def listdiff(list1, list2):
+    list2 = set(list2)
+    return [e for e in list1 if e not in list2]
+
 # classify according to @cond between two consequence elements.
 def subgroup(list, cond):
     if not list:
@@ -88,9 +96,24 @@ def rotateRight(list, first, last, step):
 
     list[first] = tmp
 
+def interp(x, x1, x2, y1, y2):
+    return y1 + (x-x1) / (x2-x1) * (y2-y1)
+
+def interpList(x, list1, list2, idx=0):
+    lst = []
+    for i in range(len(list1)):
+        v = x if i == idx else \
+            interp(x, list1[idx], list2[idx], list1[i], list2[i])
+        lst.append(v)
+    return lst
+
 def getLocTimezone(lat, lon):
     tz_loc = TimezoneFinder().timezone_at(lat=lat, lng=lon)  #ex: Asia/Taipei
     return pytz.timezone(tz_loc)
+
+def localToUtcTime(time, lat, lon):
+    tz = getLocTimezone(lat, lon)
+    return tz.localize(time, is_dst=None).astimezone(pytz.utc)
 
 def downloadAsTemp(url):
     ext = url.split('.')[-1]
@@ -102,7 +125,9 @@ def downloadAsTemp(url):
 
     return tmp_path
 
-# PIL utils ===================================
+############################################################################
+# PIL utils 
+############################################################################
 class DrawGuard:
     def __init__(self, img):
         self.__img = img
@@ -158,6 +183,38 @@ def screentone(img):
     mask = Image.frombytes('L', img.size, bytes(alpha))
     img.putalpha(mask)
     return img
+
+def correctOrien(img, orientation):
+    trans_seq = [   # corresponding to the following
+        None,
+	[],
+	[Image.FLIP_LEFT_RIGHT],
+	[Image.ROTATE_180],
+	[Image.FLIP_TOP_BOTTOM],
+	[Image.FLIP_LEFT_RIGHT, Image.ROTATE_90],
+	[Image.ROTATE_270],
+	[Image.FLIP_TOP_BOTTOM, Image.ROTATE_90],
+	[Image.ROTATE_90],
+    ]
+
+    import functools
+    return functools.reduce(lambda img, op: img.transpose(op),
+            trans_seq[orientation], img)
+
+def imageIsTransparent(img):
+    if img is None:
+        raise ValueError("img is None for transparent detect")
+    if img.mode == 'RGBA' and img.getextrema()[3][0] != 255:
+        return True
+    if img.mode == 'LA':
+        return True
+    if img.mode == 'P' and 'transparency' in img.info:
+        return True
+    return False
+
+############################################################################
+# Tkinter Utils
+############################################################################
 
 # Notice: 'accelerator string' may not a perfect guess, need more heuristic improvement
 def __inferAccelerator(hotkey):
@@ -216,17 +273,6 @@ def hideToplevel(toplevel):
     toplevel.withdraw()
     toplevel._visible.set(False)
 
-def imageIsTransparent(img):
-    if img is None:
-        raise ValueError("img is None for transparent detect")
-    if img.mode == 'RGBA' and img.getextrema()[3][0] != 255:
-        return True
-    if img.mode == 'LA':
-        return True
-    if img.mode == 'P' and 'transparency' in img.info:
-        return True
-    return False
-
 def saveXml(xml_root, filepath, enc="UTF-8"):
     #no fromat
     #tree = ET.ElementTree(element=root)
@@ -237,10 +283,6 @@ def saveXml(xml_root, filepath, enc="UTF-8"):
     txt = xml.dom.minidom.parseString(txt).toprettyxml(encoding=enc) #the encoding is for xml-declaration
     with open(filepath, 'wb') as f:
         f.write(txt)
-
-def listdiff(list1, list2):
-    list2 = set(list2)
-    return [e for e in list1 if e not in list2]
 
 def mkdirSafely(path, is_recursive=True):
     if not os.path.exists(path):

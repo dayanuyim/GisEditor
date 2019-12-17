@@ -20,6 +20,7 @@ from tkinter import messagebox, filedialog, ttk
 from datetime import datetime, timedelta
 from threading import Lock, Thread
 from collections import OrderedDict
+from operator import itemgetter
 
 #my modules
 import conf
@@ -91,12 +92,25 @@ def getGpsDocument(path):
         logging.error("Error to open '%s': %s" % (path, traceback.format_exc()))
         return None
 
-def getPicDocument(path):
+def getPicDocument(path, loctable=None):
     try:
-        return PicDocument(path)
+        return PicDocument(path, loctable)
     except Exception as ex:
         showmsg("cannot read the picture '%s': %s" % (path, str(ex)))
     return None
+
+
+# for testing
+def _pseudoLocTable():
+
+    def utc(txt):
+        fmt = "%Y-%m-%dT%H:%M:%S.%fZ" if "." in txt else "%Y-%m-%dT%H:%M:%SZ"
+        return datetime.strptime(txt, fmt).replace(tzinfo=pytz.utc)
+
+    return [(utc("2019-12-15T02:03:47Z"), 25.0128787290, 121.9622837193, 57.34),
+            (utc("2019-12-15T02:04:10Z"), 25.0128850993, 121.9623680413, 60.22),
+            (utc("2019-12-15T02:04:29Z"), 25.0128882844, 121.9624216855, 63.10),
+            (utc("2019-12-15T02:04:45Z"), 25.0128742028, 121.9625132997, 65.51),]
 
 def __toGpx(src_path, flag):
     exe_file = conf.GPSBABEL_EXE
@@ -526,22 +540,34 @@ class MapBoard(tk.Frame):
 
     def addFiles(self, file_pathes):
         gps_path, pic_path = parsePathes(file_pathes)  
+
         for path in gps_path:
             self.addGpx(getGpsDocument(path))
-        for path in pic_path:
-            self.addWpt(getPicDocument(path))
 
-        #also update preferred dir if needed
-        def getPrefDir(pathes):
-            return None if not len(pathes) else os.path.dirname(pathes[0])
+        if pic_path:
+            #loctable = _pseudoLocTable()
+            loctable = self.genLocTable()
+            for path in pic_path:
+                self.addWpt(getPicDocument(path, loctable))
+
+        # btw to update preferred dir if needed
         if not self.__pref_dir:
-            self.__pref_dir = getPrefDir(gps_path)
-        if not self.__pref_dir:
-            self.__pref_dir = getPrefDir(pic_path)
+            all_path = gps_path + pic_path  #prefer gpx path
+            if all_path:
+                self.__pref_dir = os.path.dirname(os.path.abspath(all_path[0]))
+        logging.info("pref_dir: %s" % self.__pref_dir)
 
     def addGpx(self, gpx):
         if gpx is not None:
             self.__map_ctrl.addGpxLayer(gpx)
+
+    def genLocTable(self):
+        table = [ (pt.time, pt.lat, pt.lon, pt.ele) \
+                for trk in self.__map_ctrl.getAllTrks() \
+                for pt in trk \
+                if pt.time ]
+        table.sort(key=itemgetter(0))  # sort by time
+        return table
 
     def genWpt(self, pos):
         px, py = pos
@@ -1137,7 +1163,7 @@ class MapBoard(tk.Frame):
         if not fpath:
             return False
 
-        #gen gpx faile
+        # gen gpx file
         doc = GpsDocument()
         for gpx in self.__map_ctrl.gpx_layers:
             doc.merge(gpx)
