@@ -6,7 +6,8 @@
     <tileType>jpg</tileType>
     <tileUpdate>None</tileUpdate>
     <url>http://rudy-daily.tile.basecamp.tw/{$z}/{$x}/{$y}.png</url>
+    <!--<url>https://rs.happyman.idv.tw/map/rudy/{$z}/{$x}/{$y}.png</url> -->
     <backgroundColor>#000000</backgroundColor>
-    <expireDays>14</expireDays>
+    <expireDays>30</expireDays>
 </customMapSource>
  
