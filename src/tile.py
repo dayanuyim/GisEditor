@@ -274,7 +274,7 @@ class TileAgent:
     @property
     def state(self): return self.__state
 
-    def __init__(self, map_desc, cache_dir, auto_start=False):
+    def __init__(self, map_desc, cache_dir, auto_start=False, max_works=10):
         self.__map_desc = map_desc.clone()
 
         self.__state = self.ST_IDLE
@@ -287,7 +287,7 @@ class TileAgent:
         self.__mem_cache = MemoryCache(self.TILE_NOT_IN_MEM, is_concurrency=True)
 
         #download helpers
-        self.__MAX_WORKS = 3
+        self.__MAX_WORKS = max_works
         self.__download_lock = Lock()
         self.__download_cv = Condition(self.__download_lock)
         self.__workers = {}
