@@ -58,7 +58,8 @@
 
 1. 安裝字型
     預設使用ubuntu OS內建ukai
-    
+    ```apt install fonts-arphic-ukai```
+
     Arch Linux:
     ```# pacman -S ttf-arphic-ukai```
 
@@ -112,11 +113,11 @@
 
      *  建立 desktop 檔
 
-            sudo cp $GISEDITOR_HOME/data/giseditor.desktop /usr/share/applications
+            sudo cp $GISEDITOR_HOME/install/linux/giseditor.desktop /usr/share/applications
 
      *  建立圖示檔
      
-            sudo cp -a $GISEDITOR_HOME/data/icons /usr/share/
+            sudo cp -a $GISEDITOR_HOME/install/linux/icons /usr/share/
 
      *  登出並重新登入
 
@@ -138,7 +139,7 @@
 1. install python 3
 
 2. install ActiveTcl 8.5.18.0
-    
+
     * Must install the version, higher or lower version may not work.
 
     * Please check _Security & Privacy_ if MAC prevent you from installation.
