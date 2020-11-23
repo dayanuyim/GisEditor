@@ -138,7 +138,7 @@
 1. install python 3
 
 2. install ActiveTcl 8.5.18.0
-    
+
     * Must install the version, higher or lower version may not work.
 
     * Please check _Security & Privacy_ if MAC prevent you from installation.
@@ -147,6 +147,15 @@
 
     ```
     brew install libtiff libjpeg webp little-cms2 freetype
+    ```
+
+    may need to install libjpeg.8
+    ```
+    wget -c http://www.ijg.org/files/jpegsrc.v8d.tar.gz
+    tar xzf jpegsrc.v8d.tar.gz
+    cd jpeg-8d
+    ./configure && make
+    cp ./.libs/libjpeg.8.dylib /usr/local/opt/jpeg/lib
     ```
 
 4. install python requirement
@@ -161,7 +170,7 @@
     ```
 
 5. install gpsbabel
-    
+
     ```
     brew install gpsbabel
     ```
