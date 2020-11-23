@@ -12,8 +12,19 @@ import xml.dom.minidom
 from util import GeoPoint, saveXml
 from coord import TileSystem
 
+ISO_TIME_FMT_MIN=len("yyyy-mm-ddTHH:MM:SS")
+
 def hasText(elem):
     return elem is not None and elem.text
+
+def strFindChar(txt, chars, start=0, end=None):
+    if end is None:
+        end = len(txt)
+    for c in chars:
+        pos = txt.find(c, start)
+        if pos >= 0:
+            return pos
+    return -1
 
 class GpsDocument:
     @property
@@ -231,9 +242,27 @@ class GpsDocument:
         #padding zero if year's length < 4
         return "0" * ( 4 - txt.index('-')) + txt
 
+    # just a hot-fix version to convert from iso format, please update to python3.7+ and use datetime.fromisoformat()
+    @staticmethod
+    def fromisoformat(txt):
+        zpos = strFindChar(txt, '+-', ISO_TIME_FMT_MIN)
+        if zpos < 0:
+            raise ValueError("time string '{}' has no tz offset" % txt)
+
+        pos = txt.find(':', zpos)
+        if pos > zpos:
+            txt = txt[:pos] + txt[pos+1:]
+
+        fmt = "%Y-%m-%dT%H:%M:%S.%f%z" if "." in txt else "%Y-%m-%dT%H:%M:%S%z"
+        return datetime.strptime(txt, fmt).astimezone(pytz.utc)
+
     def __toUTCTime(self, txt):
-        fmt = "%Y-%m-%dT%H:%M:%S.%fZ" if "." in txt else "%Y-%m-%dT%H:%M:%SZ"
-        return datetime.strptime(txt, fmt).replace(tzinfo=pytz.utc)
+        if txt.endswith('Z'):
+            fmt = "%Y-%m-%dT%H:%M:%S.%fZ" if "." in txt else "%Y-%m-%dT%H:%M:%SZ"
+            return datetime.strptime(txt, fmt).replace(tzinfo=pytz.utc)
+
+        # return datetime.fromisoformat(txt)   # python3.7+
+        return self.fromisoformat(txt)
 
     def subMetadataElement(self, parent):
         metadata = ET.SubElement(parent, 'metadata')
