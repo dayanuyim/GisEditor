@@ -100,7 +100,6 @@ class ExifParser:
 
     @staticmethod
     def __exifAltitude(ref, alt):
-        print(ref, alt)
         #some implement make the filed 'bytes'
         if isinstance(ref, bytes):
             import struct
