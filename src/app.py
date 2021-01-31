@@ -96,6 +96,7 @@ def getPicDocument(path, loctable=None):
     try:
         return PicDocument(path, loctable)
     except Exception as ex:
+        logging.error("cannot read the picture '%s': %s" % (path, traceback.format_exc()))
         showmsg("cannot read the picture '%s': %s" % (path, str(ex)))
     return None
 

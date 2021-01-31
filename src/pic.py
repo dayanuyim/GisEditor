@@ -11,6 +11,14 @@ from util import localToUtcTime, correctOrien, interpList
 from gpx import WayPoint
 import sym
 
+
+def is_subscriptable(v):
+    try:
+        v[0]
+        return True
+    except TypeError:
+        return False
+
 class ExifParser:
 
     @classmethod
@@ -82,18 +90,23 @@ class ExifParser:
     @staticmethod
     def __exifDegree(ref, degree):
         (d, m, s) = degree
-        dec = d[0]/d[1] + m[0]/m[1]/60 + s[0]/s[1]/3600
+
+        dec = d[0]/d[1] + m[0]/m[1]/60 + s[0]/s[1]/3600 if is_subscriptable(d) else \
+              d + m/60 + s/3600
+
         if ref == 'S' or ref == 'W':
             return -dec
         return dec
 
     @staticmethod
     def __exifAltitude(ref, alt):
+        print(ref, alt)
         #some implement make the filed 'bytes'
         if isinstance(ref, bytes):
             import struct
             ref = struct.unpack('B', ref)[0]  #bytes -> unsigned int
-        return ref + alt[0]/alt[1]
+        return ref + alt[0]/alt[1] if is_subscriptable(alt) else \
+               ref + alt
 
 
 # @loctable: the list of tuple (utctime, lat, lon, ele), ordered by time
