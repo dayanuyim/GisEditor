@@ -91,12 +91,13 @@ class ExifParser:
     def __exifDegree(ref, degree):
         (d, m, s) = degree
 
-        dec = d[0]/d[1] + m[0]/m[1]/60 + s[0]/s[1]/3600 if is_subscriptable(d) else \
+        val = d[0]/d[1] + m[0]/m[1]/60 + s[0]/s[1]/3600 if is_subscriptable(d) else \
               d + m/60 + s/3600
 
         if ref == 'S' or ref == 'W':
-            return -dec
-        return dec
+            val *= -1
+
+        return float(val) # ensure float, not fraction
 
     @staticmethod
     def __exifAltitude(ref, alt):
@@ -104,8 +105,10 @@ class ExifParser:
         if isinstance(ref, bytes):
             import struct
             ref = struct.unpack('B', ref)[0]  #bytes -> unsigned int
-        return ref + alt[0]/alt[1] if is_subscriptable(alt) else \
-               ref + alt
+        val = ref + alt[0]/alt[1] if is_subscriptable(alt) else \
+              ref + alt
+
+        return float(val) # ensure float, not fraction
 
 
 # @loctable: the list of tuple (utctime, lat, lon, ele), ordered by time
