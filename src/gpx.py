@@ -26,6 +26,10 @@ def strFindChar(txt, chars, start=0, end=None):
             return pos
     return -1
 
+#@@ why lot/lon might be represented as Numerator/Denominator?
+def to_float(txt):
+    return eval(txt) if '/' in txt else float(txt)
+
 class GpsDocument:
     @property
     def maxlon(self): return self.__maxlon
@@ -107,12 +111,12 @@ class GpsDocument:
         for wpt_elem in wpt_elems:
             #read lat, lon, necessarily
             wpt = WayPoint(
-                float(wpt_elem.attrib['lat']),
-                float(wpt_elem.attrib['lon']))
+                to_float(wpt_elem.attrib['lat']),
+                to_float(wpt_elem.attrib['lon']))
 
             #read info from child elements, if any
             elem = wpt_elem.find("./gpx:ele", self.ns)
-            wpt.ele = float(elem.text) if hasText(elem) else 0.0
+            wpt.ele = to_float(elem.text) if hasText(elem) else 0.0
 
             elem = wpt_elem.find("./gpx:time", self.ns)
             wpt.time = self.__toUTCTime(elem.text) if hasText(elem) else None
