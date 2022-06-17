@@ -1,7 +1,7 @@
 image>=1.5.3
 cycler==0.10.0
 matplotlib==2.0.2
-numpy==1.12.1
+numpy==1.21.0
 olefile==0.44
 Pillow==6.2.0
 Pmw==2.0.1
