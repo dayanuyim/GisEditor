@@ -2384,8 +2384,8 @@ class WptBoard(tk.Toplevel):
         self.geometry('+0+0')
         self.protocol('WM_DELETE_WINDOW', lambda: self.onClosed(None))
         self.bind('<Escape>', self.onClosed)
-        self.bind('<Shift-Delete>', lambda e: self.onDeleted(e, prompt=False))
-        self.bind('<Delete>', lambda e: self.onDeleted(e, prompt=True))
+        self.bind('<Control-Shift-Delete>', lambda e: self.onDeleted(e, prompt=False))
+        self.bind('<Control-Delete>', lambda e: self.onDeleted(e, prompt=True))
 
         #focus
         self._var_focus = tk.BooleanVar(value=conf.WPT_SET_FOCUS)
