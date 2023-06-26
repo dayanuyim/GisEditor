@@ -183,6 +183,12 @@ class MapBoard(tk.Frame):
     MODE_NORMAL = 0
     MODE_DRAW_TRK = 1
     MODE_SAVE_IMG = 2
+    TIMEZONE = None    # cache to prevent the slow calculating for each time
+
+    @classmethod
+    def updateTimezoneIfNone(cls, pt):
+        if cls.TIMEZONE is None:
+            cls.TIMEZONE = fmtPtTimezone(pt)
 
     @property
     def is_alter(self): return self.__alter_time is not None
@@ -1019,10 +1025,11 @@ class MapBoard(tk.Frame):
 
         self.resetMap()
 
-    @staticmethod
-    def trkDiffDay(pt1, pt2):
-        t1 = fmtPtLocaltime(pt1)
-        t2 = fmtPtLocaltime(pt2)
+    @classmethod
+    def trkDiffDay(cls, pt1, pt2):
+        cls.updateTimezoneIfNone(pt1)
+        t1 = fmtPtLocaltime(pt1, cls.TIMEZONE)
+        t2 = fmtPtLocaltime(pt2, cls.TIMEZONE)
         return not (t1.year == t2.year and \
                     t1.month == t2.month and \
                     t1.day == t2.day)
@@ -3042,7 +3049,7 @@ class TrkSingleBoard(tk.Toplevel):
         self.pt_list.delete(0, 'end')
         self.pt_list.data = trk
         if trk:
-            tz = fmtPtTimezone(trk[0])  #optimize, prevent calculation for each pt 
+            tz = fmtPtTimezone(trk[0])  # cache to prevent the slow calculating for each time
             for sn, pt in enumerate(trk, 1):
                 #0011 | 2015-11-03 11:22:33 | 257.122, 2691.081 | 1075.1m
                 txt = "#%04d | %s | %s | %s" % ( sn, fmtPtTimeText(pt, tz), fmtPtPosText(pt), fmtPtEleText(pt))
