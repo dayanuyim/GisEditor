@@ -126,7 +126,7 @@ def downloadAsTemp(url):
     return tmp_path
 
 ############################################################################
-# PIL utils 
+# PIL utils
 ############################################################################
 class DrawGuard:
     def __init__(self, img):
@@ -297,9 +297,9 @@ import Xlib.X as X
 def autorepeat(enabled):
     if platform.system() == 'Linux':
         #mode = X.AutoRepeatModeOn if enabled else X.AutoRepeatModeOff
-        #d = display.Display()    
+        #d = display.Display()
         #d.change_keyboard_control(auto_repeat_mode=mode)
-        #x = d.get_keyboard_control()    
+        #x = d.get_keyboard_control()
         if enabled:
             os.system('xset r on')
         else:
@@ -583,7 +583,7 @@ class GeoParser:
 
     @classmethod
     def _toNumbers(cls, txt):
-        return tuple(filter(cls._isFloat, re.split('[^-\d\.]', txt)))
+        return tuple(filter(cls._isFloat, re.split(r'[^-\d\.]', txt)))
 
     def __init__(self):
         self._ref_geo = None
@@ -624,7 +624,7 @@ class TM2GeoParser(GeoParser):
     #   digit: int with unit 'meter'
     def _tm2(self, val_txt):
         return int(val_txt) if val_txt.isdigit() else \
-               int(float(val_txt)*1000) 
+               int(float(val_txt)*1000)
 
     def _textToCoords(self, txt, attrs):
         txt = txt.strip()
@@ -633,14 +633,14 @@ class TM2GeoParser(GeoParser):
             return [ self._sixCoord(n, attr) for n, attr in zip(nums, attrs) ]
         else:
             return [ self._tm2(n) for n in self._toNumbers(txt) ]
-        
+
 class TWD97TM2GeoParser(TM2GeoParser):
     def parse(self, txt):
         x, y = self._textToCoords(txt, ('twd97_x', 'twd97_y'))
         return GeoPoint(twd97_x=x, twd97_y=y)
 
 class TWD67TM2GeoParser(TM2GeoParser):
-    __taipower_pattern = re.compile('^[A-HJ-Z]\d{4}[A-H][A-E]\d{2}(\d{2})?$')
+    __taipower_pattern = re.compile(r'^[A-HJ-Z]\d{4}[A-H][A-E]\d{2}(\d{2})?$')
 
     def parse(self, txt):
         # Taipower coordintate

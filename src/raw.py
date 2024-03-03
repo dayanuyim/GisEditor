@@ -29,7 +29,7 @@ gpsbabel_ext_fmt = {
         ".gpl" : ("gpl",),
         ".txt" : ("xmap2006", "garmin_txt", "pocketfms_wp", "text"),
         ".dat" : ("destinator_itn, destinator_trl, destinator_poi",),
-        ".jpg" : ("exif",),      #be careful this! 
+        ".jpg" : ("exif",),      #be careful this!
         ".ert" : ("enigma",),
         ".fit" : ("garmin_fit",),
         ".g7t" : ("g7towin",),
@@ -166,7 +166,7 @@ app_syms = (
 	'Marina',
 	'Dock',
 	'Dropoff',
-	'Weedbed',
+	'Weed Bed',
 	'Reef',
 	'Coast Guard',
 	'Beacon',

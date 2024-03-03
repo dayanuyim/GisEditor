@@ -148,6 +148,7 @@
 
     ```
     brew install libtiff libjpeg webp little-cms2 freetype
+    brew install python-tk  #macOS 12.6
     ```
 
     may need to install libjpeg.8
@@ -159,10 +160,21 @@
     cp ./.libs/libjpeg.8.dylib /usr/local/opt/jpeg/lib
     ```
 
-4. install python requirement
+4. install python modules
 
+    update pip
     ```
-    pip install -r requirement.txt
+    pip3 install --upgrade pip
+    ```
+
+    install modules
+    ```
+    pip3 install -r requirement.txt
+    ```
+    or
+    ```
+    pip3 install pmw pytz pillow matplotlib timezonefinder
+    pip3 install --user timezonefinder
     ```
 
 4.1 install python certifi

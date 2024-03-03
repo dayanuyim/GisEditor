@@ -5,8 +5,10 @@
     <maxZoom>19</maxZoom>
     <tileType>jpg</tileType>
     <tileUpdate>None</tileUpdate>
-    <url>http://rudy-daily.tile.basecamp.tw/{$z}/{$x}/{$y}.png</url>
+    <url>https://tile.happyman.idv.tw/mp/wmts/rudy/gm_grid/{$z}/{$x}/{$y}.png</url>
     <!--<url>https://rs.happyman.idv.tw/map/rudy/{$z}/{$x}/{$y}.png</url> -->
+    <!--<url>https://rudy-tile.basecamp.tw/{$z}/{$x}/{$y}.png</url>-->
+    <!--<url>http://rudy-daily.tile.basecamp.tw/{$z}/{$x}/{$y}.png</url> -->
     <backgroundColor>#000000</backgroundColor>
     <expireDays>30</expireDays>
 </customMapSource>

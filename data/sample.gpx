@@ -9,6 +9,17 @@
 	</metadata>
 	<wpt lat="24.76746790181835" lon="121.35097976975521">
 		<ele>484.0091287408725</ele>
+		<time>2015-07-17T14:00:00Z</time>
+		<name>(假)睡在登山口</name>
+		<sym>Pin, Red</sym>
+		<extensions>
+			<gpxx:WaypointExtension xmlns:gpxx="http://www.garmin.com/xmlschemas/GpxExtensions/v3">
+				<gpxx:DisplayMode>SymbolAndName</gpxx:DisplayMode>
+			</gpxx:WaypointExtension>
+		</extensions>
+	</wpt>
+	<wpt lat="24.76746790181835" lon="121.35097976975521">
+		<ele>484.0091287408725</ele>
 		<time>2015-07-18T03:26:12Z</time>
 		<name>北橫之星登山口</name>
 		<sym>Pin, Red</sym>
@@ -287,6 +298,17 @@
 		<time>2015-07-19T02:51:56Z</time>
 		<name>28.2K</name>
 		<sym>Mile Marker</sym>
+		<extensions>
+			<gpxx:WaypointExtension xmlns:gpxx="http://www.garmin.com/xmlschemas/GpxExtensions/v3">
+				<gpxx:DisplayMode>SymbolAndName</gpxx:DisplayMode>
+			</gpxx:WaypointExtension>
+		</extensions>
+	</wpt>
+	<wpt lat="24.760550473342793" lon="121.34416187915235">
+		<ele>497.12709211655755</ele>
+		<time>2015-07-19T04:00:00Z</time>
+		<name>(假)慶功宴</name>
+		<sym>City (Small)</sym>
 		<extensions>
 			<gpxx:WaypointExtension xmlns:gpxx="http://www.garmin.com/xmlschemas/GpxExtensions/v3">
 				<gpxx:DisplayMode>SymbolAndName</gpxx:DisplayMode>
