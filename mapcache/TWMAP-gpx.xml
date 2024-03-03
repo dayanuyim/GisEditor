@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <customMapSource>
-    <name>TWTOPO-happyman-gpx</name>
+    <name>地圖產生器航跡</name>
     <minZoom>10</minZoom>
     <maxZoom>16</maxZoom>
     <tileType>png</tileType>
     <tileUpdate>IfNoneMatch</tileUpdate>
-    <url>https://tile.happyman.idv.tw/mp/wmts/happyman/gm_grid/{$z}/{$x}/{$y}.png</url>
+    <!--<url>https://tile.happyman.idv.tw/mp/wmts/happyman/gm_grid/{$z}/{$x}/{$y}.png</url>-->
+    <!--<url>http://rs.happyman.idv.tw/map/gpxtrack/{$z}/{$x}/{$y}.png</url>-->
+    <url>https://tile.happyman.idv.tw/map/gpxtrack/{$z}/{$x}/{$y}.png</url>
     <backgroundColor>#000000</backgroundColor>
     <expireDays>14</expireDays>
 </customMapSource>
